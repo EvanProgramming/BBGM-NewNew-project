@@ -4,7 +4,7 @@ import { api } from "../api";
 import { useAuth } from "../auth";
 import { uploadSrc } from "../avatar";
 import { ErrorBanner, FrontPageLink, SectionRule } from "../components/ui";
-import { canEditNews, formatDateline } from "../format";
+import { canEditNews, formatDateline, hasRole, newsTopicsLabel } from "../format";
 import { useI18n } from "../i18n";
 
 function ArticlePreview({ item, body, label }) {
@@ -13,7 +13,7 @@ function ArticlePreview({ item, body, label }) {
     <article className="max-h-[760px] overflow-y-auto border border-neutral-300 bg-white">
       {item.images[0] ? <img src={uploadSrc(item.images[0])} alt="" className="aspect-[16/9] w-full object-cover" /> : <div className="aspect-[16/9] bg-[#D6DEEE]" />}
       <div className="p-5 sm:p-7">
-        <p className="font-sans text-[10px] font-semibold uppercase tracking-[0.15em] text-[#1A4FBF]">{item.topics.map((topic) => topic === "sport" ? "Sports" : topic).join(" · ")}</p>
+        <p className="font-sans text-[10px] font-semibold uppercase tracking-[0.15em] text-[#1A4FBF]">{newsTopicsLabel(item.topics)}</p>
         <h3 className="mt-2 font-serif text-2xl font-semibold leading-tight sm:text-3xl">{item.title}</h3>
         <p className="mt-3 border-b border-neutral-200 pb-4 font-sans text-xs text-neutral-500">{item.author.display_name} · {label}</p>
         {item.images.length > 1 ? <div className="mt-5 grid grid-cols-3 gap-2">{item.images.slice(1).map((image) => <img key={image} src={uploadSrc(image)} alt="" className="aspect-[4/3] w-full object-cover" />)}</div> : null}
@@ -45,7 +45,7 @@ export default function NewsDesign() {
 
   async function refresh(keepId = null) {
     const { items: submissions } = await api.listNewsSubmissions();
-    const drafts = submissions.filter((item) => item.status === "draft" && (user.role === "super_admin" || item.author.id === user.id));
+    const drafts = submissions.filter((item) => item.status === "draft");
     setItems(drafts);
     const next = drafts.find((item) => item.id === keepId) || drafts[0] || null;
     setSelected(next);
@@ -57,7 +57,7 @@ export default function NewsDesign() {
     let active = true;
     api.listNewsSubmissions().then(({ items: submissions }) => {
       if (!active) return;
-      const drafts = submissions.filter((item) => item.status === "draft" && (user.role === "super_admin" || item.author.id === user.id));
+      const drafts = submissions.filter((item) => item.status === "draft");
       setItems(drafts);
       setSelected(drafts[0] || null);
     }).catch((err) => { if (active) setError(err); })
@@ -111,10 +111,9 @@ export default function NewsDesign() {
     setError(null);
     setNotice("");
     try {
-      await api.publishNewsSubmission(selected.id, mode);
-      setItems((current) => current.filter((item) => item.id !== selected.id));
-      setSelected(null);
-      setNotice("Published to News.");
+      const published = await api.publishNewsSubmission(selected.id, mode);
+      const topic = published.topics?.[0];
+      navigate(topic ? `/?topic=${encodeURIComponent(topic)}` : "/");
     } catch (err) {
       setError(err);
     } finally {
@@ -128,7 +127,7 @@ export default function NewsDesign() {
       <FrontPageLink />
       <div className="flex flex-wrap items-end justify-between gap-4">
         <SectionRule>Design · Editorial layout</SectionRule>
-        {user.role === "super_admin" ? <Link to="/news/review" className="mb-3 font-sans text-[10px] font-semibold uppercase tracking-[0.14em] text-[#1A4FBF]">Review queue</Link> : null}
+        {hasRole(user, "super_admin") ? <Link to="/news/review" className="mb-3 font-sans text-[10px] font-semibold uppercase tracking-[0.14em] text-[#1A4FBF]">Review queue</Link> : null}
       </div>
       <ErrorBanner error={error} />
       {notice ? <p role="status" className="mb-4 border-l-2 border-[#1A4FBF] pl-3 font-sans text-sm">{notice}</p> : null}
@@ -151,7 +150,7 @@ export default function NewsDesign() {
         <section className="min-w-0 border-t border-black pt-5 lg:border-l lg:border-t-0 lg:pl-8 lg:pt-0">
           {selected ? (
             <>
-              <p className="font-sans text-[10px] font-semibold uppercase tracking-[0.15em] text-[#1A4FBF]">{selected.topics.map((topic) => topic === "sport" ? "Sports" : topic).join(" · ")}</p>
+              <p className="font-sans text-[10px] font-semibold uppercase tracking-[0.15em] text-[#1A4FBF]">{newsTopicsLabel(selected.topics)}</p>
               <h1 className="mt-2 font-serif text-3xl font-semibold leading-tight">{selected.title}</h1>
               <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
                 {selected.images.map((image) => <img key={image} src={uploadSrc(image)} alt="Story visual" className="aspect-[4/3] w-full border border-neutral-300 object-cover" />)}
@@ -178,7 +177,7 @@ export default function NewsDesign() {
               </div>
               <div className="mt-6 flex flex-wrap gap-3 border-t border-black pt-5">
                 {mode === "formatted" && !selected.formatted_body ? <button type="button" onClick={createDesign} disabled={Boolean(acting)} className="border border-[#1A4FBF] px-4 py-2 font-sans text-[10px] font-semibold uppercase tracking-[0.14em] text-[#1A4FBF] disabled:opacity-50">{acting === "design" ? "Designing…" : "Generate API design"}</button> : null}
-                {user.role === "super_admin" ? (
+                {hasRole(user, "super_admin") ? (
                   <button type="button" onClick={publish} disabled={Boolean(acting) || (mode === "formatted" && !selected.formatted_body)} className="bg-[#1A4FBF] px-4 py-2 font-sans text-[10px] font-semibold uppercase tracking-[0.14em] text-white disabled:opacity-50">{acting === "publish" ? "Publishing…" : "Publish to News"}</button>
                 ) : (
                   <button type="button" onClick={sendForReview} disabled={Boolean(acting) || (mode === "formatted" && !selected.formatted_body)} className="bg-[#1A4FBF] px-4 py-2 font-sans text-[10px] font-semibold uppercase tracking-[0.14em] text-white disabled:opacity-50">{acting === "submit" ? "Sending…" : "Send for review"}</button>

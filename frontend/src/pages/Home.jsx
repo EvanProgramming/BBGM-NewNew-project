@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { api } from "../api";
 import HomeGrid from "../components/HomeGrid";
 import { ErrorBanner } from "../components/ui";
@@ -12,7 +13,12 @@ const TOPICS = [
 ];
 
 export default function Home() {
-  const [topic, setTopic] = useState("all");
+  const [searchParams, setSearchParams] = useSearchParams();
+  const requested = searchParams.get("topic");
+  const topic = TOPICS.some((item) => item.id === requested) ? requested : "all";
+  function selectTopic(next) {
+    setSearchParams(next === "all" ? {} : { topic: next });
+  }
   const [items, setItems] = useState([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -66,7 +72,7 @@ export default function Home() {
       <div className="flex flex-wrap items-center justify-between gap-4 border-b border-black pt-5 pb-3" aria-label="News categories">
         <div className="flex flex-wrap gap-x-6 gap-y-2">
           {TOPICS.map((item) => (
-            <button key={item.id} type="button" aria-pressed={topic === item.id} onClick={() => setTopic(item.id)} className={`font-sans text-[11px] font-semibold uppercase tracking-[0.16em] ${topic === item.id ? "text-[#1A4FBF]" : "text-neutral-500 hover:text-black"}`}>
+            <button key={item.id} type="button" aria-pressed={topic === item.id} onClick={() => selectTopic(item.id)} className={`font-sans text-[11px] font-semibold uppercase tracking-[0.16em] ${topic === item.id ? "text-[#1A4FBF]" : "text-neutral-500 hover:text-black"}`}>
               {item.label}
             </button>
           ))}

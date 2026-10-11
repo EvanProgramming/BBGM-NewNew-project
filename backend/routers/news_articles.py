@@ -127,7 +127,7 @@ def list_articles(
         matching_ids = select(NewsCategory.post_id).where(NewsCategory.topic.in_([topic, "school"] if topic == "scoop" else [topic]))
         filters.append(Post.id.in_(matching_ids))
     try:
-        rows = db.scalars(select(Post).where(*filters).order_by(Post.created_at.desc()).offset((parsed_page - 1) * parsed_size).limit(parsed_size)).all()
+        rows = db.scalars(select(Post).where(*filters).order_by(Post.updated_at.desc(), Post.created_at.desc()).offset((parsed_page - 1) * parsed_size).limit(parsed_size)).all()
         total = db.query(Post).filter(*filters).count()
     except SQLAlchemyError as exc:
         raise StorageError() from exc

@@ -141,6 +141,58 @@ def test_news_submission_stays_private_until_design_publish(tmp_path, monkeypatc
         assert detail.json()["body"] == "The original story body."
 
 
+def test_editor_review_publishes_into_homepage_categories(tmp_path, monkeypatch):
+    app = _make_app(tmp_path, monkeypatch, name="news_review_home.db", admin_email="desk.admin@basischina.com")
+    with TestClient(app) as client:
+        _register(client, "desk.admin@basischina.com", "news-desk-41", "Desk Admin")
+        editor = _register(client, "copy.editor@basischina.com", "news-desk-42", "Copy Editor")
+        editor_id = editor.json()["id"]
+        client.post(
+            "/api/v1/auth/login",
+            json={"email": "desk.admin@basischina.com", "password": "news-desk-41"},
+        )
+        granted = client.patch(f"/api/v1/admin/users/{editor_id}", json={"roles": ["editor"]})
+        assert granted.status_code == 200, granted.text
+
+        client.post(
+            "/api/v1/auth/login",
+            json={"email": "copy.editor@basischina.com", "password": "news-desk-42"},
+        )
+        created = client.post(
+            "/api/v1/news/submissions",
+            data={"title": "Dorm lights out", "body": "The original dorm story.", "topics": '["dorm", "sport"]'},
+        )
+        assert created.status_code == 201, created.text
+        article_id = created.json()["id"]
+        pending = client.post(f"/api/v1/news/submissions/{article_id}/submit", json={"mode": "original"})
+        assert pending.status_code == 200, pending.text
+        assert client.get("/api/v1/news/articles?topic=dorm").json()["total"] == 0
+        assert client.get("/api/v1/news/articles?topic=sport").json()["total"] == 0
+
+        client.post(
+            "/api/v1/auth/login",
+            json={"email": "desk.admin@basischina.com", "password": "news-desk-41"},
+        )
+        queue = client.get("/api/v1/news/review")
+        assert queue.status_code == 200, queue.text
+        assert [item["id"] for item in queue.json()["items"]] == [article_id]
+
+        approved = client.post(f"/api/v1/news/submissions/{article_id}/approve")
+        assert approved.status_code == 200, approved.text
+        assert approved.json()["status"] == "published"
+
+        for topic in ("all", "dorm", "sport"):
+            listing = client.get(f"/api/v1/news/articles?topic={topic}").json()
+            assert listing["total"] == 1
+            assert listing["items"][0]["id"] == article_id
+            assert set(listing["items"][0]["news_categories"]) == {"dorm", "sport"}
+        assert client.get("/api/v1/news/articles?topic=scoop").json()["total"] == 0
+        detail = client.get(f"/api/v1/posts/{article_id}")
+        assert detail.status_code == 200, detail.text
+        assert detail.json()["body"] == "The original dorm story."
+        assert set(detail.json()["news_categories"]) == {"dorm", "sport"}
+
+
 def test_news_draft_can_append_and_remove_multiple_images(tmp_path, monkeypatch):
     app = _make_app(tmp_path, monkeypatch, name="news_images.db", admin_email="images.admin@basischina.com")
     monkeypatch.setattr(avatars, "POST_IMAGE_DIR", tmp_path / "posts")

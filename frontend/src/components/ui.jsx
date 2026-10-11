@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom";
-import { formatDateline } from "../format";
+import { formatDateline, newsTopicsLabel } from "../format";
 import { useI18n } from "../i18n";
 import { uploadSrc } from "../avatar";
 
@@ -123,7 +123,11 @@ export function StoryTile({ post, wellClassName = "h-36", showExcerpt = true, sh
         </Link>
       ) : <ImageWell className={wellClassName} />}
       <div className="mt-3">
-        <Kicker category={post.category} />
+        {post.news_categories?.length ? (
+          <p className="font-sans text-[11px] font-semibold uppercase tracking-[0.16em] text-[#1A4FBF]">{newsTopicsLabel(post.news_categories)}</p>
+        ) : (
+          <Kicker category={post.category} />
+        )}
         <Headline to={`/posts/${post.id}`} className="mt-1 text-[1.25rem]">
           {post.title}
         </Headline>

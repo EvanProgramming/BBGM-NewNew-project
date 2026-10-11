@@ -17,6 +17,21 @@ export function canEditNews(user) {
   return hasRole(user, "editor") || hasRole(user, "super_admin");
 }
 
+const NEWS_TOPIC_LABELS = {
+  sport: "Sports",
+  dorm: "Dorm",
+  scoop: "Scoop",
+  school: "Scoop",
+};
+
+export function newsTopicLabel(topic) {
+  return NEWS_TOPIC_LABELS[topic] || topic;
+}
+
+export function newsTopicsLabel(topics) {
+  return (topics || []).map(newsTopicLabel).join(" · ");
+}
+
 export function canDeletePosts(user) {
   return hasRole(user, "admin") || hasRole(user, "super_admin");
 }

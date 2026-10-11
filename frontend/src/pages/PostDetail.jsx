@@ -6,7 +6,7 @@ import { uploadSrc } from "../avatar";
 import { Avatar } from "../components/Avatar";
 import { ForumLikeButton } from "../components/CommunityCard";
 import { ErrorBanner, FieldError, FrontPageLink, Headline, ImageWell, Kicker, TitleLine, ButtonSpinner } from "../components/ui";
-import { canDeletePosts, formatDateline } from "../format";
+import { canDeletePosts, formatDateline, newsTopicsLabel } from "../format";
 import { useI18n } from "../i18n";
 import { mergeLiveFloors, useLiveRefresh } from "../live";
 
@@ -195,7 +195,7 @@ export default function PostDetail() {
               </div>
             ) : null}
           {post.category === "news" && post.news_categories?.length ? (
-            <p className="mt-4 font-sans text-[10px] font-semibold uppercase tracking-[0.15em] text-[#1A4FBF]">{post.news_categories.join(" · ")}</p>
+            <p className="mt-4 font-sans text-[10px] font-semibold uppercase tracking-[0.15em] text-[#1A4FBF]">{newsTopicsLabel(post.news_categories)}</p>
           ) : null}
           {post.category === "news" && post.blocks?.length && !post.news_categories?.length ? (
             <div className="mt-8 space-y-8">

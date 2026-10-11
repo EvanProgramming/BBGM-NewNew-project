@@ -1,6 +1,6 @@
 import { Link } from "react-router-dom";
 import { useAuth } from "../auth";
-import { canEditNews } from "../format";
+import { canEditNews, newsTopicsLabel } from "../format";
 import { useI18n } from "../i18n";
 import { uploadSrc } from "../avatar";
 import { Dek, Headline, ImageWell, Kicker, SectionRule, StoryTile, TitleLine } from "./ui";
@@ -41,7 +41,7 @@ function StoryImage({ post, className }) {
 
 function SlotKicker({ post, fallback }) {
   if (post?.news_categories?.length) {
-    return <p className="font-sans text-[11px] font-semibold uppercase tracking-[0.16em] text-[#1A4FBF]">{post.news_categories.map((item) => item === "sport" ? "Sports" : item).join(" · ")}</p>;
+    return <p className="font-sans text-[11px] font-semibold uppercase tracking-[0.16em] text-[#1A4FBF]">{newsTopicsLabel(post.news_categories)}</p>;
   }
   if (post?.category) return <Kicker category={post.category} />;
   return (
@@ -192,7 +192,7 @@ export default function HomeGrid({ items, total, loading }) {
                 const post = loading ? null : slot(items, index);
                 return post ? (
                   <article key={post.id} className="border-b border-neutral-200 pb-4">
-                    <Kicker category={post.category} />
+                    <SlotKicker post={post} fallback="" />
                     <Headline to={`/posts/${post.id}`} className="mt-1 text-xl font-semibold">
                       {post.title}
                     </Headline>

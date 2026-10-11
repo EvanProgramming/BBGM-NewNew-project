@@ -4,7 +4,7 @@ import { api } from "../api";
 import { useAuth } from "../auth";
 import { uploadSrc } from "../avatar";
 import { ErrorBanner, FrontPageLink, SectionRule } from "../components/ui";
-import { formatDateline } from "../format";
+import { formatDateline, hasRole, newsTopicsLabel } from "../format";
 import { useI18n } from "../i18n";
 
 export default function NewsReview() {
@@ -21,11 +21,11 @@ export default function NewsReview() {
   useEffect(() => {
     if (!ready) return;
     if (!user) navigate("/sign-in?next=/news/review", { replace: true });
-    else if (user.role !== "super_admin") navigate("/", { replace: true });
+    else if (!hasRole(user, "super_admin")) navigate("/", { replace: true });
   }, [ready, user, navigate]);
 
   useEffect(() => {
-    if (!user || user.role !== "super_admin") return undefined;
+    if (!user || !hasRole(user, "super_admin")) return undefined;
     let active = true;
     const request = submissionId ? api.getNewsReview(submissionId) : api.listNewsReview();
     request.then((result) => {
@@ -44,8 +44,12 @@ export default function NewsReview() {
     try {
       if (action === "approve") await api.approveNewsSubmission(selected.id);
       else await api.rejectNewsSubmission(selected.id);
-      if (window.opener) window.close();
-      else navigate(action === "approve" ? "/" : "/news/review", { replace: true });
+      if (action === "approve") {
+        const topic = selected.topics?.[0];
+        navigate(topic ? `/?topic=${encodeURIComponent(topic)}` : "/", { replace: true });
+      } else {
+        navigate("/news/review", { replace: true });
+      }
     } catch (err) {
       setError(err);
     } finally {
@@ -57,7 +61,7 @@ export default function NewsReview() {
     window.open(`/news/review/${id}`, "_blank", "noopener,noreferrer");
   }
 
-  if (!ready || !user || user.role !== "super_admin") return null;
+  if (!ready || !user || !hasRole(user, "super_admin")) return null;
 
   return (
     <main className="mt-8">
@@ -69,7 +73,7 @@ export default function NewsReview() {
           {items.length ? items.map((item) => (
             <article key={item.id} className="flex flex-wrap items-center justify-between gap-4 py-4">
               <div>
-                <p className="font-sans text-[10px] font-semibold uppercase tracking-[0.14em] text-[#1A4FBF]">{item.topics.join(" · ")}</p>
+                <p className="font-sans text-[10px] font-semibold uppercase tracking-[0.14em] text-[#1A4FBF]">{newsTopicsLabel(item.topics)}</p>
                 <h2 className="mt-1 font-serif text-2xl">{item.title}</h2>
                 <p className="mt-1 font-sans text-xs text-neutral-500">{item.author.display_name} · Submitted {formatDateline(item.updated_at, lang)}</p>
               </div>
@@ -81,7 +85,7 @@ export default function NewsReview() {
         <article className="mx-auto mt-6 max-w-[52rem]">
           <div className="flex flex-wrap items-start justify-between gap-4 border-b border-black pb-4">
             <div>
-              <p className="font-sans text-[10px] font-semibold uppercase tracking-[0.14em] text-[#1A4FBF]">{selected.topics.join(" · ")}</p>
+              <p className="font-sans text-[10px] font-semibold uppercase tracking-[0.14em] text-[#1A4FBF]">{newsTopicsLabel(selected.topics)}</p>
               <h1 className="mt-2 font-serif text-4xl font-semibold">{selected.title}</h1>
               <p className="mt-2 font-sans text-xs text-neutral-500">{selected.author.display_name} · {formatDateline(selected.created_at, lang)}</p>
             </div>
