@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 from avatars import normalize_avatar
 from deps import get_core_db, get_db, get_newsroom_user, get_super_admin, require_not_muted
 from errors import ApiError, StorageError, validation_error
-from models import NewsBlock, Post, User, to_iso, utc_now
+from models import NewsBlock, NewsCategory, Post, User, to_iso, utc_now
 from schemas import (
     AuthorPublic,
     CreateBlockBody,
@@ -80,7 +80,11 @@ def _author_for(core: Session, post: Post) -> User | None:
 def _load_draft(db: Session, draft_id: str) -> Post:
     try:
         post = db.scalar(
-            select(Post).where(Post.id == draft_id, Post.category == "news")
+            select(Post).where(
+                Post.id == draft_id,
+                Post.category == "news",
+                Post.id.not_in(select(NewsCategory.post_id)),
+            )
         )
     except SQLAlchemyError as exc:
         raise StorageError() from exc
@@ -132,10 +136,11 @@ def list_drafts(
     parsed_page = parse_page(page)
     parsed_size = parse_page_size(page_size)
     try:
-        total = db.scalar(select(func.count()).select_from(Post).where(Post.category == "news")) or 0
+        draft_filter = (Post.category == "news", Post.id.not_in(select(NewsCategory.post_id)))
+        total = db.scalar(select(func.count()).select_from(Post).where(*draft_filter)) or 0
         rows = db.scalars(
             select(Post)
-            .where(Post.category == "news")
+            .where(*draft_filter)
             .order_by(Post.updated_at.desc())
             .offset((parsed_page - 1) * parsed_size)
             .limit(parsed_size)

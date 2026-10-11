@@ -1,6 +1,7 @@
 import { Link } from "react-router-dom";
 import { formatDateline } from "../format";
 import { useI18n } from "../i18n";
+import { uploadSrc } from "../avatar";
 
 export function ButtonSpinner() {
   return (
@@ -116,7 +117,11 @@ export function StoryTile({ post, wellClassName = "h-36", showExcerpt = true, sh
   }
   return (
     <article>
-      <ImageWell className={wellClassName} />
+      {post.images?.[0] ? (
+        <Link to={`/posts/${post.id}`} aria-label={`Read ${post.title}`} className={`block overflow-hidden bg-[#D6DEEE] ${wellClassName}`}>
+          <img src={uploadSrc(post.images[0])} alt="" className="h-full w-full object-cover" />
+        </Link>
+      ) : <ImageWell className={wellClassName} />}
       <div className="mt-3">
         <Kicker category={post.category} />
         <Headline to={`/posts/${post.id}`} className="mt-1 text-[1.25rem]">

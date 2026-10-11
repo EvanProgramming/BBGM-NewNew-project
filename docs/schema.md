@@ -2,7 +2,7 @@
 
 依据：`docs/PRD.md` Must Have 与 Entity Flow。本文件同时约束前端 Mock 与后端实现。不包含业务代码。
 
-第一版 **无公开审计查询接口**（M10 仅服务端落库）。作者不能改删自己的帖或评论。`admin` 与 `super_admin` 可整帖删除，并给作者一条 System 通知。仅 `super_admin` 可禁言或删除用户。包含 Forum 评论、角色与 News 分板块草稿。新评论直接挂在帖子上，不新增楼层或楼中楼。
+第一版 **无公开审计查询接口**（M10 仅服务端落库）。作者不能改删自己的帖或评论。`admin` 与 `super_admin` 可整帖删除，并给作者一条 System 通知。仅 `super_admin` 可禁言或删除用户。包含 Forum 评论、角色、News 分板块草稿与独立 News 投稿。新评论直接挂在帖子上，不新增楼层或楼中楼。
 
 ---
 
@@ -123,9 +123,10 @@ Content-Type: application/json
 | `author` | AuthorPublic | |
 | `reply_count` | integer | 楼层数。校报栏目与无 `category` 的列表为 `0` |
 | `reply_preview` | ReplyPreview[] | Forum 最多 4 条楼层（无楼中楼）。其他列表为 `[]`。Forum **列表 UI 不展示**此字段 |
-| `images` | string[] | Forum 配图，同源路径 `/uploads/posts/{post_id}/{file}`，最多 4 张。校报栏目与无 `category` 的列表为 `[]` |
+| `images` | string[] | Forum 或独立 News 投稿配图，同源路径 `/uploads/posts/{post_id}/{file}`，最多 4 张 |
 | `like_count` | integer | Forum 主帖赞数。校报栏目与无 `category` 的列表为 `0` |
 | `liked` | boolean | 当前会话是否已赞该帖；无会话或校报列表为 `false` |
+| `news_categories` | string[] | News 独立投稿的类别子集：`sport`、`dorm`、`scoop`；旧版位稿与 Forum 为 `[]` |
 
 **ReplyPreview**（Forum 卡片用）
 
@@ -667,6 +668,54 @@ Forum 详情停留时可重复请求本接口（间隔与列表相同），合�
 - `401` / `403` / `404`
 - `422`（不是 `pending`）
 - `503`
+
+### 1.4b Likes
+
+### 1.4a News 独立投稿
+
+News 文章仍使用 `Post(category="news")`，每篇文章只有一个内容板块。它与保留的固定版位草稿并行。`NewsCategory` 关联保存 `sport`、`dorm`、`scoop` 中的一个或多个类别；`all` 只用于公开列表筛选。旧 `school` 分类作为兼容值映射为 `scoop`。草稿原文保存在 `NewsBlock.draft_body`，AI/本地排版稿保存在 `formatted_body`，审核通过后才复制到 `published_body`。投稿图片沿用 `Post.images`，最多 4 张 jpeg/png/webp，每张不超过 2MB。
+
+只有 `editor` / `super_admin` 可创建和编辑投稿。作者可以生成排版预览并修改后提交；仅 `super_admin` 可读取审核队列、预览待审稿、批准或退回。无 `OPENAI_API_KEY` 时使用明确标注的本地段落整理预览；有密钥时后端调用 OpenAI Chat Completions，密钥不传给前端。两种情况都不自动发布。
+
+**状态：** `draft`、`pending`、`published`。退回后回到 `draft`。公开接口只返回 `published`。
+
+#### `GET /api/v1/news/articles`
+
+- **鉴权：** 否
+- **Query：** `topic=all|sport|dorm|scoop`（默认 `all`）、`page`、`page_size`
+- **职责：** 按更新时间倒序返回已发布 News 文章；指定 topic 时返回包含该类别的文章。
+- **Response：** `200` `{ items: PostSummary[], page, page_size, total }`。News 的 `PostSummary` 增加 `news_categories: string[]` 并返回已发布 `images[]`。
+
+#### `GET/POST /api/v1/news/submissions`
+
+- **鉴权：** 是（`editor` / `super_admin`）；GET 时编辑仅看自己的稿，超级管理员看全部稿。
+- **POST：** multipart `title`、`body`、`topics`（JSON 字符串数组）、重复 `images` 文件。创建 `draft` 并写审计，返回 `NewsSubmission`。
+- **GET：** 返回 `{ items: NewsSubmission[] }`。`NewsSubmission` 含 `id`、`title`、`body`（原文）、`formatted_body`、`format_source`、`topics`、`images`、`status`、`author`、`created_at`、`updated_at`。
+
+#### `PATCH /api/v1/news/submissions/{id}`
+
+- **鉴权：** 是（作者本人且为 newsroom 角色，或 `super_admin`；仅 `draft` 可编辑）。JSON `title`、`body`、`topics` 至少一项。正文或标题变化后清空旧排版稿。
+- **Response：** `200` + `NewsSubmission`。
+
+#### `POST /api/v1/news/submissions/{id}/format`
+
+- **鉴权：** 是（稿件作者或 `super_admin`；仅 `draft`）。使用配置的 AI 服务排版；无密钥时返回本地段落整理结果。响应写入并返回 `formatted_body` 与 `format_source`（`openai` 或 `local`）。不改原文、不发布。
+
+#### `POST /api/v1/news/submissions/{id}/submit`
+
+- **鉴权：** 是（稿件作者或 `super_admin`，且未禁言）。稿件标为 `pending`，原文和排版稿均不公开。
+
+#### `GET /api/v1/news/review`
+
+- **鉴权：** 是（仅 `super_admin`）。返回所有 `pending` 投稿及原文、排版稿、分类和图片。
+
+#### `POST /api/v1/news/submissions/{id}/approve` / `reject`
+
+- **鉴权：** 是（仅 `super_admin`）。approve 将排版稿（若为空则原文）复制为公开正文并发布；reject 保留草稿内容并退回 `draft`。仅 approve 后公开接口可读到文章。
+
+#### `GET /api/v1/news/articles/{id}`
+
+- **鉴权：** 否；只返回已发布 News `PostDetail`，含 `news_categories`、图片与已批准正文。草稿 / 待审稿返回 `404`。
 
 ### 1.4b Likes
 

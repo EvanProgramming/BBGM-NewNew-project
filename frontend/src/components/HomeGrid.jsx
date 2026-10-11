@@ -2,6 +2,7 @@ import { Link } from "react-router-dom";
 import { useAuth } from "../auth";
 import { canEditNews } from "../format";
 import { useI18n } from "../i18n";
+import { uploadSrc } from "../avatar";
 import { Dek, Headline, ImageWell, Kicker, SectionRule, StoryTile, TitleLine } from "./ui";
 
 const PLACEHOLDER = {
@@ -28,7 +29,20 @@ function slot(items, index) {
   return items[index] ?? null;
 }
 
+function StoryImage({ post, className }) {
+  const image = post?.images?.[0];
+  const content = image ? <img src={uploadSrc(image)} alt="" className="h-full w-full object-cover" /> : <ImageWell className="h-full w-full" />;
+  return post ? (
+    <Link to={`/posts/${post.id}`} aria-label={`Read ${post.title}`} className={`block overflow-hidden bg-[#D6DEEE] ${className}`}>
+      {content}
+    </Link>
+  ) : <ImageWell className={className} />;
+}
+
 function SlotKicker({ post, fallback }) {
+  if (post?.news_categories?.length) {
+    return <p className="font-sans text-[11px] font-semibold uppercase tracking-[0.16em] text-[#1A4FBF]">{post.news_categories.map((item) => item === "sport" ? "Sports" : item).join(" · ")}</p>;
+  }
   if (post?.category) return <Kicker category={post.category} />;
   return (
     <p className="font-sans text-[11px] font-semibold uppercase tracking-[0.16em] text-[#1A4FBF]">
@@ -58,13 +72,13 @@ function Hero({ items, loading }) {
   return (
     <div className="grid grid-cols-1 gap-x-5 gap-y-5 pt-6 lg:grid-cols-12">
       <div className="lg:col-span-7">
-        <ImageWell className="h-full min-h-[320px] w-full" />
+        <StoryImage post={featured} className="h-full min-h-[320px] w-full" />
       </div>
 
       <div className="lg:col-span-5">
         <div className="grid grid-cols-2 gap-x-4 gap-y-3">
           <article>
-            <ImageWell className="aspect-square w-full" />
+            <StoryImage post={secondary} className="aspect-square w-full" />
             <div className="mt-3 border-b border-neutral-200 pb-4">
               <SlotKicker post={secondary} fallback={t("home.news")} />
               <SlotTitle
@@ -75,7 +89,7 @@ function Hero({ items, loading }) {
             </div>
           </article>
           <article>
-            <ImageWell className="aspect-square w-full" />
+            <StoryImage post={third} className="aspect-square w-full" />
             <div className="mt-3 border-b border-neutral-200 pb-4">
               <SlotKicker post={third} fallback={t("home.news")} />
               <SlotTitle post={third} fallback={t("home.thirdTitle")} className="mt-1 text-[21px] font-semibold" />
@@ -97,7 +111,7 @@ function Hero({ items, loading }) {
       </div>
 
       <div className="grid grid-cols-[minmax(120px,0.85fr)_1.15fr] gap-4 lg:col-span-5">
-        <ImageWell className="h-[110px] w-full" />
+        <StoryImage post={sports} className="h-[110px] w-full" />
         <article>
           <SlotKicker post={sports} fallback={t("home.news")} />
           <SlotTitle post={sports} fallback={t("home.wideTitle")} className="mt-1 text-[22px] font-semibold" />

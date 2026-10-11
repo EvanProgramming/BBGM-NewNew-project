@@ -171,6 +171,27 @@ export const api = {
     request(`/news/drafts/${encodeURIComponent(draftId)}/blocks/${encodeURIComponent(blockId)}/reject`, {
       method: "POST",
     }),
+  listNewsArticles: ({ topic = "all", page = 1, pageSize = 20 } = {}) => {
+    const query = new URLSearchParams({ topic, page: String(page), page_size: String(pageSize) });
+    return request(`/news/articles?${query}`);
+  },
+  getNewsArticle: (id) => request(`/news/articles/${encodeURIComponent(id)}`),
+  listNewsSubmissions: () => request("/news/submissions"),
+  createNewsSubmission: (formData) => request("/news/submissions", { method: "POST", body: formData }),
+  patchNewsSubmission: (id, body) =>
+    request(`/news/submissions/${encodeURIComponent(id)}`, { method: "PATCH", body: JSON.stringify(body) }),
+  formatNewsSubmission: (id) =>
+    request(`/news/submissions/${encodeURIComponent(id)}/format`, { method: "POST" }),
+  submitNewsSubmission: (id, mode) =>
+    request(`/news/submissions/${encodeURIComponent(id)}/submit`, { method: "POST", body: JSON.stringify({ mode }) }),
+  listNewsReview: () => request("/news/review"),
+  getNewsReview: (id) => request(`/news/review/${encodeURIComponent(id)}`),
+  approveNewsSubmission: (id) =>
+    request(`/news/submissions/${encodeURIComponent(id)}/approve`, { method: "POST" }),
+  rejectNewsSubmission: (id) =>
+    request(`/news/submissions/${encodeURIComponent(id)}/reject`, { method: "POST" }),
+  publishNewsSubmission: (id, mode) =>
+    request(`/news/submissions/${encodeURIComponent(id)}/publish`, { method: "POST", body: JSON.stringify({ mode }) }),
   listUsers: ({ page = 1, pageSize = 20 } = {}) => {
     const query = new URLSearchParams({
       page: String(page),

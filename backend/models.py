@@ -201,12 +201,22 @@ class NewsBlock(ContentBase):
     heading: Mapped[str] = mapped_column(String(120), nullable=False)
     published_heading: Mapped[str | None] = mapped_column(String(120), nullable=True)
     draft_body: Mapped[str] = mapped_column(Text, nullable=False)
+    formatted_body: Mapped[str | None] = mapped_column(Text, nullable=True)
+    format_source: Mapped[str | None] = mapped_column(String(16), nullable=True)
     published_body: Mapped[str | None] = mapped_column(Text, nullable=True)
     review_status: Mapped[str] = mapped_column(String(16), nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 
     post: Mapped[Post] = relationship(back_populates="blocks")
+
+
+class NewsCategory(ContentBase):
+    __tablename__ = "news_categories"
+    __table_args__ = (UniqueConstraint("post_id", "topic", name="uq_news_categories_post_topic"),)
+
+    post_id: Mapped[str] = mapped_column(ForeignKey("posts.id"), primary_key=True)
+    topic: Mapped[str] = mapped_column(String(16), primary_key=True)
 
 
 class Comment(ContentBase):
@@ -389,6 +399,11 @@ def migrate_content_schema(engine) -> None:
                 conn.exec_driver_sql(
                     "ALTER TABLE posts ADD COLUMN images TEXT NOT NULL DEFAULT '[]'"
                 )
+            block_cols = {row[1] for row in conn.exec_driver_sql("PRAGMA table_info(news_blocks)").fetchall()}
+            if block_cols and "formatted_body" not in block_cols:
+                conn.exec_driver_sql("ALTER TABLE news_blocks ADD COLUMN formatted_body TEXT")
+            if block_cols and "format_source" not in block_cols:
+                conn.exec_driver_sql("ALTER TABLE news_blocks ADD COLUMN format_source VARCHAR(16)")
     ContentBase.metadata.create_all(engine)
     if engine.dialect.name == "sqlite":
         with engine.begin() as conn:

@@ -6,7 +6,7 @@
 
 - 账号：站点自建注册 / 登录；仅 `@basischina.com`。注册须邮箱验证码通过后才建账号。登录用邮箱 + 密码。忘记密码用同一套验证码重置。不接校园 SSO、不发短信。
 - 角色：注册默认为 `student`；`ADMIN_EMAIL` 匹配的账号为 `super_admin`。超级管理员可授予或取消 `teacher`、`editor` 与 `admin`，不能再造一个 `super_admin`。
-- 发帖：Forum 发布即公开。News 以分板块草稿存在，超级管理员同意的板块才出现在 News 上。没有 Sports 栏目，也没有把 Forum 帖直接复制上 News 的精选。
+- 发帖：Forum 发布即公开。News 保留首页固定版位草稿，同时支持独立文章投稿；投稿须经 `super_admin` 审核后公开。首页即 News feed，可按 `sport`、`dorm`、`scoop` 筛选；`all` 表示全部文章，不存为类别。
 - 无活动帖：帖子不带开始时间与地点字段。
 
 ---
@@ -82,13 +82,14 @@ Must 服务主故事 P1-US1（Forum 发帖被看见）以及角色、跟帖、Ne
 | M11 | Forum | 与 News、CJ 平级的单一讨论区，不是用户自建多吧。打开 `/forum` 是推荐：分数 `0.6 × 赞 + 0.4 × 评论`，取前 10，分数相同则较新的在前。`/forum/latest` 是最新：按时间取前 10。`/forum/all` 是所有：按时间列出全部，可翻页。 |
 | M26 | CJ | 与 Forum 平级的课表栏，必须登录并按角色进入三个独立入口。学生端从月历按整周进入周一至周五五列只读视图，Period 1–8 自选学科只存在浏览器本地；每位老师由超级管理员分配一个 CJ 学科，只能读取和更新该学科的 CJ 与考试；`super_admin` 管理端可读取和修改全部 CJ、考试以及老师学科分配。考试必须选择学科，学生端自动显示学科前缀。`editor` 与普通 `admin` 不自动获得 CJ 权限。老师或超级管理员可上传作业照片；百炼 `qwen3-vl-flash` 认出学科并写入当天的 IC / HW / A。裁切处补上的文字单独返回，不冒充照片原文。 |
 | M27 | Teams 群聊生成当周 CJ | 仅 `super_admin`。一个已在目标群里的 Teams 账号经 Microsoft 登录一次，服务器只保存刷新令牌。管理端选择周次后先预览，确认后才把群聊文字交给 DeepSeek `deepseek-flash`，总结成已有学科的 IC / HW / A 并写入 `CJEntry`。不下载附件。对不上学科、星期或超长的条目跳过。学生周视图仍读原来的 CJ 字段。未连接或上游失败时不写入半截 CJ。 |
+| M28 | News 独立投稿 | `editor` 或 `super_admin` 在 Draft 填写标题、正文、图片与类别并保存；Design 中选择原文或 API 排版。编辑提交后进入待审，只有 `super_admin` 可发布。公开 Front Page 按 `sport` / `dorm` / `scoop` 筛选，`all` 为汇总。 |
 | M12 | Forum 评论 | 仅 Forum 详情：帖子下的评论。未登录可读；登录可写。不新增楼层，不写楼中楼。校报详情不加评论。 |
 | M13 | 角色 | `student` / `teacher` / `editor` / `admin` / `super_admin`。`ADMIN_EMAIL` 在注册或登录时升为 `super_admin`。 |
 | M14 | News 分板块草稿 | `editor` 与 `super_admin` 在 `/news/drafts` 新建稿并按板块保存、提交。`super_admin` 可同意或退回单个板块。公开 News 只含已同意板块。已上线板块再改，仍须再次同意后才替换线上正文。 |
 | M15 | 超级管理员用户列表 | 仅 `super_admin` 查看用户，并可设为 `student` / `teacher` / `editor` / `admin`、禁言或解除、删除用户。不能改、禁言或删除自己，也不能动另一个 `super_admin`，不能授予 `super_admin`。 |
-| M16 | 头像 | 自带预设（`preset:oak` 等）或上传一张图；出现在顶栏、Forum 帖/楼、栏目内发帖表。校报栏目没有封面图字段。 |
+| M16 | 头像 | 自带预设（`preset:oak` 等）或上传一张图；出现在顶栏、Forum 帖/楼、栏目内发帖表。 |
 | M17 | Forum 卡片 | `/forum` 每条为独立模块卡：头像、展示名、时间、标题、`excerpt`、有则 `images[0]`；底栏气泡（`reply_count`，点进详情）与拇指（`like_count`）。列表不展开楼层预览。校报列表仍用原印刷行。 |
-| M18 | Forum 配图 | Forum 主帖作者可在发帖时或之后上传最多 4 张 jpeg/png/webp（每张 ≤2MB），存在 `images[]`。News 的 `images` 恒为 `[]`。跟帖不传图。 |
+| M18 | 配图 | Forum 主帖与 News 投稿可上传最多 4 张 jpeg/png/webp（每张 ≤2MB），存在 `images[]`。跟帖不传图。 |
 | M19 | Forum 点赞 | 仅 Forum 主帖。登录可赞/取消（同一用户同一帖不加倍）；未登录只读数量，点赞去登录。校报帖不可赞。 |
 | M20 | 停留时看到新帖 | News（`/`）与 Forum 打开后重复请求已有公开列表；他人新发的帖进入当前列表，无需整页刷新。Forum 详情同样拉新评论。后台拉失败不打断当前阅读、不盖错误条。不另开推送通道或新字段。 |
 | M21 | 删帖与 System 通知 | `admin` 与 `super_admin` 可删除帖子。删之前给作者写一条 System 通知（标题已被移除）。帖、其评论、点赞、配图、板块与该帖审计一并去掉。作者、`editor` 与学生不能删。System 页不可回复。 |
@@ -205,6 +206,7 @@ Elegram 应用（Web 页面 + 服务端）
 | EmailCode | email, purpose, code_hash, expires_at, attempt_count | 注册或找回密码发码；明文不入库；发出后 2 分钟过期，或用过后失效 |
 | Session | 可校验的登录凭证，绑定 user_id，可失效 | 登录创建 → 退出、删除用户或过期销毁。禁言不废除会话 |
 | Post | id, author_id, title, body, category, status, images, created_at, updated_at | Forum 校验通过后 `published`。News 在至少一块被同意前为 `draft`，公开接口不返回。`admin` / `super_admin` 可整帖删除 |
+| NewsCategory | post_id, topic | 独立 News 投稿的类别关联，`topic` 为 `sport` / `dorm` / `scoop`；文章可有多个类别 |
 | NewsBlock | id, post_id, position, heading, published_heading, draft_body, published_body, review_status | `editing` / `pending` / `published`。同意把草稿写入已发布字段。公开详情只用已发布字段 |
 | SystemNotice | id, user_id, body, created_at | 删帖时写给作者；只读，无回复 |
 | PostLike | user_id, post_id, created_at | 仅 Forum 主帖；同一用户同一帖唯一；取消则删行 |

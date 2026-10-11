@@ -1,4 +1,4 @@
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 
 NEWSPAPER_CATEGORIES = ("news",)
@@ -161,6 +161,7 @@ class PostSummary(BaseModel):
     reply_count: int
     reply_preview: list[ReplyPreview]
     images: list[str]
+    news_categories: list[str] = Field(default_factory=list)
     like_count: int
     liked: bool
 
@@ -215,6 +216,16 @@ class NewsDraftList(BaseModel):
     page: int
     page_size: int
     total: int
+
+
+class PatchNewsSubmissionBody(BaseModel):
+    title: str | None = None
+    body: str | None = None
+    topics: list[str] | None = None
+
+
+class PublishNewsSubmissionBody(BaseModel):
+    mode: str = "formatted"
 
 
 class LikeState(BaseModel):

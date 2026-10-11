@@ -232,8 +232,7 @@ export default function PostDetail() {
               {post.created_at ? ` · ${formatDateline(post.created_at, lang)}` : ""}
             </p>
           </div>
-          {isForum ? (
-            post.images?.length ? (
+          {post.images?.length ? (
               <div className="mt-6 grid gap-3">
                 {post.images.map((src) => (
                   <img
@@ -244,11 +243,11 @@ export default function PostDetail() {
                   />
                 ))}
               </div>
-            ) : null
-          ) : (
-            <ImageWell className="mt-6 h-64" />
-          )}
-          {post.category === "news" && post.blocks?.length ? (
+            ) : null}
+          {post.category === "news" && post.news_categories?.length ? (
+            <p className="mt-4 font-sans text-[10px] font-semibold uppercase tracking-[0.15em] text-[#1A4FBF]">{post.news_categories.join(" · ")}</p>
+          ) : null}
+          {post.category === "news" && post.blocks?.length && !post.news_categories?.length ? (
             <div className="mt-8 space-y-8">
               {post.blocks.map((block) => (
                 <section key={block.id}>

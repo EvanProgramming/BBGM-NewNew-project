@@ -11,8 +11,12 @@
 | 路由 | 页面 | 鉴权 | 数据 |
 | --- | --- | --- | --- |
 | `/` | News（报头版式） | 公开 | `GET /api/v1/posts?page=1&page_size=20`（无 `category`，只含已发布 News） |
-| `/news` | 旧路径 | — | 重定向到 `/` |
-| `/news/drafts` | News 草稿 | 需 `editor` 或 `super_admin` | `GET/POST /api/v1/news/drafts` 与板块提交、同意、退回 |
+| `/` | News Front Page 杂志版式 | 公开 | `GET /api/v1/news/articles?topic=all|sport|dorm|scoop`，数据映射到首页既有主图、侧栏与故事版位 |
+| `/news/drafts` | News 固定版位草稿 | 需 `editor` 或 `super_admin` | 保留既有分板块草稿与审核 |
+| `/news/submit` | Draft | 需 `editor` 或 `super_admin` | 创建 / 编辑独立文章并保存原稿，不排版、不发布 |
+| `/news/design` | Design 工作区 | 需 `editor` 或 `super_admin` | 选择 Original 或 API design 并预览；编辑送审，超管发布 |
+| `/news/review` | News 审核 | 仅 `super_admin` | 待审队列；在独立预览窗批准发布或退回 |
+| `/news/articles/:id` | News 文章详情 | 公开 | `GET /api/v1/news/articles/{id}` |
 | `/sports` | 旧路径 | — | 重定向到 `/` |
 | `/forum` | Forum 推荐 | 公开 | `GET /api/v1/posts?category=forum&feed=recommended`。分数 `0.6 × 赞 + 0.4 × 评论`，取前 10。绑 `author.avatar` `title` `author.display_name` `excerpt` `created_at` `images[0]` `reply_count` `like_count` `liked` |
 | `/forum/latest` | Forum 最新 | 公开 | `feed=latest`。按时间前 10 |
@@ -49,7 +53,7 @@
 - 列表同步：首页 / Forum / 帖详情已 live refresh。`/admin/users`、`/news/drafts` 列表、`/system`、`/me/posts` 同样轮询，超管或其他人刚做的改动会进当前页。打开中的草稿编辑框不自动覆盖，以免冲掉未保存正文。
 - 报头：左搜索框（外形保留；提交不调接口，在报头下出一条静态说明）。中：斜体衬线字标 `Elegram` 链回 `/`。右：静态「OWNED BY / 广东智云建材有限公司」。
 - 标语静态：`YOUR STORIES. YOUR VOICE. YOUR PAGE.`
-- 导航：`NEWS`（`/`）`DRAFTS`（`/news/drafts`）`FORUM` `CJ` `OPINION`。`CJ` 与 `FORUM` 同一行，链到 `/cj`。`DRAFTS` 只在 `role` 为 `editor` 或 `super_admin` 时出现。当前路由下划黑线。无 `SUBMIT`，无单独的 News 列表项。Forum 发帖在栏目页内。News 稿在 `/news/drafts`。
+- 导航：`NEWS`（`/`）`FORUM` `CJ` `OPINION`。Newsroom 用户另见 `DRAFT`（`/news/submit`）与 `DESIGN`（`/news/design`）；超级管理员从 Design 进入审核队列或直接发布草稿。旧 `/news` 重定向至首页。Forum 发帖仍在栏目页内。
 - CJ 欢迎屏：`/cj` 仍只按角色跳到学生、老师或管理页。跳转之后，若这次登录还没看过欢迎屏，内容区左上角显示大号衬线 “Welcome, {display_name}”（中文 “欢迎，{display_name}”），约 1.8 秒淡入，淡入结束后再停一会儿，大约 3.2 秒后才渲染课表。标记在 `localStorage`，键带用户 `id`。重新登录或退出时清除。淡入结束前离开 CJ 不写入标记。已在 CJ 内换日期或课程不再播放。
 - 会等待接口的按钮：请求从发出到返回期间，按钮文字旁显示转圈，并且不可再点。页面初次加载仍用原来的“正在读取”文案，不盖整页。
 - 页脚声明（非 schema）：`Owned by 广东智云建材有限公司.`
@@ -230,6 +234,14 @@ Photo of the Day / Track of the Day / Student Art：静态标题+空图框+固�
 | 提交 | `POST .../submit`。状态变为 `pending`，槽仍为蓝。 |
 | 同意 / 退回 | 仅 `super_admin`，且该槽为 `pending` 时在编辑表里显示。`approve` 后若草稿与已发布一致，槽回到报头原样；`reject` 后回到 `editing`，线上不变，槽仍为蓝。 |
 | 失败 | `403` / `422`：`ErrorBanner` 或字段下 `error.fields[]`。禁言写操作显示 `error.message`。 |
+
+### 3.8a News 投稿 `/` `/news/submit` `/news/design` `/news/review`
+
+- 首页 `/` 保留 Front Page 杂志版式，News 文章填入既有主图、侧栏和故事版位。版面内提供 `All`、`Sports`、`Dorm`、`Scoop` 四个筛选；All 是汇总，不是稿件类别。文章标题和首图均打开完整文章内容。
+- `/news/submit`（导航名 Draft）仅 `editor` / `super_admin` 可进。表单含标题、正文、图片（最多 4 张）和多选分类；这里只保存原稿，不做排版或发布。
+- `/news/design`（导航名 Design）选择稿件后可切换 Original / API design。API design 由独立按钮生成预览；无 API key 时明确显示本地段落整理。编辑只能送审，超管可在此确认发布草稿，也可从审核队列审批待审稿。
+- `pending` 稿件不会出现在公开 Front Page；只有 `super_admin` 批准后才发布。退回后编辑可在 Draft 修改，再回 Design 重新选择版本并送审。
+- 所有审核权限由后端校验；路由隐藏不能代替接口权限。详情与列表只返回已发布文章。
 
 ### 3.9 System `/system`
 

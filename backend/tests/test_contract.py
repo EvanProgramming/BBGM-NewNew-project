@@ -66,6 +66,36 @@ def test_missing_session_secret_fails_startup(tmp_path, monkeypatch):
         assert "SESSION_SECRET" in str(exc)
 
 
+def test_news_submission_stays_private_until_design_publish(tmp_path, monkeypatch):
+    app = _make_app(tmp_path, monkeypatch, name="news_publish.db", admin_email="news.admin@basischina.com")
+    with TestClient(app) as client:
+        _register(client, "news.admin@basischina.com", "news-desk-41", "News Admin")
+        created = client.post(
+            "/api/v1/news/submissions",
+            data={"title": "Scoop goes live", "body": "The original story body.", "topics": '["scoop"]'},
+        )
+        assert created.status_code == 201, created.text
+        article_id = created.json()["id"]
+
+        pending = client.post(f"/api/v1/news/submissions/{article_id}/submit", json={"mode": "original"})
+        assert pending.status_code == 200, pending.text
+        assert pending.json()["status"] == "pending"
+        assert client.get("/api/v1/news/articles?topic=scoop").json()["total"] == 0
+
+        published = client.post(
+            f"/api/v1/news/submissions/{article_id}/publish",
+            json={"mode": "original"},
+        )
+        assert published.status_code == 200, published.text
+        assert published.json()["status"] == "published"
+        listing = client.get("/api/v1/news/articles?topic=scoop").json()
+        assert listing["total"] == 1
+        assert listing["items"][0]["id"] == article_id
+        detail = client.get(f"/api/v1/news/articles/{article_id}")
+        assert detail.status_code == 200, detail.text
+        assert detail.json()["body"] == "The original story body."
+
+
 def test_register_login_create_post_public_read_and_persist(tmp_path, monkeypatch):
     app = _make_app(tmp_path, monkeypatch, admin_email="jordan.hale@basischina.com")
     with TestClient(app) as client:

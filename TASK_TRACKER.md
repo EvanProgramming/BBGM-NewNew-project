@@ -63,6 +63,14 @@
 - [x] 详情：`category` `title` `author.display_name` `created_at` `body`。Mock 404 显示 “Story not found.”
 - [x] `/forum`：右下角加号打开浮层 `title` `body` 与配图，`Publish`。未登录加号跳 `/sign-in?next=/forum`。422 写在 `error.fields[]` 对应输入下
 - [x] `/me/posts`：Mock 成功列表与 `total===0` 空态
+
+### News 独立投稿扩展（M28）
+
+- [ ] 保留 `/news/drafts` 固定版位编辑器，新增 `/news/submit`（Draft）独立文章投稿
+- [ ] News 文章支持 Sports / Dorm / Scoop 多选、最多 4 张图片；分类筛选嵌入现有 Front Page
+- [ ] Draft 只保存原稿；Design 分开选择 Original / API design 并预览
+- [ ] 配置 `OPENAI_API_KEY` 时调用 AI，无密钥时明确显示本地段落整理
+- [ ] Editor 从 Design 送审；仅 `super_admin` 可审核或从 Design 发布，公开 API 仅返回已发布文章
 - [x] `/sign-in` `/register`：窄表；Mock `invalid_credentials` / `email_taken` 展示。`/about` `/contact` 静态稿
 - [x] 加载：图框保留，标题位灰线，不挡报头转圈。错误：`error.message` 红字，不用 toast、不用断网假数据
 

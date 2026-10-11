@@ -10,6 +10,7 @@ from routers.admin import router as admin_router
 from routers.auth import router as auth_router
 from routers.cj import router as cj_router
 from routers.news import router as news_router
+from routers.news_articles import router as news_articles_router
 from routers.posts import router as posts_router
 from routers.teams import router as teams_router
 
@@ -44,6 +45,7 @@ def create_app() -> FastAPI:
     app.include_router(cj_router, prefix="/api/v1")
     app.include_router(teams_router, prefix="/api/v1")
     app.include_router(news_router, prefix="/api/v1")
+    app.include_router(news_articles_router, prefix="/api/v1")
     app.include_router(admin_router, prefix="/api/v1")
     app.mount("/uploads", StaticFiles(directory=str(ensure_avatar_dir().parent)), name="uploads")
 
