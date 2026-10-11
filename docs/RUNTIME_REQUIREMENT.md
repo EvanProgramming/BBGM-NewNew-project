@@ -16,7 +16,7 @@
 | --- | --- |
 | 前端 | React + Vite + Tailwind，代码只在 `frontend/`。Node **18+**（Vite 6）。 |
 | 后端 | Python + FastAPI，代码只在 `backend/`。用 **Python 3.12** 级虚拟环境；系统自带 3.6 不够跑当前 FastAPI。依赖见 `backend/requirements.txt`。 |
-| 存储 | SQLite，路径由 `DATABASE_URL` 决定。上传文件在 `backend/uploads/`（头像与 Forum 配图）。 |
+| 存储 | 两个库：新闻/分享内容库（`DATABASE_URL`）与 CJ 学生库（`CORE_DATABASE_URL`，缺省回退到 `DATABASE_URL`）。本地/测试用 SQLite，生产用 MySQL（`mysql+pymysql://`）。上传文件在 `backend/uploads/`（头像与 Forum 配图）。 |
 | 不换栈 | 不要改成 Next.js、Nest、微服务或指定云厂商。 |
 
 ---
@@ -67,7 +67,8 @@ uvicorn 工作目录为 `backend/`。systemd（或等价）以非特权用户跑
 
 | 变量 | 必填 | 模板示例 | 作用 |
 | --- | --- | --- | --- |
-| `DATABASE_URL` | 是 | `sqlite:///./scoop.db` | SQLAlchemy 连接。从 `backend/` 启动时，相对路径落在 `backend/scoop.db`。 |
+| `DATABASE_URL` | 是 | `sqlite:///./scoop.db` | 新闻/分享内容库（posts/news_blocks/comments/post_likes/audit_events）的 SQLAlchemy 连接。从 `backend/` 启动时，相对路径落在 `backend/scoop.db`。生产填 MySQL 内容库。 |
+| `CORE_DATABASE_URL` | 否 | `sqlite:///./scoop.db` | CJ 学生库（users/sessions/subjects/exams/cj_entries/teams）的连接。缺省回退到 `DATABASE_URL`（单库模式，测试即用此）。生产填 MySQL CJ 库。两库在同一 MySQL 服务器时建议加 `?charset=utf8mb4`。 |
 | `SESSION_SECRET` | 是 | `dev-only-change-me` | 签发 / 校验 Cookie `scoop_session`。换密钥会使已有会话全部失效。生产必须换成高强度随机串，不要用模板值。 |
 | `FRONTEND_ORIGIN` | 否 | `http://localhost:5173` | CORS 唯一允许源。缺省即本地 Vite。生产改为浏览器实际 origin。 |
 | `ADMIN_EMAIL` | 否 | 空 | 小写邮箱，须为 `@basischina.com`。该地址在注册或登录时升为 `super_admin`。留空则无人被自动提拔。不要把真实地址写进仓库。 |

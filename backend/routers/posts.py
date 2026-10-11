@@ -2,11 +2,11 @@ from fastapi import APIRouter, Depends, File, Query, Request, UploadFile
 from fastapi.responses import JSONResponse
 from sqlalchemy import func, select
 from sqlalchemy.exc import SQLAlchemyError
-from sqlalchemy.orm import Session, joinedload
+from sqlalchemy.orm import Session
 from starlette.datastructures import UploadFile as StarletteUploadFile
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
-from deps import get_current_user, get_db, get_moderator, get_optional_user, require_not_muted
+from deps import get_core_db, get_current_user, get_db, get_moderator, get_optional_user, require_not_muted
 from errors import ApiError, StorageError, forbidden, validation_error
 from avatars import (
     ALLOWED_TYPES,
@@ -47,13 +47,16 @@ from store import (
     liked_post_ids,
     remove_like,
     user_liked,
+    users_by_ids,
 )
 from validate import parse_forum_feed, parse_optional_category, parse_page, parse_page_size, parse_uuid
 
 router = APIRouter()
 
 
-def _author_public(user: User) -> AuthorPublic:
+def _author_public(user: User | None, author_id: str = "") -> AuthorPublic:
+    if user is None:
+        return AuthorPublic(id=author_id, display_name="Unknown", avatar="preset:oak")
     return AuthorPublic(
         id=user.id,
         display_name=user.display_name,
@@ -64,6 +67,7 @@ def _author_public(user: User) -> AuthorPublic:
 def _summary(
     post: Post,
     *,
+    author: User | None = None,
     reply_count: int = 0,
     reply_preview: list[ReplyPreview] | None = None,
     include_images: bool = False,
@@ -79,7 +83,7 @@ def _summary(
         status=post.status,
         created_at=to_iso(post.created_at),
         updated_at=to_iso(post.updated_at),
-        author=_author_public(post.author),
+        author=_author_public(author, post.author_id),
         reply_count=reply_count,
         reply_preview=reply_preview or [],
         images=images,
@@ -111,6 +115,7 @@ def _published_blocks(db: Session, post: Post) -> list[PublishedBlock]:
 def _detail(
     post: Post,
     *,
+    author: User | None = None,
     blocks: list[PublishedBlock] | None = None,
     like_count: int = 0,
     liked: bool = False,
@@ -118,6 +123,7 @@ def _detail(
     return PostDetail(
         **_summary(
             post,
+            author=author,
             include_images=post.category == "forum",
             like_count=like_count,
             liked=liked,
@@ -129,7 +135,7 @@ def _detail(
 
 def _any_post(db: Session, post_id: str) -> Post:
     try:
-        post = db.scalar(select(Post).options(joinedload(Post.author)).where(Post.id == post_id))
+        post = db.scalar(select(Post).where(Post.id == post_id))
     except SQLAlchemyError as exc:
         raise StorageError() from exc
     if post is None:
@@ -139,9 +145,7 @@ def _any_post(db: Session, post_id: str) -> Post:
 
 def _published_post(db: Session, post_id: str) -> Post:
     try:
-        post = db.scalar(
-            select(Post).options(joinedload(Post.author)).where(Post.id == post_id, Post.status == "published")
-        )
+        post = db.scalar(select(Post).where(Post.id == post_id, Post.status == "published"))
     except SQLAlchemyError as exc:
         raise StorageError() from exc
     if post is None:
@@ -171,6 +175,7 @@ def _post_field_errors(body: CreatePostBody) -> list[dict[str, str]]:
 
 def _list_posts(
     db: Session,
+    core: Session,
     *,
     page: int,
     page_size: int,
@@ -210,7 +215,6 @@ def _list_posts(
         total = db.scalar(select(func.count()).select_from(Post).where(*filters)) or 0
         rows = db.scalars(
             select(Post)
-            .options(joinedload(Post.author))
             .where(*filters)
             .order_by(*order)
             .offset(offset)
@@ -222,15 +226,17 @@ def _list_posts(
         total = min(total, 10)
         page = 1
         page_size = 10
-    previews = _forum_previews(db, rows) if category == "forum" else {}
+    previews = _forum_previews(db, core, rows) if category == "forum" else {}
     include_images = category == "forum"
     forum_ids = [post.id for post in rows if post.category == "forum"]
     like_counts = like_counts_for_posts(db, forum_ids)
     liked_ids = liked_post_ids(db, user_id=viewer.id, post_ids=forum_ids) if viewer else set()
+    authors = users_by_ids(core, [post.author_id for post in rows])
     return PostList(
         items=[
             _summary(
                 post,
+                author=authors.get(post.author_id),
                 reply_count=previews.get(post.id, (0, []))[0],
                 reply_preview=previews.get(post.id, (0, []))[1],
                 include_images=include_images,
@@ -245,19 +251,19 @@ def _list_posts(
     ).model_dump()
 
 
-def _forum_previews(db: Session, posts: list[Post]) -> dict[str, tuple[int, list[ReplyPreview]]]:
+def _forum_previews(db: Session, core: Session, posts: list[Post]) -> dict[str, tuple[int, list[ReplyPreview]]]:
     ids = [post.id for post in posts if post.category == "forum"]
     if not ids:
         return {}
     try:
         floors = db.scalars(
             select(Comment)
-            .options(joinedload(Comment.author))
             .where(Comment.post_id.in_(ids), Comment.parent_id.is_(None))
             .order_by(Comment.created_at.asc())
         ).all()
     except SQLAlchemyError as exc:
         raise StorageError() from exc
+    authors = users_by_ids(core, [floor.author_id for floor in floors])
     grouped: dict[str, list[Comment]] = {}
     for floor in floors:
         grouped.setdefault(floor.post_id, []).append(floor)
@@ -270,7 +276,7 @@ def _forum_previews(db: Session, posts: list[Post]) -> dict[str, tuple[int, list
                     id=item.id,
                     body=item.body,
                     created_at=to_iso(item.created_at),
-                    author=_author_public(item.author),
+                    author=_author_public(authors.get(item.author_id), item.author_id),
                 )
                 for item in items[:4]
             ],
@@ -278,40 +284,41 @@ def _forum_previews(db: Session, posts: list[Post]) -> dict[str, tuple[int, list
     return result
 
 
-def _floor_payload(comment: Comment, floor: int, replies: list[Comment]) -> dict:
+def _floor_payload(comment: Comment, floor: int, replies: list[Comment], authors: dict[str, User]) -> dict:
     return CommentFloor(
         id=comment.id,
         body=comment.body,
         parent_id=None,
         floor=floor,
         created_at=to_iso(comment.created_at),
-        author=_author_public(comment.author),
+        author=_author_public(authors.get(comment.author_id), comment.author_id),
         replies=[
             CommentReply(
                 id=reply.id,
                 body=reply.body,
                 parent_id=reply.parent_id or comment.id,
                 created_at=to_iso(reply.created_at),
-                author=_author_public(reply.author),
+                author=_author_public(authors.get(reply.author_id), reply.author_id),
             )
             for reply in replies
         ],
     ).model_dump()
 
 
-def _reply_payload(comment: Comment) -> dict:
+def _reply_payload(comment: Comment, authors: dict[str, User]) -> dict:
     return CommentReply(
         id=comment.id,
         body=comment.body,
         parent_id=comment.parent_id or "",
         created_at=to_iso(comment.created_at),
-        author=_author_public(comment.author),
+        author=_author_public(authors.get(comment.author_id), comment.author_id),
     ).model_dump()
 
 
 @router.get("/posts")
 def list_posts(
     db: Session = Depends(get_db),
+    core: Session = Depends(get_core_db),
     viewer: User | None = Depends(get_optional_user),
     category: str | None = Query(default=None),
     feed: str | None = Query(default=None),
@@ -328,6 +335,7 @@ def list_posts(
         )
     return _list_posts(
         db,
+        core,
         page=parsed_page,
         page_size=parsed_size,
         category=parsed_category,
@@ -341,6 +349,7 @@ def list_posts(
 def list_comments(
     post_id: str,
     db: Session = Depends(get_db),
+    core: Session = Depends(get_core_db),
     page: str | None = Query(default=None),
     page_size: str | None = Query(default=None),
 ):
@@ -355,7 +364,6 @@ def list_comments(
         total = db.scalar(select(func.count()).select_from(Comment).where(*floor_filter)) or 0
         floors = db.scalars(
             select(Comment)
-            .options(joinedload(Comment.author))
             .where(*floor_filter)
             .order_by(Comment.created_at.asc())
             .offset((parsed_page - 1) * parsed_size)
@@ -366,20 +374,23 @@ def list_comments(
         if floor_ids:
             replies = db.scalars(
                 select(Comment)
-                .options(joinedload(Comment.author))
                 .where(Comment.post_id == post_id, Comment.parent_id.in_(floor_ids))
                 .order_by(Comment.created_at.asc())
             ).all()
     except SQLAlchemyError as exc:
         raise StorageError() from exc
 
+    authors = users_by_ids(
+        core,
+        [item.author_id for item in floors] + [item.author_id for item in replies],
+    )
     grouped: dict[str, list[Comment]] = {item.id: [] for item in floors}
     for reply in replies:
         grouped.setdefault(reply.parent_id or "", []).append(reply)
 
     start = (parsed_page - 1) * parsed_size
     items = [
-        _floor_payload(floor, start + index + 1, grouped.get(floor.id, []))
+        _floor_payload(floor, start + index + 1, grouped.get(floor.id, []), authors)
         for index, floor in enumerate(floors)
     ]
     return CommentList(items=items, page=parsed_page, page_size=parsed_size, total=total).model_dump()
@@ -411,16 +422,17 @@ def create_post_comment(
     try:
         comment = create_comment(
             db,
-            post=post,
-            author=user,
+            post_id=post.id,
+            author_id=user.id,
             body=text,
             parent_id=None,
         )
     except StorageError:
         raise ApiError(503, "storage_unavailable", "Could not save the comment. Try again in a moment.") from None
 
+    authors = {user.id: user}
     if comment.parent_id:
-        return JSONResponse(status_code=201, content=_reply_payload(comment))
+        return JSONResponse(status_code=201, content=_reply_payload(comment, authors))
 
     try:
         floor_total = db.scalar(
@@ -431,7 +443,7 @@ def create_post_comment(
         ) or 1
     except SQLAlchemyError as exc:
         raise StorageError() from exc
-    return JSONResponse(status_code=201, content=_floor_payload(comment, floor_total, []))
+    return JSONResponse(status_code=201, content=_floor_payload(comment, floor_total, [], authors))
 
 
 @router.post("/posts/{post_id}/likes")
@@ -514,13 +526,14 @@ async def upload_post_image(
         raise StorageError() from exc
     except SQLAlchemyError as exc:
         raise StorageError() from exc
-    return _detail(post)
+    return _detail(post, author=user)
 
 
 @router.get("/posts/{post_id}")
 def get_post(
     post_id: str,
     db: Session = Depends(get_db),
+    core: Session = Depends(get_core_db),
     viewer: User | None = Depends(get_optional_user),
 ):
     post = _published_post(db, parse_uuid(post_id))
@@ -531,7 +544,8 @@ def get_post(
         if viewer and post.category == "forum"
         else False
     )
-    return _detail(post, blocks=blocks, like_count=like_count, liked=liked)
+    author = users_by_ids(core, [post.author_id]).get(post.author_id)
+    return _detail(post, author=author, blocks=blocks, like_count=like_count, liked=liked)
 
 
 def _image_field_errors(category: str, uploads: list[tuple[str, bytes]]) -> list[dict[str, str]]:
@@ -600,7 +614,7 @@ async def create_post(
     try:
         post = create_post_with_audit(
             db,
-            author=user,
+            author_id=user.id,
             title=body.title.strip(),
             body=body.body.strip(),
             category=body.category,
@@ -625,13 +639,14 @@ async def create_post(
         if "post" in locals():
             delete_post_images(post.id)
         raise StorageError() from exc
-    return JSONResponse(status_code=201, content=_detail(post))
+    return JSONResponse(status_code=201, content=_detail(post, author=user))
 
 
 @router.get("/me/posts")
 def my_posts(
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
+    core: Session = Depends(get_core_db),
     page: str | None = Query(default=None),
     page_size: str | None = Query(default=None),
 ):
@@ -639,6 +654,7 @@ def my_posts(
     parsed_size = parse_page_size(page_size)
     return _list_posts(
         db,
+        core,
         page=parsed_page,
         page_size=parsed_size,
         category=None,
@@ -652,10 +668,11 @@ def delete_post(
     post_id: str,
     _: User = Depends(get_moderator),
     db: Session = Depends(get_db),
+    core: Session = Depends(get_core_db),
 ):
     post_id = parse_uuid(post_id)
     post = _any_post(db, post_id)
-    add_system_notice(db, user_id=post.author_id, body=f'Your post "{post.title}" was removed.')
+    add_system_notice(core, user_id=post.author_id, body=f'Your post "{post.title}" was removed.')
     delete_post_graph(db, post)
     delete_post_images(post_id)
 

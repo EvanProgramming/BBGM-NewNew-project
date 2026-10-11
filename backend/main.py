@@ -5,7 +5,7 @@ from fastapi.staticfiles import StaticFiles
 from avatars import ensure_avatar_dir
 from config import load_settings
 from errors import register_exception_handlers
-from models import init_db, make_engine, make_session_factory
+from models import init_content_db, init_core_db, make_engine, make_session_factory
 from routers.admin import router as admin_router
 from routers.auth import router as auth_router
 from routers.cj import router as cj_router
@@ -16,13 +16,20 @@ from routers.teams import router as teams_router
 
 def create_app() -> FastAPI:
     settings = load_settings()
-    engine = make_engine(settings.database_url)
-    init_db(engine)
+    core_engine = make_engine(settings.core_database_url)
+    content_engine = make_engine(settings.database_url)
+    init_core_db(core_engine)
+    init_content_db(content_engine)
 
     app = FastAPI(title="Elegram API")
     app.state.settings = settings
-    app.state.engine = engine
-    app.state.session_factory = make_session_factory(engine)
+    app.state.core_engine = core_engine
+    app.state.content_engine = content_engine
+    app.state.core_session_factory = make_session_factory(core_engine)
+    app.state.content_session_factory = make_session_factory(content_engine)
+    # Backwards-compatible aliases: the content store is the default session.
+    app.state.engine = content_engine
+    app.state.session_factory = app.state.content_session_factory
 
     app.add_middleware(
         CORSMiddleware,

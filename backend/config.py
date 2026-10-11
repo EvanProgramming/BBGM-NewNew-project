@@ -11,6 +11,7 @@ _ROOT_DIR = _BACKEND_DIR.parent
 @dataclass(frozen=True)
 class Settings:
     database_url: str
+    core_database_url: str
     session_secret: str
     frontend_origin: str
     admin_email: str
@@ -47,6 +48,11 @@ def load_settings() -> Settings:
     if not database_url:
         raise RuntimeError("DATABASE_URL is required")
 
+    # Two databases: content (DATABASE_URL) and core/CJ (CORE_DATABASE_URL).
+    # When CORE_DATABASE_URL is unset it falls back to DATABASE_URL (single-DB
+    # mode, used by the SQLite tests).
+    core_database_url = (os.environ.get("CORE_DATABASE_URL") or "").strip() or database_url
+
     frontend_origin = (os.environ.get("FRONTEND_ORIGIN") or "http://localhost:5173").strip()
     admin_email = (os.environ.get("ADMIN_EMAIL") or "").strip().lower()
     mail_backend = (os.environ.get("MAIL_BACKEND") or "smtp").strip().lower()
@@ -61,6 +67,7 @@ def load_settings() -> Settings:
     smtp_from = (os.environ.get("SMTP_FROM") or smtp_user).strip()
     return Settings(
         database_url=database_url,
+        core_database_url=core_database_url,
         session_secret=session_secret,
         frontend_origin=frontend_origin,
         admin_email=admin_email,

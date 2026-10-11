@@ -4,7 +4,7 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
 from avatars import delete_post_images, normalize_avatar
-from deps import get_db, get_super_admin
+from deps import get_core_db, get_db, get_super_admin
 from errors import ApiError, StorageError, forbidden, validation_error
 from models import User, to_iso
 from schemas import ASSIGNABLE_ROLES, PatchUserRoleBody, UserList, UserPrivate
@@ -40,7 +40,7 @@ def _load_target(db: Session, user_id: str) -> User:
 @router.get("/admin/users")
 def list_users(
     _: User = Depends(get_super_admin),
-    db: Session = Depends(get_db),
+    db: Session = Depends(get_core_db),
     page: str | None = Query(default=None),
     page_size: str | None = Query(default=None),
 ):
@@ -69,7 +69,7 @@ def patch_user_role(
     user_id: str,
     body: PatchUserRoleBody,
     actor: User = Depends(get_super_admin),
-    db: Session = Depends(get_db),
+    db: Session = Depends(get_core_db),
 ):
     user_id = parse_uuid(user_id, "user_id")
     if body.role is None and body.muted is None:
@@ -96,7 +96,8 @@ def patch_user_role(
 def delete_user(
     user_id: str,
     actor: User = Depends(get_super_admin),
-    db: Session = Depends(get_db),
+    db: Session = Depends(get_core_db),
+    content: Session = Depends(get_db),
 ):
     user_id = parse_uuid(user_id, "user_id")
     target = _load_target(db, user_id)
@@ -104,6 +105,6 @@ def delete_user(
         raise forbidden("You cannot delete your own account.")
     if target.role == "super_admin":
         raise forbidden("Super-admin accounts cannot be deleted here.")
-    post_ids = delete_user_account(db, target)
+    post_ids = delete_user_account(db, content, target)
     for post_id in post_ids:
         delete_post_images(post_id)

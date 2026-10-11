@@ -15,11 +15,20 @@ def to_iso(dt: datetime) -> str:
     return dt.astimezone(timezone.utc).replace(microsecond=0).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
-class Base(DeclarativeBase):
-    pass
+class CoreBase(DeclarativeBase):
+    """CJ student database: users, sessions, subjects, exams, CJ entries, Teams."""
 
 
-class User(Base):
+class ContentBase(DeclarativeBase):
+    """News and sharing database: posts, news blocks, comments, likes, audit."""
+
+
+# ---------------------------------------------------------------------------
+# Core (CJ student) tables
+# ---------------------------------------------------------------------------
+
+
+class User(CoreBase):
     __tablename__ = "users"
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True)
@@ -32,13 +41,10 @@ class User(Base):
     terms_accepted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 
-    posts: Mapped[list["Post"]] = relationship(back_populates="author")
     sessions: Mapped[list["SessionRecord"]] = relationship(back_populates="user")
-    comments: Mapped[list["Comment"]] = relationship(back_populates="author")
-    likes: Mapped[list["PostLike"]] = relationship(back_populates="user")
 
 
-class SessionRecord(Base):
+class SessionRecord(CoreBase):
     __tablename__ = "sessions"
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True)
@@ -50,47 +56,7 @@ class SessionRecord(Base):
     user: Mapped[User] = relationship(back_populates="sessions")
 
 
-class Post(Base):
-    __tablename__ = "posts"
-
-    id: Mapped[str] = mapped_column(String(36), primary_key=True)
-    author_id: Mapped[str] = mapped_column(ForeignKey("users.id"), nullable=False)
-    title: Mapped[str] = mapped_column(String(120), nullable=False)
-    body: Mapped[str] = mapped_column(Text, nullable=False)
-    excerpt: Mapped[str] = mapped_column(String(160), nullable=False)
-    category: Mapped[str] = mapped_column(String(32), nullable=False)
-    is_activity: Mapped[bool] = mapped_column(Boolean, nullable=False)
-    starts_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
-    location: Mapped[str | None] = mapped_column(String(200), nullable=True)
-    status: Mapped[str] = mapped_column(String(32), nullable=False)
-    images: Mapped[str] = mapped_column(Text, nullable=False, default="[]")
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
-    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
-
-    author: Mapped[User] = relationship(back_populates="posts")
-    comments: Mapped[list["Comment"]] = relationship(back_populates="post")
-    likes: Mapped[list["PostLike"]] = relationship(back_populates="post")
-    blocks: Mapped[list["NewsBlock"]] = relationship(back_populates="post")
-
-
-class NewsBlock(Base):
-    __tablename__ = "news_blocks"
-
-    id: Mapped[str] = mapped_column(String(36), primary_key=True)
-    post_id: Mapped[str] = mapped_column(ForeignKey("posts.id"), nullable=False)
-    position: Mapped[int] = mapped_column(Integer, nullable=False)
-    heading: Mapped[str] = mapped_column(String(120), nullable=False)
-    published_heading: Mapped[str | None] = mapped_column(String(120), nullable=True)
-    draft_body: Mapped[str] = mapped_column(Text, nullable=False)
-    published_body: Mapped[str | None] = mapped_column(Text, nullable=True)
-    review_status: Mapped[str] = mapped_column(String(16), nullable=False)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
-    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
-
-    post: Mapped[Post] = relationship(back_populates="blocks")
-
-
-class SystemNotice(Base):
+class SystemNotice(CoreBase):
     __tablename__ = "system_notices"
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True)
@@ -99,44 +65,7 @@ class SystemNotice(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 
 
-class Comment(Base):
-    __tablename__ = "comments"
-
-    id: Mapped[str] = mapped_column(String(36), primary_key=True)
-    post_id: Mapped[str] = mapped_column(ForeignKey("posts.id"), nullable=False)
-    author_id: Mapped[str] = mapped_column(ForeignKey("users.id"), nullable=False)
-    parent_id: Mapped[str | None] = mapped_column(ForeignKey("comments.id"), nullable=True)
-    body: Mapped[str] = mapped_column(Text, nullable=False)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
-
-    post: Mapped[Post] = relationship(back_populates="comments")
-    author: Mapped[User] = relationship(back_populates="comments")
-
-
-class PostLike(Base):
-    __tablename__ = "post_likes"
-    __table_args__ = (UniqueConstraint("user_id", "post_id", name="uq_post_likes_user_post"),)
-
-    id: Mapped[str] = mapped_column(String(36), primary_key=True)
-    user_id: Mapped[str] = mapped_column(ForeignKey("users.id"), nullable=False)
-    post_id: Mapped[str] = mapped_column(ForeignKey("posts.id"), nullable=False)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
-
-    user: Mapped[User] = relationship(back_populates="likes")
-    post: Mapped[Post] = relationship(back_populates="likes")
-
-
-class AuditEvent(Base):
-    __tablename__ = "audit_events"
-
-    id: Mapped[str] = mapped_column(String(36), primary_key=True)
-    actor_id: Mapped[str] = mapped_column(ForeignKey("users.id"), nullable=False)
-    action: Mapped[str] = mapped_column(String(64), nullable=False)
-    post_id: Mapped[str] = mapped_column(ForeignKey("posts.id"), nullable=False)
-    at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
-
-
-class Subject(Base):
+class Subject(CoreBase):
     __tablename__ = "subjects"
     __table_args__ = (UniqueConstraint("name", name="idx_subjects_name"),)
 
@@ -154,7 +83,7 @@ class Subject(Base):
     is_custom: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
 
 
-class CJTeacherSubject(Base):
+class CJTeacherSubject(CoreBase):
     __tablename__ = "cj_teacher_subjects"
     __table_args__ = (
         UniqueConstraint("user_id", "subject_id", name="uq_cj_teacher_subject"),
@@ -165,7 +94,7 @@ class CJTeacherSubject(Base):
     subject_id: Mapped[str] = mapped_column(ForeignKey("subjects.id"), nullable=False)
 
 
-class Exam(Base):
+class Exam(CoreBase):
     __tablename__ = "exams"
     __table_args__ = (Index("idx_exams_week_day", "week_start", "day_index"),)
 
@@ -180,7 +109,7 @@ class Exam(Base):
     updated_at: Mapped[str] = mapped_column(String(32), nullable=False)
 
 
-class CJEntry(Base):
+class CJEntry(CoreBase):
     __tablename__ = "cj_entries"
     __table_args__ = (
         UniqueConstraint(
@@ -204,7 +133,7 @@ class CJEntry(Base):
     updated_at: Mapped[str] = mapped_column(String(32), nullable=False)
 
 
-class TeamsConnection(Base):
+class TeamsConnection(CoreBase):
     __tablename__ = "teams_connections"
 
     id: Mapped[str] = mapped_column(String(16), primary_key=True)
@@ -212,14 +141,14 @@ class TeamsConnection(Base):
     updated_at: Mapped[str] = mapped_column(String(32), nullable=False)
 
 
-class TeamsOAuthState(Base):
+class TeamsOAuthState(CoreBase):
     __tablename__ = "teams_oauth_states"
 
     state: Mapped[str] = mapped_column(String(80), primary_key=True)
     created_at: Mapped[str] = mapped_column(String(32), nullable=False)
 
 
-class EmailCode(Base):
+class EmailCode(CoreBase):
     __tablename__ = "email_codes"
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True)
@@ -229,6 +158,90 @@ class EmailCode(Base):
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     attempt_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
+# ---------------------------------------------------------------------------
+# Content (news & sharing) tables
+#
+# `author_id` / `user_id` / `actor_id` reference users that live in the CJ
+# database (a different MySQL database), so they are plain indexed columns:
+# MySQL cannot enforce a foreign key across databases. The application loads
+# the referenced users from the core database when it serializes content.
+# ---------------------------------------------------------------------------
+
+
+class Post(ContentBase):
+    __tablename__ = "posts"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    author_id: Mapped[str] = mapped_column(String(36), nullable=False, index=True)
+    title: Mapped[str] = mapped_column(String(120), nullable=False)
+    body: Mapped[str] = mapped_column(Text, nullable=False)
+    excerpt: Mapped[str] = mapped_column(String(160), nullable=False)
+    category: Mapped[str] = mapped_column(String(32), nullable=False)
+    is_activity: Mapped[bool] = mapped_column(Boolean, nullable=False)
+    starts_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    location: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    status: Mapped[str] = mapped_column(String(32), nullable=False)
+    images: Mapped[str] = mapped_column(Text, nullable=False, default="[]")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+    comments: Mapped[list["Comment"]] = relationship(back_populates="post")
+    likes: Mapped[list["PostLike"]] = relationship(back_populates="post")
+    blocks: Mapped[list["NewsBlock"]] = relationship(back_populates="post")
+
+
+class NewsBlock(ContentBase):
+    __tablename__ = "news_blocks"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    post_id: Mapped[str] = mapped_column(ForeignKey("posts.id"), nullable=False)
+    position: Mapped[int] = mapped_column(Integer, nullable=False)
+    heading: Mapped[str] = mapped_column(String(120), nullable=False)
+    published_heading: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    draft_body: Mapped[str] = mapped_column(Text, nullable=False)
+    published_body: Mapped[str | None] = mapped_column(Text, nullable=True)
+    review_status: Mapped[str] = mapped_column(String(16), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+    post: Mapped[Post] = relationship(back_populates="blocks")
+
+
+class Comment(ContentBase):
+    __tablename__ = "comments"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    post_id: Mapped[str] = mapped_column(ForeignKey("posts.id"), nullable=False)
+    author_id: Mapped[str] = mapped_column(String(36), nullable=False, index=True)
+    parent_id: Mapped[str | None] = mapped_column(ForeignKey("comments.id"), nullable=True)
+    body: Mapped[str] = mapped_column(Text, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+    post: Mapped[Post] = relationship(back_populates="comments")
+
+
+class PostLike(ContentBase):
+    __tablename__ = "post_likes"
+    __table_args__ = (UniqueConstraint("user_id", "post_id", name="uq_post_likes_user_post"),)
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    user_id: Mapped[str] = mapped_column(String(36), nullable=False, index=True)
+    post_id: Mapped[str] = mapped_column(ForeignKey("posts.id"), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+    post: Mapped[Post] = relationship(back_populates="likes")
+
+
+class AuditEvent(ContentBase):
+    __tablename__ = "audit_events"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    actor_id: Mapped[str] = mapped_column(String(36), nullable=False, index=True)
+    action: Mapped[str] = mapped_column(String(64), nullable=False)
+    post_id: Mapped[str] = mapped_column(ForeignKey("posts.id"), nullable=False)
+    at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 
 
 def make_engine(database_url: str):
@@ -310,7 +323,7 @@ def _drop_sports_and_backfill_blocks(conn) -> None:
         )
 
 
-def migrate_schema(engine) -> None:
+def migrate_core_schema(engine) -> None:
     if engine.dialect.name == "sqlite":
         with engine.begin() as conn:
             cols = {row[1] for row in conn.exec_driver_sql("PRAGMA table_info(users)").fetchall()}
@@ -333,11 +346,6 @@ def migrate_schema(engine) -> None:
             cols = {row[1] for row in conn.exec_driver_sql("PRAGMA table_info(users)").fetchall()}
             if cols and "banned" in cols:
                 _sqlite_drop_users_banned(conn)
-            post_cols = {row[1] for row in conn.exec_driver_sql("PRAGMA table_info(posts)").fetchall()}
-            if post_cols and "images" not in post_cols:
-                conn.exec_driver_sql(
-                    "ALTER TABLE posts ADD COLUMN images TEXT NOT NULL DEFAULT '[]'"
-                )
             subject_cols = {row[1] for row in conn.exec_driver_sql("PRAGMA table_info(subjects)").fetchall()}
             subject_columns = {
                 "grade": "INTEGER NOT NULL DEFAULT 11",
@@ -350,7 +358,38 @@ def migrate_schema(engine) -> None:
             for column, definition in subject_columns.items():
                 if subject_cols and column not in subject_cols:
                     conn.exec_driver_sql(f"ALTER TABLE subjects ADD COLUMN {column} {definition}")
-    Base.metadata.create_all(engine)
+    CoreBase.metadata.create_all(engine)
+    if engine.dialect.name == "sqlite":
+        with engine.begin() as conn:
+            tables = {
+                row[0]
+                for row in conn.exec_driver_sql(
+                    "SELECT name FROM sqlite_master WHERE type='table'"
+                ).fetchall()
+            }
+            if "exams" in tables:
+                exam_cols = {
+                    row[1] for row in conn.exec_driver_sql("PRAGMA table_info(exams)").fetchall()
+                }
+                if "subject_id" not in exam_cols:
+                    conn.exec_driver_sql("ALTER TABLE exams ADD COLUMN subject_id VARCHAR(64)")
+                conn.exec_driver_sql(
+                    "UPDATE exams SET subject_id='ap-calculus' "
+                    "WHERE subject_id IS NULL AND title LIKE 'AP Calculus AB%'")
+                conn.exec_driver_sql(
+                    "UPDATE exams SET subject_id='ap-economics' "
+                    "WHERE subject_id IS NULL AND title LIKE 'AP Economics%'")
+
+
+def migrate_content_schema(engine) -> None:
+    if engine.dialect.name == "sqlite":
+        with engine.begin() as conn:
+            post_cols = {row[1] for row in conn.exec_driver_sql("PRAGMA table_info(posts)").fetchall()}
+            if post_cols and "images" not in post_cols:
+                conn.exec_driver_sql(
+                    "ALTER TABLE posts ADD COLUMN images TEXT NOT NULL DEFAULT '[]'"
+                )
+    ContentBase.metadata.create_all(engine)
     if engine.dialect.name == "sqlite":
         with engine.begin() as conn:
             tables = {
@@ -368,19 +407,11 @@ def migrate_schema(engine) -> None:
                     "WHERE is_activity != 0 OR starts_at IS NOT NULL OR location IS NOT NULL"
                 )
                 _drop_sports_and_backfill_blocks(conn)
-            if "exams" in tables:
-                exam_cols = {
-                    row[1] for row in conn.exec_driver_sql("PRAGMA table_info(exams)").fetchall()
-                }
-                if "subject_id" not in exam_cols:
-                    conn.exec_driver_sql("ALTER TABLE exams ADD COLUMN subject_id VARCHAR(64)")
-                conn.exec_driver_sql(
-                    "UPDATE exams SET subject_id='ap-calculus' "
-                    "WHERE subject_id IS NULL AND title LIKE 'AP Calculus AB%'")
-                conn.exec_driver_sql(
-                    "UPDATE exams SET subject_id='ap-economics' "
-                    "WHERE subject_id IS NULL AND title LIKE 'AP Economics%'")
 
 
-def init_db(engine) -> None:
-    migrate_schema(engine)
+def init_core_db(engine) -> None:
+    migrate_core_schema(engine)
+
+
+def init_content_db(engine) -> None:
+    migrate_content_schema(engine)

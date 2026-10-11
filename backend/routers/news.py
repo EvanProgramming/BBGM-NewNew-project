@@ -4,10 +4,10 @@ from fastapi import APIRouter, Depends, Query
 from fastapi.responses import JSONResponse
 from sqlalchemy import func, select
 from sqlalchemy.exc import SQLAlchemyError
-from sqlalchemy.orm import Session, joinedload
+from sqlalchemy.orm import Session
 
 from avatars import normalize_avatar
-from deps import get_db, get_newsroom_user, get_super_admin, require_not_muted
+from deps import get_core_db, get_db, get_newsroom_user, get_super_admin, require_not_muted
 from errors import ApiError, StorageError, validation_error
 from models import NewsBlock, Post, User, to_iso, utc_now
 from schemas import (
@@ -20,7 +20,7 @@ from schemas import (
     NewsDraftSummary,
     PatchBlockBody,
 )
-from store import create_news_draft, refresh_news_publication
+from store import create_news_draft, refresh_news_publication, users_by_ids
 from validate import parse_page, parse_page_size, parse_uuid
 
 router = APIRouter()
@@ -32,6 +32,12 @@ def _author(user: User) -> AuthorPublic:
         display_name=user.display_name,
         avatar=normalize_avatar(getattr(user, "avatar", None)),
     )
+
+
+def _author_public(user: User | None, author_id: str) -> AuthorPublic:
+    if user is None:
+        return AuthorPublic(id=author_id, display_name="Unknown", avatar="preset:oak")
+    return _author(user)
 
 
 def _block_staff(block: NewsBlock) -> NewsBlockStaff:
@@ -54,7 +60,7 @@ def _blocks_for(db: Session, post_id: str) -> list[NewsBlock]:
     )
 
 
-def _draft_detail(db: Session, post: Post) -> dict:
+def _draft_detail(db: Session, post: Post, author: User | None) -> dict:
     blocks = _blocks_for(db, post.id)
     return NewsDraftDetail(
         id=post.id,
@@ -62,15 +68,19 @@ def _draft_detail(db: Session, post: Post) -> dict:
         status=post.status,
         created_at=to_iso(post.created_at),
         updated_at=to_iso(post.updated_at),
-        author=_author(post.author),
+        author=_author_public(author, post.author_id),
         blocks=[_block_staff(block) for block in blocks],
     ).model_dump()
+
+
+def _author_for(core: Session, post: Post) -> User | None:
+    return users_by_ids(core, [post.author_id]).get(post.author_id)
 
 
 def _load_draft(db: Session, draft_id: str) -> Post:
     try:
         post = db.scalar(
-            select(Post).options(joinedload(Post.author)).where(Post.id == draft_id, Post.category == "news")
+            select(Post).where(Post.id == draft_id, Post.category == "news")
         )
     except SQLAlchemyError as exc:
         raise StorageError() from exc
@@ -115,6 +125,7 @@ def _position_error(value: int) -> dict[str, str] | None:
 def list_drafts(
     _: User = Depends(get_newsroom_user),
     db: Session = Depends(get_db),
+    core: Session = Depends(get_core_db),
     page: str | None = Query(default=None),
     page_size: str | None = Query(default=None),
 ):
@@ -124,7 +135,6 @@ def list_drafts(
         total = db.scalar(select(func.count()).select_from(Post).where(Post.category == "news")) or 0
         rows = db.scalars(
             select(Post)
-            .options(joinedload(Post.author))
             .where(Post.category == "news")
             .order_by(Post.updated_at.desc())
             .offset((parsed_page - 1) * parsed_size)
@@ -132,6 +142,7 @@ def list_drafts(
         ).all()
     except SQLAlchemyError as exc:
         raise StorageError() from exc
+    authors = users_by_ids(core, [post.author_id for post in rows])
     return NewsDraftList(
         items=[
             NewsDraftSummary(
@@ -140,7 +151,7 @@ def list_drafts(
                 status=post.status,
                 created_at=to_iso(post.created_at),
                 updated_at=to_iso(post.updated_at),
-                author=_author(post.author),
+                author=_author_public(authors.get(post.author_id), post.author_id),
             )
             for post in rows
         ],
@@ -160,8 +171,8 @@ def create_draft(
     title = body.title.strip()
     if not title or len(title) > 120:
         raise validation_error([{"field": "title", "message": "Title must be 1–120 characters."}])
-    post = create_news_draft(db, author=user, title=title)
-    return JSONResponse(status_code=201, content=_draft_detail(db, post))
+    post = create_news_draft(db, author_id=user.id, title=title)
+    return JSONResponse(status_code=201, content=_draft_detail(db, post, user))
 
 
 @router.get("/news/drafts/{draft_id}")
@@ -169,9 +180,10 @@ def get_draft(
     draft_id: str,
     _: User = Depends(get_newsroom_user),
     db: Session = Depends(get_db),
+    core: Session = Depends(get_core_db),
 ):
     post = _load_draft(db, parse_uuid(draft_id, "draft_id"))
-    return _draft_detail(db, post)
+    return _draft_detail(db, post, _author_for(core, post))
 
 
 @router.post("/news/drafts/{draft_id}/blocks", status_code=201)
@@ -180,6 +192,7 @@ def add_block(
     body: CreateBlockBody,
     user: User = Depends(get_newsroom_user),
     db: Session = Depends(get_db),
+    core: Session = Depends(get_core_db),
 ):
     require_not_muted(user)
     post = _load_draft(db, parse_uuid(draft_id, "draft_id"))
@@ -227,7 +240,7 @@ def add_block(
         db.flush()
     except SQLAlchemyError as exc:
         raise StorageError() from exc
-    return JSONResponse(status_code=201, content=_draft_detail(db, post))
+    return JSONResponse(status_code=201, content=_draft_detail(db, post, _author_for(core, post)))
 
 
 @router.patch("/news/drafts/{draft_id}/blocks/{block_id}")
@@ -237,6 +250,7 @@ def patch_block(
     body: PatchBlockBody,
     user: User = Depends(get_newsroom_user),
     db: Session = Depends(get_db),
+    core: Session = Depends(get_core_db),
 ):
     require_not_muted(user)
     post = _load_draft(db, parse_uuid(draft_id, "draft_id"))
@@ -262,7 +276,7 @@ def patch_block(
     now = utc_now()
     block.updated_at = now
     post.updated_at = now
-    return _draft_detail(db, post)
+    return _draft_detail(db, post, _author_for(core, post))
 
 
 @router.post("/news/drafts/{draft_id}/blocks/{block_id}/submit")
@@ -271,6 +285,7 @@ def submit_block(
     block_id: str,
     user: User = Depends(get_newsroom_user),
     db: Session = Depends(get_db),
+    core: Session = Depends(get_core_db),
 ):
     require_not_muted(user)
     post = _load_draft(db, parse_uuid(draft_id, "draft_id"))
@@ -279,7 +294,7 @@ def submit_block(
     now = utc_now()
     block.updated_at = now
     post.updated_at = now
-    return _draft_detail(db, post)
+    return _draft_detail(db, post, _author_for(core, post))
 
 
 def _require_pending(block: NewsBlock) -> None:
@@ -295,6 +310,7 @@ def approve_block(
     block_id: str,
     _: User = Depends(get_super_admin),
     db: Session = Depends(get_db),
+    core: Session = Depends(get_core_db),
 ):
     post = _load_draft(db, parse_uuid(draft_id, "draft_id"))
     block = _load_block(db, post.id, parse_uuid(block_id, "block_id"))
@@ -305,7 +321,7 @@ def approve_block(
     now = utc_now()
     block.updated_at = now
     refresh_news_publication(db, post)
-    return _draft_detail(db, post)
+    return _draft_detail(db, post, _author_for(core, post))
 
 
 @router.post("/news/drafts/{draft_id}/blocks/{block_id}/reject")
@@ -314,6 +330,7 @@ def reject_block(
     block_id: str,
     _: User = Depends(get_super_admin),
     db: Session = Depends(get_db),
+    core: Session = Depends(get_core_db),
 ):
     post = _load_draft(db, parse_uuid(draft_id, "draft_id"))
     block = _load_block(db, post.id, parse_uuid(block_id, "block_id"))
@@ -322,4 +339,4 @@ def reject_block(
     now = utc_now()
     block.updated_at = now
     post.updated_at = now
-    return _draft_detail(db, post)
+    return _draft_detail(db, post, _author_for(core, post))

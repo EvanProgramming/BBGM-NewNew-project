@@ -6,7 +6,7 @@ from sqlalchemy import delete, func, select
 from sqlalchemy.orm import Session
 
 from cj_vision import recognize_homework
-from deps import get_cj_editor, get_cj_viewer, get_db, get_super_admin
+from deps import get_cj_editor, get_cj_viewer, get_core_db, get_super_admin
 from errors import ApiError, validation_error
 from models import CJEntry, CJTeacherSubject, Exam, Subject, User, to_iso, utc_now
 
@@ -283,7 +283,7 @@ def _teacher_payload(db: Session, user: User) -> dict:
 def read_cj(
     week_start: str = "",
     user: User = Depends(get_cj_viewer),
-    db: Session = Depends(get_db),
+    db: Session = Depends(get_core_db),
 ):
     week = _week_or_error(week_start)
     _ensure_seed(db, week)
@@ -319,7 +319,7 @@ def read_cj(
 def create_cj_subject(
     body: dict,
     _: User = Depends(get_cj_editor),
-    db: Session = Depends(get_db),
+    db: Session = Depends(get_core_db),
 ):
     name = str(body.get("name") or "").strip()
     short_name = str(body.get("short_name") or "").strip()
@@ -371,7 +371,7 @@ def create_cj_subject(
 def delete_cj_subject(
     subject_id: str,
     _: User = Depends(get_super_admin),
-    db: Session = Depends(get_db),
+    db: Session = Depends(get_core_db),
 ):
     subject = db.get(Subject, subject_id)
     if subject is None:
@@ -392,7 +392,7 @@ def delete_cj_subject(
 def save_cj(
     body: dict,
     user: User = Depends(get_cj_editor),
-    db: Session = Depends(get_db),
+    db: Session = Depends(get_core_db),
 ):
     week = _week_or_error(str(body.get("week_start") or ""))
     subject_id = str(body.get("subject_id") or "").strip()
@@ -448,7 +448,7 @@ async def recognize_cj_photo(
     week_start: str = Form(""),
     day_index: str = Form(""),
     _: User = Depends(get_cj_editor),
-    db: Session = Depends(get_db),
+    db: Session = Depends(get_core_db),
 ):
     week = _week_or_error(week_start)
     try:
@@ -529,7 +529,7 @@ async def recognize_cj_photo(
 def save_exam(
     body: dict,
     user: User = Depends(get_cj_editor),
-    db: Session = Depends(get_db),
+    db: Session = Depends(get_core_db),
 ):
     week = _week_or_error(str(body.get("week_start") or ""))
     day_index = body.get("day_index")
@@ -588,7 +588,7 @@ def save_exam(
 def delete_exam(
     exam_id: str,
     _: User = Depends(get_cj_editor),
-    db: Session = Depends(get_db),
+    db: Session = Depends(get_core_db),
 ):
     exam = db.get(Exam, exam_id)
     if exam is None:
@@ -601,7 +601,7 @@ def delete_exam(
 @router.get("/cj/teachers")
 def list_cj_teachers(
     _: User = Depends(get_super_admin),
-    db: Session = Depends(get_db),
+    db: Session = Depends(get_core_db),
 ):
     teachers = db.scalars(
         select(User).where(User.role == "teacher").order_by(User.display_name, User.email)
@@ -614,7 +614,7 @@ def assign_cj_teacher_subjects(
     teacher_id: str,
     body: dict,
     _: User = Depends(get_super_admin),
-    db: Session = Depends(get_db),
+    db: Session = Depends(get_core_db),
 ):
     teacher = db.get(User, teacher_id)
     if teacher is None or teacher.role != "teacher":

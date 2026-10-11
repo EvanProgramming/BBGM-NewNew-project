@@ -1,3 +1,5 @@
+from typing import Iterator
+
 from fastapi import Depends, Request
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
@@ -9,8 +11,8 @@ from security import COOKIE_NAME, unsign_cookie_value
 from store import get_session_by_token
 
 
-def get_db(request: Request):
-    session = request.app.state.session_factory()
+def _session_scope(factory) -> Iterator[Session]:
+    session = factory()
     try:
         yield session
         session.commit()
@@ -27,7 +29,17 @@ def get_db(request: Request):
         session.close()
 
 
-def get_current_user(request: Request, db: Session = Depends(get_db)) -> User:
+def get_db(request: Request):
+    """Content database session (posts, news blocks, comments, likes, audit)."""
+    yield from _session_scope(request.app.state.content_session_factory)
+
+
+def get_core_db(request: Request):
+    """CJ student database session (users, sessions, CJ schedule, Teams)."""
+    yield from _session_scope(request.app.state.core_session_factory)
+
+
+def get_current_user(request: Request, db: Session = Depends(get_core_db)) -> User:
     raw = request.cookies.get(COOKIE_NAME)
     if not raw:
         raise unauthenticated()
@@ -45,7 +57,7 @@ def require_not_muted(user: User) -> None:
         raise account_muted()
 
 
-def get_optional_user(request: Request, db: Session = Depends(get_db)) -> User | None:
+def get_optional_user(request: Request, db: Session = Depends(get_core_db)) -> User | None:
     raw = request.cookies.get(COOKIE_NAME)
     if not raw:
         return None

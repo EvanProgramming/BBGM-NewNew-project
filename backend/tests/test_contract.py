@@ -14,6 +14,7 @@ from validate import normalize_email
 def _make_app(tmp_path, monkeypatch, name="scoop.db", admin_email=""):
     monkeypatch.setenv("SESSION_SECRET", "pytest-session-secret")
     monkeypatch.setenv("DATABASE_URL", f"sqlite:///{tmp_path / name}")
+    monkeypatch.setenv("CORE_DATABASE_URL", f"sqlite:///{tmp_path / ('core_' + name)}")
     monkeypatch.setenv("FRONTEND_ORIGIN", "http://localhost:5173")
     monkeypatch.setenv("ADMIN_EMAIL", admin_email)
     monkeypatch.setenv("MAIL_BACKEND", "console")

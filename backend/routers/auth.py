@@ -13,7 +13,7 @@ from avatars import (
     normalize_avatar,
     preset_avatar,
 )
-from deps import get_current_user, get_db
+from deps import get_core_db, get_current_user
 from errors import ApiError, StorageError, unauthenticated, validation_error
 from models import User, to_iso, utc_now
 from mail import send_verification_email
@@ -85,7 +85,7 @@ def _clear_session_cookie(response: Response) -> None:
 
 
 @router.post("/auth/email-codes", status_code=204)
-def request_email_code(body: EmailCodeBody, request: Request, db: Session = Depends(get_db)) -> None:
+def request_email_code(body: EmailCodeBody, request: Request, db: Session = Depends(get_core_db)) -> None:
     fields = email_code_field_errors(body.email, body.purpose)
     if fields:
         raise validation_error(fields)
@@ -116,7 +116,7 @@ def request_email_code(body: EmailCodeBody, request: Request, db: Session = Depe
 
 
 @router.post("/auth/register")
-def register(body: RegisterBody, request: Request, db: Session = Depends(get_db)):
+def register(body: RegisterBody, request: Request, db: Session = Depends(get_core_db)):
     fields = register_field_errors(
         body.email, body.password, body.display_name, body.code, body.accept_terms
     )
@@ -170,7 +170,7 @@ def register(body: RegisterBody, request: Request, db: Session = Depends(get_db)
 
 
 @router.post("/auth/password-reset", status_code=204)
-def reset_password(body: PasswordResetBody, db: Session = Depends(get_db)) -> None:
+def reset_password(body: PasswordResetBody, db: Session = Depends(get_core_db)) -> None:
     fields = password_reset_field_errors(body.email, body.code, body.password)
     if fields:
         raise validation_error(fields)
@@ -193,7 +193,7 @@ def reset_password(body: PasswordResetBody, db: Session = Depends(get_db)) -> No
 
 
 @router.post("/auth/login")
-def login(body: LoginBody, request: Request, db: Session = Depends(get_db)):
+def login(body: LoginBody, request: Request, db: Session = Depends(get_core_db)):
     fields = login_field_errors(body.email, body.password)
     if fields:
         raise validation_error(fields)
@@ -219,7 +219,7 @@ def login(body: LoginBody, request: Request, db: Session = Depends(get_db)):
 
 
 @router.post("/auth/logout", status_code=204)
-def logout(request: Request, response: Response, db: Session = Depends(get_db)) -> None:
+def logout(request: Request, response: Response, db: Session = Depends(get_core_db)) -> None:
     raw = request.cookies.get(COOKIE_NAME)
     if not raw:
         raise unauthenticated()
@@ -242,7 +242,7 @@ def me(user: User = Depends(get_current_user)) -> dict:
 def change_password(
     body: ChangePasswordBody,
     user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
+    db: Session = Depends(get_core_db),
 ) -> None:
     fields = change_password_field_errors(body.current_password, body.password)
     if fields:
@@ -263,7 +263,7 @@ def change_password(
 def set_avatar_preset(
     body: SetAvatarPresetBody,
     user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
+    db: Session = Depends(get_core_db),
 ):
     if body.preset not in AVATAR_PRESETS:
         raise validation_error(
@@ -278,7 +278,7 @@ def set_avatar_preset(
 
 
 @router.get("/me/notices")
-def my_notices(user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+def my_notices(user: User = Depends(get_current_user), db: Session = Depends(get_core_db)):
     try:
         rows = list_system_notices(db, user.id)
     except SQLAlchemyError as exc:
@@ -291,7 +291,7 @@ def my_notices(user: User = Depends(get_current_user), db: Session = Depends(get
 @router.post("/me/avatar")
 async def upload_avatar(
     user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
+    db: Session = Depends(get_core_db),
     file: UploadFile = File(...),
 ):
     content_type = (file.content_type or "").split(";")[0].strip().lower()

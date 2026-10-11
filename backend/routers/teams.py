@@ -6,7 +6,7 @@ from fastapi.responses import RedirectResponse
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from deps import get_db, get_optional_user, get_super_admin
+from deps import get_core_db, get_optional_user, get_super_admin
 from errors import ApiError, validation_error
 from models import CJEntry, Subject, TeamsOAuthState, User, to_iso, utc_now
 from routers.cj import _ensure_subjects, _slot, _week_or_error
@@ -68,7 +68,7 @@ def _upsert(db: Session, week: str, entry: dict, subjects: dict[str, Subject]) -
 def teams_status(
     request: Request,
     _: User = Depends(get_super_admin),
-    db: Session = Depends(get_db),
+    db: Session = Depends(get_core_db),
 ):
     settings = _settings(request)
     return {
@@ -82,7 +82,7 @@ def teams_status(
 def teams_connect(
     request: Request,
     _: User = Depends(get_super_admin),
-    db: Session = Depends(get_db),
+    db: Session = Depends(get_core_db),
 ):
     settings = _settings(request)
     if not microsoft_ready(settings):
@@ -99,7 +99,7 @@ def teams_callback(
     code: str = "",
     state: str = "",
     user: User | None = Depends(get_optional_user),
-    db: Session = Depends(get_db),
+    db: Session = Depends(get_core_db),
 ):
     settings = _settings(request)
     target = f"{settings.frontend_origin}/cj/admin"
@@ -125,7 +125,7 @@ def teams_preview(
     body: dict,
     request: Request,
     _: User = Depends(get_super_admin),
-    db: Session = Depends(get_db),
+    db: Session = Depends(get_core_db),
 ):
     week = _week_or_error(str(body.get("week_start") or ""))
     settings = _settings(request)
@@ -151,7 +151,7 @@ def teams_preview(
 def teams_apply(
     body: dict,
     _: User = Depends(get_super_admin),
-    db: Session = Depends(get_db),
+    db: Session = Depends(get_core_db),
 ):
     week = _week_or_error(str(body.get("week_start") or ""))
     raw = body.get("entries")
