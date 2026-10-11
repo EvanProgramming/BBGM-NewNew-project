@@ -393,13 +393,13 @@ Photo of the Day / Track of the Day / Student Art：静态标题+空图框+固�
 | 禁言 / 解除 | `PATCH /api/v1/admin/users/{id}` body `muted` | 行上 `muted` 更新 | 403 错误条 |
 | 删除用户 | `DELETE /api/v1/admin/users/{id}` | 行消失 | 403 错误条 |
 | Forum 列表点气泡 | — | 去 `/posts/{id}` | — |
-| Forum 列表点赞 | `POST` 或 `DELETE .../likes` | 该卡更新 `like_count` `liked` | 401 去 `/sign-in?next=/forum`；422/503 不改数 |
+| Forum 列表点赞 | `POST` 或 `DELETE .../likes` | 点击后立刻改该卡 `like_count` `liked` 并播放拇指动画，请求返回后再对齐。详情同样 | 401 去登录并退回；422/503 退回点击前的数字与颜色 |
 | Forum 已登录点加号 | — | 右下加号打开浮层表单 | 点关闭或遮罩收起 |
 | 校报 Write | — | 本页展开锁栏目表单 | 学生在校报无按钮 |
 | Sign in 提交 | `POST /api/v1/auth/login` body `email` `password` | 去 `next` 或 `/` | 表单上沿 `error.message`；字段错 `fields[]` |
 | Register 提交 | `POST /api/v1/auth/register` body `email` `password` `display_name` | 同上 | `409` 写在 email 下 |
 | Sign out | `POST /api/v1/auth/logout` | 顶栏变 SIGN IN；若在 `/me/posts` 则去 `/` | `401`：已当访客 |
-| Forum Publish | `POST /api/v1/posts`（JSON 或 multipart `images`） | 去 `/posts/{id}` | 422 字段下；401 去登录；503 表单顶。**不**乐观插入首页 |
+| Forum Publish | `POST /api/v1/posts`（JSON 或 multipart `images`） | 提交后浮层播放转圈动画并写正在发布，成功前不关浮层；成功去 `/posts/{id}` | 拿掉动画。422 字段下；401 去登录；503 表单顶。**不**乐观插入首页 |
 | 校报 Publish | `POST /api/v1/posts` JSON | 收起表单，新帖出现在本栏目列表顶 | 同上 |
 | 打开我的帖子 | `GET /api/v1/me/posts?page=1&page_size=20` | 列表 | 401 去登录；503 错误条 |
 | Older stories | 同一列表接口 `page` 递增 | 追加或换页 `items` | `bad_request` 错误条 |

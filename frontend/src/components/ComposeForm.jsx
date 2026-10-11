@@ -4,9 +4,9 @@ import { ApiError, api, fieldMessage } from "../api";
 import { useAuth } from "../auth";
 import { useI18n } from "../i18n";
 import { Avatar } from "./Avatar";
-import { ButtonSpinner, ErrorBanner, FieldError } from "./ui";
+import { ErrorBanner, FieldError } from "./ui";
 
-export default function ComposeForm({ category, onPublished, onCancel }) {
+export default function ComposeForm({ category, onPublished, onCancel, onBusy }) {
   const { user, setUser } = useAuth();
   const { t } = useI18n();
   const navigate = useNavigate();
@@ -29,6 +29,7 @@ export default function ComposeForm({ category, onPublished, onCancel }) {
   async function onPublish(event) {
     event.preventDefault();
     setSubmitting(true);
+    onBusy?.(true);
     setError(null);
     const payload = { title, body, category };
     try {
@@ -41,15 +42,17 @@ export default function ComposeForm({ category, onPublished, onCancel }) {
         return;
       }
       onPublished(created);
+      setSubmitting(false);
+      onBusy?.(false);
     } catch (err) {
+      setSubmitting(false);
+      onBusy?.(false);
       if (err instanceof ApiError && err.status === 401) {
         setUser(null);
         navigate(`/sign-in?next=${location.pathname}`);
         return;
       }
       setError(err);
-    } finally {
-      setSubmitting(false);
     }
   }
 
@@ -74,7 +77,8 @@ export default function ComposeForm({ category, onPublished, onCancel }) {
   const topMessage = error && (!error.fields || error.fields.length === 0) ? error : null;
 
   return (
-    <form onSubmit={onPublish} className={onCancel ? "mb-0" : "mb-8 border-b border-black pb-8"}>
+    <form onSubmit={onPublish} className={`relative ${onCancel ? "mb-0" : "mb-8 border-b border-black pb-8"}`}>
+      <fieldset disabled={submitting} className="min-w-0 border-0 p-0">
       <div className="mb-4 flex items-center gap-3">
         <Avatar avatar={user.avatar} size={40} />
         <div>
@@ -152,7 +156,6 @@ export default function ComposeForm({ category, onPublished, onCancel }) {
           disabled={submitting || user.muted}
           className="inline-flex items-center gap-2 rounded-[2px] bg-black px-5 py-2 font-sans text-[11px] uppercase tracking-[0.18em] text-white disabled:opacity-40"
         >
-          {submitting ? <ButtonSpinner /> : null}
           {t("compose.publish")}
         </button>
         {user.muted ? (
@@ -168,6 +171,13 @@ export default function ComposeForm({ category, onPublished, onCancel }) {
           </button>
         ) : null}
       </div>
+      </fieldset>
+      {submitting ? (
+        <div className="fixed inset-0 z-40 flex flex-col items-center justify-center bg-white/80" role="status">
+          <div className="publish-spin" aria-hidden="true" />
+          <p className="mt-3 font-sans text-sm text-[#1A4FBF]">{t("compose.publishing")}</p>
+        </div>
+      ) : null}
     </form>
   );
 }

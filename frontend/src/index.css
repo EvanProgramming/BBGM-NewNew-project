@@ -38,8 +38,41 @@ body {
   animation: cj-welcome-in 1.8s ease-out both;
 }
 
+@keyframes like-pop {
+  0% {
+    transform: scale(1);
+  }
+  40% {
+    transform: scale(1.35);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+.like-pop {
+  display: inline-flex;
+  animation: like-pop 280ms ease-out;
+}
+
+@keyframes publish-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.publish-spin {
+  width: 48px;
+  height: 48px;
+  border-radius: 9999px;
+  border: 3px solid #d6deee;
+  border-top-color: #1a4fbf;
+  animation: publish-spin 0.8s linear infinite;
+}
+
 @media (prefers-reduced-motion: reduce) {
-  .cj-welcome-in {
+  .cj-welcome-in,
+  .like-pop {
     animation: none;
   }
 }

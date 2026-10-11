@@ -1,11 +1,11 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { ApiError, api } from "../api";
 import { useAuth } from "../auth";
 import { uploadSrc } from "../avatar";
 import { formatRelative } from "../format";
 import { useI18n } from "../i18n";
-import { TitleLine, ButtonSpinner } from "./ui";
+import { TitleLine } from "./ui";
 import { Avatar } from "./Avatar";
 
 function CommentIcon() {
@@ -39,40 +39,68 @@ export function LikeIcon({ filled }) {
   );
 }
 
-export function CommunityCard({ post }) {
+export function ForumLikeButton({ post, signInNext, className = "" }) {
   const { user } = useAuth();
-  const { lang, t } = useI18n();
+  const { t } = useI18n();
   const navigate = useNavigate();
   const [likeCount, setLikeCount] = useState(post.like_count ?? 0);
   const [liked, setLiked] = useState(Boolean(post.liked));
-  const [saving, setSaving] = useState(false);
-  const replies = post.reply_count ?? 0;
+  const [pop, setPop] = useState(0);
+  const savingRef = useRef(false);
 
   useEffect(() => {
-    if (saving) return;
+    if (savingRef.current) return;
     setLikeCount(post.like_count ?? 0);
     setLiked(Boolean(post.liked));
-  }, [post.id, post.like_count, post.liked, saving]);
+  }, [post.id, post.like_count, post.liked]);
 
   async function onLike() {
     if (!user) {
-      navigate("/sign-in?next=/forum");
+      navigate(signInNext);
       return;
     }
-    if (saving) return;
-    setSaving(true);
+    if (savingRef.current) return;
+    const previousLiked = liked;
+    const previousCount = likeCount;
+    const nextLiked = !liked;
+    setLiked(nextLiked);
+    setLikeCount(Math.max(0, likeCount + (nextLiked ? 1 : -1)));
+    setPop((current) => current + 1);
+    savingRef.current = true;
     try {
-      const result = liked ? await api.unlikePost(post.id) : await api.likePost(post.id);
+      const result = nextLiked ? await api.likePost(post.id) : await api.unlikePost(post.id);
       setLikeCount(result.like_count);
       setLiked(result.liked);
     } catch (err) {
+      setLiked(previousLiked);
+      setLikeCount(previousCount);
       if (err instanceof ApiError && err.status === 401) {
-        navigate("/sign-in?next=/forum");
+        navigate(signInNext);
       }
     } finally {
-      setSaving(false);
+      savingRef.current = false;
     }
   }
+
+  return (
+    <button
+      type="button"
+      onClick={onLike}
+      className={`flex items-center gap-1.5 font-sans text-sm ${liked ? "text-[#1A4FBF]" : "text-neutral-500"} ${className}`}
+      aria-label={liked ? t("forum.unlike") : t("forum.like")}
+      aria-pressed={liked}
+    >
+      <span key={pop} className={pop ? "like-pop" : "inline-flex"}>
+        <LikeIcon filled={liked} />
+      </span>
+      <span>{likeCount}</span>
+    </button>
+  );
+}
+
+export function CommunityCard({ post }) {
+  const { lang, t } = useI18n();
+  const replies = post.reply_count ?? 0;
 
   return (
     <article className="mb-3 rounded-2xl bg-[#F4F5F7] p-4">
@@ -103,18 +131,7 @@ export function CommunityCard({ post }) {
               <CommentIcon />
               <span>{replies}</span>
             </Link>
-            <button
-              type="button"
-              onClick={onLike}
-              disabled={saving}
-              className={`flex items-center gap-1.5 font-sans text-sm ${liked ? "text-[#1A4FBF]" : ""}`}
-              aria-label={liked ? t("forum.unlike") : t("forum.like")}
-              aria-pressed={liked}
-            >
-              <LikeIcon filled={liked} />
-              {saving ? <ButtonSpinner /> : null}
-              <span>{likeCount}</span>
-            </button>
+            <ForumLikeButton post={post} signInNext="/sign-in?next=/forum" />
           </div>
         </div>
       </div>

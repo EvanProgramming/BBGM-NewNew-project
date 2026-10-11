@@ -58,6 +58,7 @@ export default function Category({ category, title, feed }) {
   const [error, setError] = useState(null);
   const [loadingMore, setLoadingMore] = useState(false);
   const [writing, setWriting] = useState(false);
+  const [publishing, setPublishing] = useState(false);
   const [ready, setReady] = useState(false);
 
   const isForum = category === "forum";
@@ -111,11 +112,11 @@ export default function Category({ category, title, feed }) {
   useEffect(() => {
     if (!writing) return undefined;
     function onKey(event) {
-      if (event.key === "Escape") setWriting(false);
+      if (event.key === "Escape" && !publishing) setWriting(false);
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [writing]);
+  }, [writing, publishing]);
 
   function loadOlder() {
     const next = page + 1;
@@ -196,10 +197,19 @@ export default function Category({ category, title, feed }) {
             type="button"
             className="absolute inset-0 cursor-default"
             aria-label={t("forum.close")}
-            onClick={() => setWriting(false)}
+            onClick={() => {
+              if (!publishing) setWriting(false);
+            }}
           />
           <div className="relative z-10 w-full max-w-2xl bg-white p-8">
-            <ComposeForm category={category} onPublished={onPublished} onCancel={() => setWriting(false)} />
+            <ComposeForm
+              category={category}
+              onPublished={onPublished}
+              onCancel={() => {
+                if (!publishing) setWriting(false);
+              }}
+              onBusy={setPublishing}
+            />
           </div>
         </div>
       ) : null}
