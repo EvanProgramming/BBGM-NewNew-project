@@ -75,7 +75,7 @@ def _summary(
     like_count: int = 0,
     liked: bool = False,
 ) -> PostSummary:
-    images = parse_images(getattr(post, "images", None)) if include_images else []
+    images = parse_images(getattr(post, "images", None), limit=None if post.category == "news" else MAX_POST_IMAGES) if include_images else []
     return PostSummary(
         id=post.id,
         title=post.title,

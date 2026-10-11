@@ -1,6 +1,7 @@
 import json
 import os
 import re
+from pathlib import Path
 from uuid import uuid4
 
 import httpx
@@ -10,11 +11,11 @@ from sqlalchemy import select
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
-from avatars import ALLOWED_TYPES, MAX_POST_IMAGE_BYTES, MAX_POST_IMAGES, delete_post_images, dump_images, normalize_avatar, parse_images, save_post_image
+from avatars import ALLOWED_TYPES, MAX_POST_IMAGE_BYTES, delete_post_image, delete_post_images, dump_images, normalize_avatar, parse_images, save_post_image
 from deps import get_core_db, get_db, get_newsroom_user, get_super_admin, require_not_muted
 from errors import ApiError, StorageError, forbidden, validation_error
 from models import NewsBlock, NewsCategory, Post, User, to_iso, utc_now
-from schemas import AuthorPublic, PatchNewsSubmissionBody, PublishNewsSubmissionBody, PostDetail, PostList, PostSummary
+from schemas import AuthorPublic, PatchNewsSubmissionBody, PublishNewsSubmissionBody, RemoveNewsSubmissionImageBody, PostDetail, PostList, PostSummary
 from store import create_news_draft, make_excerpt, refresh_news_publication, users_by_ids
 from validate import parse_page, parse_page_size, parse_uuid
 
@@ -51,7 +52,7 @@ def _submission(db: Session, core: Session, post: Post) -> dict:
     block = _article_block(db, post.id)
     author = users_by_ids(core, [post.author_id]).get(post.author_id)
     topics = _categories(db, post.id)
-    images = parse_images(post.images)
+    images = parse_images(post.images, limit=None)
     return {
         "id": post.id,
         "title": post.title,
@@ -100,7 +101,7 @@ def _post_summary(db: Session, core: Session, post: Post) -> PostSummary:
         ),
         reply_count=0,
         reply_preview=[],
-        images=parse_images(post.images),
+        images=parse_images(post.images, limit=None),
         news_categories=_categories(db, post.id),
         like_count=0,
         liked=False,
@@ -183,8 +184,6 @@ async def create_submission(
     if not isinstance(parsed_topics, list):
         parsed_topics = []
     fields = _validate_article(title, body, parsed_topics)
-    if len(images) > MAX_POST_IMAGES:
-        fields.append({"field": "images", "message": "News articles can have at most 4 images."})
     uploads: list[tuple[str, bytes]] = []
     for image in images:
         ext = ALLOWED_TYPES.get((image.content_type or "").split(";")[0].strip().lower())
@@ -206,7 +205,7 @@ async def create_submission(
         db.add(block)
         db.add_all([NewsCategory(post_id=post.id, topic=topic) for topic in sorted(set(parsed_topics))])
         if uploads:
-            post.images = dump_images([save_post_image(post.id, ext, data) for ext, data in uploads])
+            post.images = dump_images([save_post_image(post.id, ext, data) for ext, data in uploads], limit=None)
         db.flush()
     except (SQLAlchemyError, OSError) as exc:
         db.rollback()
@@ -247,6 +246,76 @@ def patch_submission(
         db.add_all([NewsCategory(post_id=post.id, topic=topic) for topic in sorted(set(topics))])
     post.updated_at = block.updated_at = utc_now()
     block.review_status = "editing"
+    return _submission(db, core, post)
+
+
+@router.post("/news/submissions/{submission_id}/images")
+async def add_submission_images(
+    submission_id: str,
+    images: list[UploadFile] = File(...),
+    user: User = Depends(get_newsroom_user),
+    db: Session = Depends(get_db),
+    core: Session = Depends(get_core_db),
+):
+    require_not_muted(user)
+    post = _require_article(db, parse_uuid(submission_id))
+    _require_owner(user, post)
+    block = _article_block(db, post.id)
+    if post.status != "draft" or block.review_status != "editing":
+        raise validation_error([{"field": "status", "message": "Only draft submissions can receive images."}])
+
+    existing = parse_images(post.images, limit=None)
+    fields = []
+    if not images:
+        fields.append({"field": "images", "message": "Choose at least one image."})
+    uploads: list[tuple[str, bytes]] = []
+    for image in images:
+        ext = ALLOWED_TYPES.get((image.content_type or "").split(";")[0].strip().lower())
+        data = await image.read()
+        if ext is None or not data or len(data) > MAX_POST_IMAGE_BYTES:
+            fields.append({"field": "images", "message": "Images must be jpeg, png, or webp and at most 2MB each."})
+        else:
+            uploads.append((ext, data))
+    if fields:
+        raise validation_error(fields)
+
+    saved: list[str] = []
+    try:
+        saved = [save_post_image(post.id, ext, data) for ext, data in uploads]
+        post.images = dump_images([*existing, *saved], limit=None)
+        post.updated_at = block.updated_at = utc_now()
+        db.flush()
+    except (SQLAlchemyError, OSError) as exc:
+        db.rollback()
+        root = Path(__file__).resolve().parents[1]
+        for image_path in saved:
+            (root / image_path.lstrip("/")).unlink(missing_ok=True)
+        raise StorageError() from exc
+    return _submission(db, core, post)
+
+
+@router.delete("/news/submissions/{submission_id}/images")
+def remove_submission_image(
+    submission_id: str,
+    body: RemoveNewsSubmissionImageBody,
+    user: User = Depends(get_newsroom_user),
+    db: Session = Depends(get_db),
+    core: Session = Depends(get_core_db),
+):
+    require_not_muted(user)
+    post = _require_article(db, parse_uuid(submission_id))
+    _require_owner(user, post)
+    block = _article_block(db, post.id)
+    if post.status != "draft" or block.review_status != "editing":
+        raise validation_error([{"field": "status", "message": "Only draft submissions can remove images."}])
+    image = body.image
+    images = parse_images(post.images, limit=None)
+    if not isinstance(image, str) or image not in images:
+        raise validation_error([{"field": "image", "message": "Choose an image attached to this draft."}])
+    post.images = dump_images([path for path in images if path != image], limit=None)
+    post.updated_at = block.updated_at = utc_now()
+    db.flush()
+    delete_post_image(post.id, image)
     return _submission(db, core, post)
 
 

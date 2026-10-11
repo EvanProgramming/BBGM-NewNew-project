@@ -180,6 +180,10 @@ export const api = {
   createNewsSubmission: (formData) => request("/news/submissions", { method: "POST", body: formData }),
   patchNewsSubmission: (id, body) =>
     request(`/news/submissions/${encodeURIComponent(id)}`, { method: "PATCH", body: JSON.stringify(body) }),
+  addNewsSubmissionImages: (id, formData) =>
+    request(`/news/submissions/${encodeURIComponent(id)}/images`, { method: "POST", body: formData }),
+  removeNewsSubmissionImage: (id, image) =>
+    request(`/news/submissions/${encodeURIComponent(id)}/images`, { method: "DELETE", body: JSON.stringify({ image }) }),
   formatNewsSubmission: (id) =>
     request(`/news/submissions/${encodeURIComponent(id)}/format`, { method: "POST" }),
   submitNewsSubmission: (id, mode) =>

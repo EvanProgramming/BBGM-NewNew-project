@@ -9,6 +9,21 @@ import { useI18n } from "../i18n";
 
 const TOPICS = ["sport", "dorm", "scoop"];
 
+function PendingImage({ file, onRemove }) {
+  const [src, setSrc] = useState("");
+  useEffect(() => {
+    const url = URL.createObjectURL(file);
+    setSrc(url);
+    return () => URL.revokeObjectURL(url);
+  }, [file]);
+  return (
+    <div className="relative">
+      {src ? <img src={src} alt={file.name} className="aspect-square w-full border border-neutral-300 object-cover" /> : null}
+      <button type="button" onClick={onRemove} className="mt-1 font-sans text-[10px] font-semibold uppercase text-[#1A4FBF]">Remove</button>
+    </div>
+  );
+}
+
 export default function NewsSubmit() {
   const { user, ready, setUser } = useAuth();
   const { lang } = useI18n();
@@ -59,6 +74,28 @@ export default function NewsSubmit() {
     setTopics((current) => current.includes(topic) ? current.filter((item) => item !== topic) : [...current, topic]);
   }
 
+  function selectImages(event) {
+    const chosen = Array.from(event.target.files || []);
+    setError(null);
+    setFiles((current) => [...current, ...chosen]);
+    event.target.value = "";
+  }
+
+  async function removeImage(image) {
+    if (!selected) return;
+    setActing(`remove:${image}`);
+    setError(null);
+    try {
+      const item = await api.removeNewsSubmissionImage(selected.id, image);
+      setSelected(item);
+      setItems((current) => current.map((entry) => entry.id === item.id ? item : entry));
+    } catch (err) {
+      setError(err);
+    } finally {
+      setActing("");
+    }
+  }
+
   async function create(event) {
     event.preventDefault();
     setActing("save");
@@ -84,9 +121,18 @@ export default function NewsSubmit() {
     setActing("save");
     setError(null);
     try {
-      const item = await api.patchNewsSubmission(selected.id, { title, body, topics });
-      load(item);
-      await refresh();
+      let item = await api.patchNewsSubmission(selected.id, { title, body, topics });
+      if (files.length) {
+        const form = new FormData();
+        files.forEach((file) => form.append("images", file));
+        item = await api.addNewsSubmissionImages(item.id, form);
+      }
+      setSelected(item);
+      setTitle(item.title);
+      setBody(item.body);
+      setTopics(item.topics);
+      setFiles([]);
+      setItems((current) => current.map((entry) => entry.id === item.id ? item : entry));
       return item;
     } catch (err) {
       setError(err);
@@ -146,16 +192,22 @@ export default function NewsSubmit() {
                   ))}
                 </div>
                 <FieldError message={fieldMessage(error, "topics")} />
-                <label htmlFor="news-images" className="mt-7 block font-sans text-[10px] font-semibold uppercase tracking-[0.15em] text-[#1A4FBF]">Images · up to 4</label>
-                {isNew ? (
-                  <input id="news-images" type="file" multiple accept="image/jpeg,image/png,image/webp" onChange={(event) => setFiles(Array.from(event.target.files || []))} className="mt-3 block w-full font-sans text-xs" />
-                ) : (
+                <label htmlFor="news-images" className="mt-7 block font-sans text-[10px] font-semibold uppercase tracking-[0.15em] text-[#1A4FBF]">Photos</label>
+                {selected?.images?.length ? (
                   <div className="mt-3 grid grid-cols-2 gap-2">
-                    {selected.images.map((src) => <img key={src} src={uploadSrc(src)} alt="" className="aspect-square w-full border border-neutral-300 object-cover" />)}
-                    {!selected.images.length ? <p className="col-span-2 font-sans text-xs text-neutral-500">No images attached.</p> : null}
+                    {selected.images.map((src, index) => (
+                      <div key={src}>
+                        <img src={uploadSrc(src)} alt={`Story photo ${index + 1}`} className="aspect-square w-full border border-neutral-300 object-cover" />
+                        {editable ? <button type="button" onClick={() => removeImage(src)} disabled={Boolean(acting)} className="mt-1 font-sans text-[10px] font-semibold uppercase text-[#1A4FBF] disabled:opacity-50">{acting === `remove:${src}` ? "Removing…" : "Remove"}</button> : null}
+                      </div>
+                    ))}
                   </div>
-                )}
-                {files.length ? <p className="mt-2 font-sans text-xs text-neutral-500">{files.length} image{files.length === 1 ? "" : "s"} selected</p> : null}
+                ) : <p className="mt-2 font-sans text-xs text-neutral-500">No images attached.</p>}
+                {editable ? (
+                  <input id="news-images" type="file" multiple accept="image/jpeg,image/png,image/webp" onChange={selectImages} className="mt-3 block w-full font-sans text-xs" />
+                ) : null}
+                {files.length ? <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3">{files.map((file, index) => <PendingImage key={`${file.name}-${file.lastModified}-${index}`} file={file} onRemove={() => setFiles((current) => current.filter((_, itemIndex) => itemIndex !== index))} />)}</div> : null}
+                <p className="mt-1 font-sans text-[11px] text-neutral-500">{(selected?.images?.length || 0) + files.length} selected</p>
                 <FieldError message={fieldMessage(error, "images")} />
               </div>
             </div>

@@ -224,6 +224,10 @@ class PatchNewsSubmissionBody(BaseModel):
     topics: list[str] | None = None
 
 
+class RemoveNewsSubmissionImageBody(BaseModel):
+    image: str
+
+
 class PublishNewsSubmissionBody(BaseModel):
     mode: str = "formatted"
 

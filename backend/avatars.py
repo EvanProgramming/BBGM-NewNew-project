@@ -38,7 +38,7 @@ def ensure_avatar_dir() -> Path:
     return AVATAR_DIR
 
 
-def parse_images(raw: str | None) -> list[str]:
+def parse_images(raw: str | None, *, limit: int | None = MAX_POST_IMAGES) -> list[str]:
     if not raw:
         return []
     try:
@@ -47,11 +47,12 @@ def parse_images(raw: str | None) -> list[str]:
         return []
     if not isinstance(value, list):
         return []
-    return [item for item in value if isinstance(item, str) and item.startswith("/uploads/posts/")][:MAX_POST_IMAGES]
+    images = [item for item in value if isinstance(item, str) and item.startswith("/uploads/posts/")]
+    return images if limit is None else images[:limit]
 
 
-def dump_images(paths: list[str]) -> str:
-    return json.dumps(parse_images(json.dumps(paths)))
+def dump_images(paths: list[str], *, limit: int | None = MAX_POST_IMAGES) -> str:
+    return json.dumps(parse_images(json.dumps(paths), limit=limit))
 
 
 def ensure_post_image_dir(post_id: str) -> Path:
@@ -65,6 +66,14 @@ def save_post_image(post_id: str, ext: str, data: bytes) -> str:
     name = f"{uuid4()}.{ext}"
     (folder / name).write_bytes(data)
     return f"/uploads/posts/{post_id}/{name}"
+
+
+def delete_post_image(post_id: str, image_path: str) -> None:
+    prefix = f"/uploads/posts/{post_id}/"
+    filename = image_path.removeprefix(prefix)
+    if not image_path.startswith(prefix) or not filename or Path(filename).name != filename:
+        return
+    (POST_IMAGE_DIR / post_id / filename).unlink(missing_ok=True)
 
 
 def delete_post_images(post_id: str) -> None:
