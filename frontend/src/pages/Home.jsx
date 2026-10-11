@@ -4,7 +4,15 @@ import HomeGrid from "../components/HomeGrid";
 import { ErrorBanner } from "../components/ui";
 import { useLiveRefresh } from "../live";
 
+const TOPICS = [
+  { id: "all", label: "All" },
+  { id: "sport", label: "Sports" },
+  { id: "dorm", label: "Dorm" },
+  { id: "scoop", label: "Scoop" },
+];
+
 export default function Home() {
+  const [topic, setTopic] = useState("all");
   const [items, setItems] = useState([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -16,7 +24,7 @@ export default function Home() {
     setLoading(true);
     setReady(false);
     api
-      .listPosts({ page: 1, pageSize: 20 })
+      .listNewsArticles({ topic, page: 1, pageSize: 20 })
       .then((data) => {
         if (cancelled) return;
         setItems(data.items);
@@ -38,16 +46,16 @@ export default function Home() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [topic]);
 
   const refreshHome = useCallback(
     () =>
-      api.listPosts({ page: 1, pageSize: 20 }).then((data) => {
+      api.listNewsArticles({ topic, page: 1, pageSize: 20 }).then((data) => {
         setItems(data.items);
         setTotal(data.total);
         setError(null);
       }),
-    [],
+    [topic],
   );
 
   useLiveRefresh(ready, refreshHome);
@@ -55,6 +63,16 @@ export default function Home() {
   return (
     <div>
       <ErrorBanner error={error} />
+      <div className="flex flex-wrap items-center justify-between gap-4 border-b border-black pt-5 pb-3" aria-label="News categories">
+        <div className="flex flex-wrap gap-x-6 gap-y-2">
+          {TOPICS.map((item) => (
+            <button key={item.id} type="button" aria-pressed={topic === item.id} onClick={() => setTopic(item.id)} className={`font-sans text-[11px] font-semibold uppercase tracking-[0.16em] ${topic === item.id ? "text-[#1A4FBF]" : "text-neutral-500 hover:text-black"}`}>
+              {item.label}
+            </button>
+          ))}
+        </div>
+        <span className="font-sans text-xs text-neutral-500">{total} stories</span>
+      </div>
       <HomeGrid items={items} total={total} loading={loading} />
     </div>
   );

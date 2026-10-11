@@ -18,7 +18,7 @@ from avatars import (
     parse_images,
     save_post_image,
 )
-from models import Comment, NewsBlock, Post, PostLike, User, to_iso
+from models import Comment, NewsBlock, NewsCategory, Post, PostLike, User, to_iso
 from schemas import (
     CATEGORIES,
     CATEGORY_MESSAGE,
@@ -71,10 +71,11 @@ def _summary(
     reply_count: int = 0,
     reply_preview: list[ReplyPreview] | None = None,
     include_images: bool = False,
+    news_categories: list[str] | None = None,
     like_count: int = 0,
     liked: bool = False,
 ) -> PostSummary:
-    images = parse_images(getattr(post, "images", None)) if include_images and post.category == "forum" else []
+    images = parse_images(getattr(post, "images", None), limit=None if post.category == "news" else MAX_POST_IMAGES) if include_images else []
     return PostSummary(
         id=post.id,
         title=post.title,
@@ -87,6 +88,7 @@ def _summary(
         reply_count=reply_count,
         reply_preview=reply_preview or [],
         images=images,
+        news_categories=news_categories or [],
         like_count=like_count if post.category == "forum" else 0,
         liked=liked if post.category == "forum" else False,
     )
@@ -119,16 +121,19 @@ def _detail(
     blocks: list[PublishedBlock] | None = None,
     like_count: int = 0,
     liked: bool = False,
+    news_categories: list[str] | None = None,
+    body: str | None = None,
 ) -> dict:
     return PostDetail(
         **_summary(
             post,
             author=author,
-            include_images=post.category == "forum",
+            include_images=True,
+            news_categories=news_categories,
             like_count=like_count,
             liked=liked,
         ).model_dump(),
-        body=post.body,
+        body=post.body if body is None else body,
         blocks=blocks or [],
     ).model_dump()
 
@@ -189,6 +194,7 @@ def _list_posts(
         filters.append(Post.category == category)
     elif author_id is None:
         filters.append(Post.category.in_(NEWSPAPER_CATEGORIES))
+        filters.append(Post.id.not_in(select(NewsCategory.post_id)))
     if author_id is not None:
         filters.append(Post.author_id == author_id)
     capped = feed in ("recommended", "latest")
@@ -227,11 +233,18 @@ def _list_posts(
         page = 1
         page_size = 10
     previews = _forum_previews(db, core, rows) if category == "forum" else {}
-    include_images = category == "forum"
+    include_images = category in (None, "forum", "news")
     forum_ids = [post.id for post in rows if post.category == "forum"]
     like_counts = like_counts_for_posts(db, forum_ids)
     liked_ids = liked_post_ids(db, user_id=viewer.id, post_ids=forum_ids) if viewer else set()
     authors = users_by_ids(core, [post.author_id for post in rows])
+    try:
+        topic_rows = db.scalars(select(NewsCategory).where(NewsCategory.post_id.in_([p.id for p in rows]))).all() if rows else []
+    except SQLAlchemyError as exc:
+        raise StorageError() from exc
+    topics: dict[str, list[str]] = {}
+    for row in topic_rows:
+        topics.setdefault(row.post_id, []).append(row.topic)
     return PostList(
         items=[
             _summary(
@@ -240,6 +253,7 @@ def _list_posts(
                 reply_count=previews.get(post.id, (0, []))[0],
                 reply_preview=previews.get(post.id, (0, []))[1],
                 include_images=include_images,
+                news_categories=topics.get(post.id, []),
                 like_count=like_counts.get(post.id, 0),
                 liked=post.id in liked_ids,
             )
@@ -545,7 +559,22 @@ def get_post(
         else False
     )
     author = users_by_ids(core, [post.author_id]).get(post.author_id)
-    return _detail(post, author=author, blocks=blocks, like_count=like_count, liked=liked)
+    topic_rows = db.scalars(select(NewsCategory).where(NewsCategory.post_id == post.id)).all()
+    body = post.body
+    if topic_rows:
+        article_block = db.scalar(
+            select(NewsBlock).where(NewsBlock.post_id == post.id).order_by(NewsBlock.position.asc())
+        )
+        body = article_block.published_body if article_block else post.body
+    return _detail(
+        post,
+        author=author,
+        blocks=blocks,
+        like_count=like_count,
+        liked=liked,
+        news_categories=["scoop" if row.topic == "school" else row.topic for row in topic_rows],
+        body=body,
+    )
 
 
 def _image_field_errors(category: str, uploads: list[tuple[str, bytes]]) -> list[dict[str, str]]:

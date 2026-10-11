@@ -19,6 +19,9 @@ import Contact from "./pages/Contact";
 import Home from "./pages/Home";
 import MyPosts from "./pages/MyPosts";
 import NewsDrafts from "./pages/NewsDrafts";
+import NewsDesign from "./pages/NewsDesign";
+import NewsReview from "./pages/NewsReview";
+import NewsSubmit from "./pages/NewsSubmit";
 import PostDetail from "./pages/PostDetail";
 import SystemNotices from "./pages/SystemNotices";
 import Register from "./pages/Register";
@@ -35,7 +38,11 @@ export default function App() {
           <Route element={<PaperShell />}>
             <Route path="/" element={<Home />} />
             <Route path="/news/drafts" element={<NewsDrafts />} />
+            <Route path="/news/submit" element={<NewsSubmit />} />
+            <Route path="/news/review" element={<NewsReview />} />
+            <Route path="/news/review/:submissionId" element={<NewsReview />} />
             <Route path="/news" element={<Navigate to="/" replace />} />
+            <Route path="/news/design" element={<NewsDesign />} />
             <Route path="/sports" element={<Navigate to="/" replace />} />
             <Route path="/forum" element={<Category category="forum" feed="recommended" title="Forum" />} />
             <Route path="/forum/latest" element={<Category category="forum" feed="latest" title="Forum" />} />

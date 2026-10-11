@@ -13,6 +13,7 @@ from models import (
     Comment,
     EmailCode,
     NewsBlock,
+    NewsCategory,
     Post,
     PostLike,
     SessionRecord,
@@ -420,6 +421,7 @@ def delete_post_graph(db: Session, post: Post) -> None:
         db.execute(delete(Comment).where(Comment.post_id == post_id))
         db.execute(delete(PostLike).where(PostLike.post_id == post_id))
         db.execute(delete(AuditEvent).where(AuditEvent.post_id == post_id))
+        db.execute(delete(NewsCategory).where(NewsCategory.post_id == post_id))
         db.execute(delete(NewsBlock).where(NewsBlock.post_id == post_id))
         db.delete(post)
         db.flush()

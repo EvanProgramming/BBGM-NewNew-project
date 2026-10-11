@@ -4,6 +4,7 @@ from fastapi.testclient import TestClient
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
+import avatars
 from errors import StorageError
 from mail import peek_console_code
 from main import create_app
@@ -108,6 +109,83 @@ def test_missing_session_secret_fails_startup(tmp_path, monkeypatch):
         raise AssertionError("expected startup to fail")
     except RuntimeError as exc:
         assert "SESSION_SECRET" in str(exc)
+
+
+def test_news_submission_stays_private_until_design_publish(tmp_path, monkeypatch):
+    app = _make_app(tmp_path, monkeypatch, name="news_publish.db", admin_email="news.admin@basischina.com")
+    with TestClient(app) as client:
+        _register(client, "news.admin@basischina.com", "news-desk-41", "News Admin")
+        created = client.post(
+            "/api/v1/news/submissions",
+            data={"title": "Scoop goes live", "body": "The original story body.", "topics": '["scoop"]'},
+        )
+        assert created.status_code == 201, created.text
+        article_id = created.json()["id"]
+
+        pending = client.post(f"/api/v1/news/submissions/{article_id}/submit", json={"mode": "original"})
+        assert pending.status_code == 200, pending.text
+        assert pending.json()["status"] == "pending"
+        assert client.get("/api/v1/news/articles?topic=scoop").json()["total"] == 0
+
+        published = client.post(
+            f"/api/v1/news/submissions/{article_id}/publish",
+            json={"mode": "original"},
+        )
+        assert published.status_code == 200, published.text
+        assert published.json()["status"] == "published"
+        listing = client.get("/api/v1/news/articles?topic=scoop").json()
+        assert listing["total"] == 1
+        assert listing["items"][0]["id"] == article_id
+        detail = client.get(f"/api/v1/news/articles/{article_id}")
+        assert detail.status_code == 200, detail.text
+        assert detail.json()["body"] == "The original story body."
+
+
+def test_news_draft_can_append_and_remove_multiple_images(tmp_path, monkeypatch):
+    app = _make_app(tmp_path, monkeypatch, name="news_images.db", admin_email="images.admin@basischina.com")
+    monkeypatch.setattr(avatars, "POST_IMAGE_DIR", tmp_path / "posts")
+    with TestClient(app) as client:
+        _register(client, "images.admin@basischina.com", "news-desk-42", "Images Admin")
+        created = client.post(
+            "/api/v1/news/submissions",
+            data={"title": "Photo story", "body": "Several images belong here.", "topics": '["dorm"]'},
+        )
+        assert created.status_code == 201, created.text
+        article_id = created.json()["id"]
+
+        added = client.post(
+            f"/api/v1/news/submissions/{article_id}/images",
+            files=[
+                ("images", ("one.jpg", b"image one", "image/jpeg")),
+                ("images", ("two.png", b"image two", "image/png")),
+            ],
+        )
+        assert added.status_code == 200, added.text
+        assert len(added.json()["images"]) == 2
+
+        appended = client.post(
+            f"/api/v1/news/submissions/{article_id}/images",
+            files=[
+                ("images", ("three.jpg", b"image three", "image/jpeg")),
+                ("images", ("four.jpg", b"image four", "image/jpeg")),
+                ("images", ("five.jpg", b"image five", "image/jpeg")),
+            ],
+        )
+        assert appended.status_code == 200, appended.text
+        image_paths = appended.json()["images"]
+        assert len(image_paths) == 5
+        removed_file = avatars.POST_IMAGE_DIR / article_id / image_paths[1].rsplit("/", 1)[-1]
+        assert removed_file.exists()
+
+        removed = client.request(
+            "DELETE",
+            f"/api/v1/news/submissions/{article_id}/images",
+            json={"image": image_paths[1]},
+        )
+        assert removed.status_code == 200, removed.text
+        assert len(removed.json()["images"]) == 4
+        assert image_paths[1] not in removed.json()["images"]
+        assert not removed_file.exists()
 
 
 def test_register_login_create_post_public_read_and_persist(tmp_path, monkeypatch):
