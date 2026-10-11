@@ -2,7 +2,7 @@
 
 依据：`docs/PRD.md` Must Have 与 Entity Flow。本文件同时约束前端 Mock 与后端实现。不包含业务代码。
 
-第一版 **无公开审计查询接口**（M10 仅服务端落库）。作者不能改删自己的帖或评论。`admin` 与 `super_admin` 可整帖删除，并给作者一条 System 通知。仅 `super_admin` 可禁言或删除用户。包含 Forum 评论、角色、News 分板块草稿与独立 News 投稿。新评论直接挂在帖子上，不新增楼层或楼中楼。
+第一版 **无公开审计查询接口**（M10 仅服务端落库）。作者不能改自己的帖或评论，也不能删评论。作者可以删除自己已发布的 Forum 帖，不能删除他人的帖，也不能删除 News。`admin` 与 `super_admin` 可整帖删除；删除他人的帖时给作者一条 System 通知。仅 `super_admin` 可禁言或删除用户。包含 Forum 评论、角色、News 分板块草稿与独立 News 投稿。新评论直接挂在帖子上，不新增楼层或楼中楼。
 
 ---
 
@@ -66,7 +66,7 @@ Content-Type: application/json
 | 400 | `bad_request` | 分页参数非法等无法归到字段校验的请求错误 |
 | 401 | `unauthenticated` | 无会话或会话无效 |
 | 401 | `invalid_credentials` | 登录邮箱或密码不对（不区分「用户不存在」与「密码错误」） |
-| 403 | `forbidden` | 已登录但无权（直接发 News、非编辑写草稿、非超级管理员改角色 / 禁言 / 删用户 / 同意板块 / 导入 Teams CJ、非 `admin` 且非 `super_admin` 删帖） |
+| 403 | `forbidden` | 已登录但无权（直接发 News、非编辑写草稿、非超级管理员改角色 / 禁言 / 删用户 / 同意板块 / 导入 Teams CJ、既不是该 Forum 帖作者也不是 `admin` / `super_admin` 时删帖） |
 | 403 | `account_muted` | 已登录但被禁言，仍调用发帖、跟帖、点赞、创建或提交草稿 |
 | 404 | `not_found` | 帖子、评论父楼或用户不存在 |
 | 409 | `email_taken` | 注册邮箱已被占用 |
@@ -389,7 +389,7 @@ Content-Type: application/json
 
 #### `GET /api/v1/posts`
 
-- **鉴权：** 否
+- **鉴权：** 否。`feed=mine` 需要登录。
 - **职责：** 列出已发布帖。无 `category` 时供首页近期露出，**只含** `news`，不含 Forum，不含尚无已同意板块的 News 草稿。有 `category` 时只返回该栏目。
 
 **Query**
@@ -397,7 +397,7 @@ Content-Type: application/json
 | 参数 | 类型 | 必填 | 约束 |
 | --- | --- | --- | --- |
 | `category` | string | 否 | 若出现必须是 `news` \| `forum` |
-| `feed` | string | 否 | 仅 `category=forum`。`recommended` \| `latest` \| `all`。缺省为 `recommended` |
+| `feed` | string | 否 | 仅 `category=forum`。`recommended` \| `latest` \| `all` \| `mine`。缺省为 `recommended`。`mine` 需要登录，只返回当前用户已发布的 Forum 帖 |
 | `page` | integer | 否 | ≥ 1，默认 1。`recommended` 与 `latest` 只允许 1 |
 | `page_size` | integer | 否 | 1–50，默认 20。`recommended` 与 `latest` 忽略此值，固定最多 10 条 |
 
@@ -405,9 +405,10 @@ Content-Type: application/json
 
 - `200` `{ items: PostSummary[], page, page_size, total }`
 - `400` `bad_request`（`page` / `page_size` 非法）
+- `401` `unauthenticated`（`feed=mine` 且无会话）
 - `422` `validation_error`（`category` 有值但不在枚举内；`feed` 非法，或与非 `forum` 栏目同时出现；`recommended` / `latest` 的 `page` 大于 1）
 
-`feed=recommended`：分数为 `0.6 × like_count + 0.4 × reply_count`（`reply_count` 只计主评论），降序，分数相同则 `created_at` 降序，最多 10 条，`total` 不超过 10。`feed=latest`：按 `created_at` 降序，最多 10 条，`total` 不超过 10。`feed=all`：按 `created_at` 降序并分页。
+`feed=recommended`：分数为 `0.6 × like_count + 0.4 × reply_count`（`reply_count` 只计主评论），降序，分数相同则 `created_at` 降序，最多 10 条，`total` 不超过 10。`feed=latest`：按 `created_at` 降序，最多 10 条，`total` 不超过 10。`feed=all`：按 `created_at` 降序并分页。`feed=mine`：当前用户已发布的 Forum 帖，按 `created_at` 降序并分页，不含 News、不含他人的帖。
 - `503` `storage_unavailable`
 
 停留页面时客户端可重复请求本接口（建议间隔 ≥ 4 秒；页签隐藏时暂停），用同一 JSON 合并列表。不新增 query、不另开 WebSocket / SSE。
@@ -466,14 +467,14 @@ Content-Type: application/json
 
 #### `DELETE /api/v1/posts/{post_id}`
 
-- **鉴权：** 是（须 `admin` 或 `super_admin`）
-- **职责：** 删除帖子。先给作者写入一条 System 通知，再在同一事务去掉其评论、板块、点赞与该帖审计记录；配图文件一并删除。
+- **鉴权：** 是（该 Forum 帖的作者，或 `admin` / `super_admin`）
+- **职责：** 删除帖子。作者只能删除自己已发布的 Forum 帖，不写 System 通知。`admin` / `super_admin` 可删除任意已存在的帖；删除他人的帖时先给作者写入一条 System 通知。然后在同一事务去掉其评论、板块、点赞与该帖审计记录；配图文件一并删除。
 
 **Response**
 
 - `204` 无 body
 - `401` `unauthenticated`
-- `403` `forbidden`（不是 `admin` 或 `super_admin`）
+- `403` `forbidden`（不是该 Forum 帖作者，也不是 `admin` 或 `super_admin`）
 - `404` `not_found`
 - `503` `storage_unavailable`
 
@@ -712,6 +713,12 @@ News 文章仍使用 `Post(category="news")`，每篇文章只有一个内容板
 #### `POST /api/v1/news/submissions/{id}/approve` / `reject`
 
 - **鉴权：** 是（仅 `super_admin`）。approve 将排版稿（若为空则原文）复制为公开正文并发布；reject 保留草稿内容并退回 `draft`。仅 approve 后公开接口可读到文章。
+
+#### `POST /api/v1/news/submissions/{id}/withdraw`
+
+- **鉴权：** 是（`admin` 或 `super_admin`）。
+- **职责：** 仅已发布的独立 News 文章。清空已发布标题与正文，板块回到 `editing`，稿件 `status` 回到 `draft`。原文、排版稿、分类和图片保留。公开列表与详情不再返回该文。编辑可再修改并送审。
+- **Response：** `200` + `NewsSubmission`。`401`。`403` `forbidden`（不是 `admin` 或 `super_admin`）。`404`。`422` `validation_error`（文章尚未发布，`fields[].field` 为 `status`）。`503`。
 
 #### `GET /api/v1/news/articles/{id}`
 

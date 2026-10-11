@@ -193,6 +193,67 @@ def test_editor_review_publishes_into_homepage_categories(tmp_path, monkeypatch)
         assert set(detail.json()["news_categories"]) == {"dorm", "sport"}
 
 
+def test_admin_can_withdraw_published_news_from_the_front_page(tmp_path, monkeypatch):
+    app = _make_app(tmp_path, monkeypatch, name="news_withdraw.db", admin_email="desk.admin@basischina.com")
+    with TestClient(app) as client:
+        _register(client, "desk.admin@basischina.com", "news-desk-41", "Desk Admin")
+        editor = _register(client, "copy.editor@basischina.com", "news-desk-42", "Copy Editor")
+        editor_id = editor.json()["id"]
+        client.post(
+            "/api/v1/auth/login",
+            json={"email": "desk.admin@basischina.com", "password": "news-desk-41"},
+        )
+        granted = client.patch(f"/api/v1/admin/users/{editor_id}", json={"roles": ["editor"]})
+        assert granted.status_code == 200, granted.text
+
+        client.post(
+            "/api/v1/auth/login",
+            json={"email": "copy.editor@basischina.com", "password": "news-desk-42"},
+        )
+        created = client.post(
+            "/api/v1/news/submissions",
+            data={"title": "Dorm lights out", "body": "The original dorm story.", "topics": '["dorm"]'},
+        )
+        assert created.status_code == 201, created.text
+        article_id = created.json()["id"]
+        denied = client.post(f"/api/v1/news/submissions/{article_id}/withdraw")
+        assert denied.status_code == 403
+
+        client.post(
+            "/api/v1/auth/login",
+            json={"email": "desk.admin@basischina.com", "password": "news-desk-41"},
+        )
+        moderator = _register(client, "page.admin@basischina.com", "news-desk-43", "Page Admin")
+        moderator_id = moderator.json()["id"]
+        client.post(
+            "/api/v1/auth/login",
+            json={"email": "desk.admin@basischina.com", "password": "news-desk-41"},
+        )
+        made_admin = client.patch(f"/api/v1/admin/users/{moderator_id}", json={"roles": ["admin"]})
+        assert made_admin.status_code == 200, made_admin.text
+        published = client.post(
+            f"/api/v1/news/submissions/{article_id}/publish",
+            json={"mode": "original"},
+        )
+        assert published.status_code == 200, published.text
+        assert client.get("/api/v1/news/articles?topic=dorm").json()["total"] == 1
+
+        client.post(
+            "/api/v1/auth/login",
+            json={"email": "page.admin@basischina.com", "password": "news-desk-43"},
+        )
+        too_soon = client.post(f"/api/v1/news/submissions/{article_id}/withdraw")
+        assert too_soon.status_code == 200, too_soon.text
+        assert too_soon.json()["status"] == "draft"
+        assert too_soon.json()["body"] == "The original dorm story."
+        assert client.get("/api/v1/news/articles?topic=dorm").json()["total"] == 0
+        assert client.get("/api/v1/news/articles?topic=all").json()["total"] == 0
+        assert client.get(f"/api/v1/posts/{article_id}").status_code == 404
+        again = client.post(f"/api/v1/news/submissions/{article_id}/withdraw")
+        assert again.status_code == 422
+        assert again.json()["error"]["fields"][0]["field"] == "status"
+
+
 def test_news_draft_can_append_and_remove_multiple_images(tmp_path, monkeypatch):
     app = _make_app(tmp_path, monkeypatch, name="news_images.db", admin_email="images.admin@basischina.com")
     monkeypatch.setattr(avatars, "POST_IMAGE_DIR", tmp_path / "posts")
@@ -895,6 +956,43 @@ def test_forum_likes_idempotent_guest_and_newspaper_rejected(tmp_path, monkeypat
     app.state.engine.dispose()
 
 
+def test_author_sees_and_deletes_only_their_forum_posts(tmp_path, monkeypatch):
+    app = _make_app(tmp_path, monkeypatch, name="forum_mine.db")
+    with TestClient(app) as client:
+        assert client.get("/api/v1/posts?category=forum&feed=mine").status_code == 401
+        _register(client, "jordan.hale@basischina.com", "east-hall-8", "Jordan Hale")
+        own = client.post(
+            "/api/v1/posts",
+            json={"title": "My locker note", "body": "Left on the board.", "category": "forum"},
+        )
+        assert own.status_code == 201, own.text
+        own_id = own.json()["id"]
+        _register(client, "priya.nair@basischina.com", "east-hall-9", "Priya Nair")
+        theirs = client.post(
+            "/api/v1/posts",
+            json={"title": "Priya's note", "body": "Not Jordan's.", "category": "forum"},
+        )
+        assert theirs.status_code == 201, theirs.text
+        client.post(
+            "/api/v1/auth/login",
+            json={"email": "jordan.hale@basischina.com", "password": "east-hall-8"},
+        )
+        mine = client.get("/api/v1/posts?category=forum&feed=mine")
+        assert mine.status_code == 200, mine.text
+        assert [item["title"] for item in mine.json()["items"]] == ["My locker note"]
+        denied_news = client.delete(f"/api/v1/posts/{theirs.json()['id']}")
+        assert denied_news.status_code == 403
+        removed = client.delete(f"/api/v1/posts/{own_id}")
+        assert removed.status_code == 204
+        assert client.get(f"/api/v1/posts/{own_id}").status_code == 404
+        assert client.get("/api/v1/posts?category=forum&feed=mine").json()["items"] == []
+        notices = client.get("/api/v1/me/notices")
+        assert notices.status_code == 200
+        assert notices.json()["items"] == []
+        assert client.get("/api/v1/posts?category=forum&feed=all").json()["total"] == 1
+    app.state.engine.dispose()
+
+
 def test_admin_delete_post_and_ban_account(tmp_path, monkeypatch):
     app = _make_app(tmp_path, monkeypatch, admin_email="ada.min@basischina.com")
     with TestClient(app) as client:
@@ -918,6 +1016,8 @@ def test_admin_delete_post_and_ban_account(tmp_path, monkeypatch):
         )
         assert replied.status_code == 201, replied.text
 
+        other = _register(client, "priya.nair@basischina.com", "east-hall-9", "Priya Nair")
+        assert other.status_code == 201
         denied = client.delete(f"/api/v1/posts/{post_id}")
         assert denied.status_code == 403
         assert client.get(f"/api/v1/posts/{post_id}").status_code == 200

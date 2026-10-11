@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { api } from "../api";
 import { useAuth } from "../auth";
 import { CommunityCard, CommunityCardSkeleton } from "../components/CommunityCard";
@@ -47,7 +47,8 @@ function placePublished(current, post, feed) {
 }
 
 export default function Category({ category, title, feed }) {
-  const { user } = useAuth();
+  const { user, ready: authReady } = useAuth();
+  const navigate = useNavigate();
   const { t } = useI18n();
   const heading = category === "forum" ? t("nav.forum") : title;
   const [items, setItems] = useState([]);
@@ -65,6 +66,11 @@ export default function Category({ category, title, feed }) {
   const canWrite = isForum && Boolean(user);
 
   useEffect(() => {
+    if (feed === "mine" && !authReady) return undefined;
+    if (feed === "mine" && !user) {
+      navigate("/sign-in?next=/forum/mine", { replace: true });
+      return undefined;
+    }
     let cancelled = false;
     setLoading(true);
     setReady(false);
@@ -94,7 +100,7 @@ export default function Category({ category, title, feed }) {
     return () => {
       cancelled = true;
     };
-  }, [category, feed]);
+  }, [authReady, category, feed, navigate, user]);
 
   const refreshList = useCallback(
     () =>
@@ -107,7 +113,7 @@ export default function Category({ category, title, feed }) {
     [category, feed, pageSize],
   );
 
-  useLiveRefresh(ready, refreshList);
+  useLiveRefresh(ready && (feed !== "mine" || Boolean(user)), refreshList);
 
   useEffect(() => {
     if (!writing) return undefined;
@@ -132,6 +138,18 @@ export default function Category({ category, title, feed }) {
       })
       .catch((err) => setError(err))
       .finally(() => setLoadingMore(false));
+  }
+
+  async function removeOwn(post) {
+    if (!window.confirm(t("post.deleteConfirm"))) return;
+    try {
+      await api.deletePost(post.id);
+      setItems((current) => current.filter((item) => item.id !== post.id));
+      setTotal((current) => Math.max(0, current - 1));
+      setError(null);
+    } catch (err) {
+      setError(err);
+    }
   }
 
   function onPublished(post) {
@@ -162,12 +180,20 @@ export default function Category({ category, title, feed }) {
           </>
         )
       ) : items.length === 0 ? (
-        <EmptyCategory name={heading} />
+        feed === "mine" ? (
+          <p className="mt-6 font-serif text-2xl">{t("forum.mineEmpty")}</p>
+        ) : (
+          <EmptyCategory name={heading} />
+        )
       ) : (
         <>
           {items.map((post) =>
             isForum ? (
-              <CommunityCard key={post.id} post={post} />
+              <CommunityCard
+                key={post.id}
+                post={post}
+                onDelete={feed === "mine" ? () => removeOwn(post) : null}
+              />
             ) : (
               <StoryRow key={post.id} post={post} />
             ),

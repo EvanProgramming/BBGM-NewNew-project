@@ -121,7 +121,7 @@ export function StoryTile({ post, wellClassName = "h-36", showExcerpt = true, sh
         <Link to={`/posts/${post.id}`} aria-label={`Read ${post.title}`} className={`block overflow-hidden bg-[#D6DEEE] ${wellClassName}`}>
           <img src={uploadSrc(post.images[0])} alt="" className="h-full w-full object-cover" />
         </Link>
-      ) : <ImageWell className={wellClassName} />}
+      ) : null}
       <div className="mt-3">
         {post.news_categories?.length ? (
           <p className="font-sans text-[11px] font-semibold uppercase tracking-[0.16em] text-[#1A4FBF]">{newsTopicsLabel(post.news_categories)}</p>

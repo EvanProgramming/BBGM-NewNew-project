@@ -196,6 +196,8 @@ export const api = {
     request(`/news/submissions/${encodeURIComponent(id)}/reject`, { method: "POST" }),
   publishNewsSubmission: (id, mode) =>
     request(`/news/submissions/${encodeURIComponent(id)}/publish`, { method: "POST", body: JSON.stringify({ mode }) }),
+  withdrawNewsSubmission: (id) =>
+    request(`/news/submissions/${encodeURIComponent(id)}/withdraw`, { method: "POST" }),
   listUsers: ({ page = 1, pageSize = 20 } = {}) => {
     const query = new URLSearchParams({
       page: String(page),

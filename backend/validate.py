@@ -40,8 +40,8 @@ def parse_optional_category(value: str | None) -> str | None:
     return value
 
 
-FORUM_FEEDS = ("recommended", "latest", "all")
-FEED_MESSAGE = "Must be one of: recommended, latest, all."
+FORUM_FEEDS = ("recommended", "latest", "all", "mine")
+FEED_MESSAGE = "Must be one of: recommended, latest, all, mine."
 
 
 def parse_forum_feed(value: str | None, category: str | None) -> str | None:

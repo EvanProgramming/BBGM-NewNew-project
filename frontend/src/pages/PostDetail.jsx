@@ -23,6 +23,7 @@ export default function PostDetail() {
   const [commentPage, setCommentPage] = useState(1);
   const [commentError, setCommentError] = useState(null);
   const [deleting, setDeleting] = useState(false);
+  const [withdrawing, setWithdrawing] = useState(false);
   const [commentBody, setCommentBody] = useState("");
   const [commentSubmitting, setCommentSubmitting] = useState(false);
   const [ready, setReady] = useState(false);
@@ -97,13 +98,34 @@ export default function PostDetail() {
 
   useLiveRefresh(ready && !commentSubmitting && !notFound, refreshThread);
 
+  async function onWithdraw() {
+    if (!post || !window.confirm(t("post.withdrawConfirm"))) return;
+    setWithdrawing(true);
+    setError(null);
+    try {
+      await api.withdrawNewsSubmission(postId);
+      const topic = post.news_categories?.[0];
+      navigate(topic ? `/?topic=${encodeURIComponent(topic)}` : "/");
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 401) {
+        setUser(null);
+        navigate(`/sign-in?next=/posts/${postId}`);
+        return;
+      }
+      setError(err);
+    } finally {
+      setWithdrawing(false);
+    }
+  }
+
   async function onDelete() {
     if (!post || !window.confirm(t("post.deleteConfirm"))) return;
     setDeleting(true);
     setError(null);
     try {
       await api.deletePost(postId);
-      const back = post.category === "news" ? "/" : "/forum";
+      const ownForum = post.category === "forum" && post.author?.id === user?.id;
+      const back = post.category === "news" ? "/" : ownForum ? "/forum/mine" : "/forum";
       navigate(back);
     } catch (err) {
       if (err instanceof ApiError && err.status === 401) {
@@ -218,11 +240,23 @@ export default function PostDetail() {
             <ForumLikeButton post={post} signInNext={`/sign-in?next=/posts/${post.id}`} className="mt-6" />
           ) : null}
 
-          {canDeletePosts(user) ? (
+          {canDeletePosts(user) && post.category === "news" && post.news_categories?.length ? (
+            <button
+              type="button"
+              onClick={onWithdraw}
+              disabled={withdrawing || deleting}
+              className="mt-8 mr-6 inline-flex items-center gap-2 font-sans text-[11px] uppercase tracking-[0.18em] text-[#1A4FBF] disabled:opacity-40"
+            >
+              {withdrawing ? <ButtonSpinner /> : null}
+              {t("post.withdraw")}
+            </button>
+          ) : null}
+
+          {canDeletePosts(user) || (isForum && post.author?.id === user?.id) ? (
             <button
               type="button"
               onClick={onDelete}
-              disabled={deleting}
+              disabled={deleting || withdrawing}
               className="mt-8 inline-flex items-center gap-2 font-sans text-[11px] uppercase tracking-[0.18em] text-red-700 disabled:opacity-40"
             >
               {deleting ? <ButtonSpinner /> : null}

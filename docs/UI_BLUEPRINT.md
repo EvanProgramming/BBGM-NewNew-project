@@ -21,6 +21,7 @@
 | `/forum` | Forum 推荐 | 公开 | `GET /api/v1/posts?category=forum&feed=recommended`。分数 `0.6 × 赞 + 0.4 × 评论`，取前 10。绑 `author.avatar` `title` `author.display_name` `excerpt` `created_at` `images[0]` `reply_count` `like_count` `liked` |
 | `/forum/latest` | Forum 最新 | 公开 | `feed=latest`。按时间前 10 |
 | `/forum/all` | Forum 所有 | 公开 | `feed=all`。按时间分页 |
+| `/forum/mine` | Forum 我的 | 需登录 | `feed=mine`。只列当前用户已发布的 Forum 帖。未登录去 `/sign-in?next=/forum/mine`。作者可在卡片和详情删除自己的帖 |
 | `/cj` | CJ 角色入口 | 需登录 | 默认入口按 `super_admin`、`teacher`、`student` 取 `roles` 里靠前的一个。已经打开某个入口时，只要 `roles` 含该入口要求的身份就留下 |
 | `/cj/student` | 学生端月历 | 需 `student` | 每一行整周链到 `/cj/student/week?start=`；Period 选择存在浏览器本地 |
 | `/cj/student/week` | 学生端周视图 | 需 `student` | `GET /api/v1/cj?week_start=`，周一至周五五列同时展示 Period 1–8，并单列考试安排 |
@@ -109,9 +110,9 @@
 
 | 状态 | 表现 |
 | --- | --- |
-| 加载 | 报头先出。图框已是 `#D6DEEE`；标题位一条 2px `bg-neutral-200` 横线。不挡报头转圈。 |
-| 成功 | 将 `items` 按 `created_at` 已排序使用（服务端降序）。槽位按下表取 **互不重复的下标**；缺槽显示该槽空态，不循环填充。停留时约每 4 秒再请求 `page=1`（页签隐藏暂停），用新的 `items` 填槽；不转圈。后台失败保持当前槽，不盖错误条。 |
-| 空 | `total === 0`：FEATURED 图框仍在，其下 “No stories on campus yet.”；学生链到 `/forum`，编辑提示到对应栏目发。 |
+| 加载 | 报头先出。还没有稿件的槽不显示占位标题、空图框或灰色横线。不挡报头转圈。 |
+| 成功 | 将 `items` 按更新时间已排序使用（服务端降序）。槽位按下表取 **互不重复的下标**；没有稿件的槽不渲染，不循环填充。某一整段都没有稿件时，该段标题也不出现。停留时约每 4 秒再请求 `page=1`（页签隐藏暂停），用新的 `items` 填槽；不转圈。后台失败保持当前槽，不盖错误条。 |
+| 空 | `total === 0`：分类条之下留白，不显示占位故事、空图框或右侧静态栏。 |
 | 错误 | `503` / 其他：主栏顶 `ErrorBanner` ← `error.message`（如 Could not save… 类存储文案以响应为准）。不造假列表。 |
 
 **News 槽位 ← `items[i]`（PostSummary）**
@@ -128,9 +129,7 @@
 | CAMPUS LIFE 三列 | `[12]` `[13]` `[14]` | `category` `title` `excerpt` `created_at` |
 | SPECIAL FEATURE | `[15]` | `category` `title` `excerpt` `created_at` |
 
-点击任一故事 → `/posts/{id}`。
-
-Photo of the Day / Track of the Day / Student Art：静态标题+空图框+固定说明（无 schema）。右栏不再绑 Upcoming。搜索提交：报头下静态 “Search comes in a later version.”
+点击任一故事 → `/posts/{id}`。公开首页不渲染没有稿件的槽，也不显示 Photo of the Day / Track of the Day / Student Art。分板块草稿页仍保留这三栏静态壳。搜索提交：报头下静态 “Search comes in a later version.”
 
 ### 3.2 栏目页 `/forum` `/opinion`
 
@@ -141,7 +140,7 @@ Photo of the Day / Track of the Day / Student Art：静态标题+空图框+固�
 | Forum | **不用 StoryRow**。每条独立模块卡：`author.avatar`、`author.display_name`、`created_at`、`title`（链详情）、`excerpt`、有则 `images[0]`。底栏：气泡图标 + `reply_count`（链 `/posts/{id}`）；拇指图标 + `like_count`（已登录切换赞；游客去 `/sign-in?next=/forum`）。**不**展示 `reply_preview`。 |
 | 发帖 | Forum：右下角固定蓝色圆形加号。已登录点开浮层表单；未登录加号去 `/sign-in?next=/forum`。`opinion` 无发帖。News 不在本页发稿。独立投稿在导航 `DRAFT` / `DESIGN`，分板块草稿在 `/news/drafts`。 |
 | 空 | `items.length === 0`：图框保留，“No stories in {栏目名} yet.” 不链独立发帖页。 |
-| 栏目 | Forum 主导航下：推荐、最新、所有。当前项字色 `#1A4FBF` 并带下划线。推荐与最新不显示 Older stories。 |
+| 栏目 | Forum 主导航下：推荐、最新、所有、我的。当前项字色 `#1A4FBF` 并带下划线。推荐与最新不显示 Older stories。我的需要登录，卡片上作者可删除该帖，确认后该卡消失。 |
 | 停留 | 约每 4 秒再请求当前栏目 `page=1`（页签隐藏暂停）。最新与所有：新帖出现在列表顶部。推荐：0 赞且 0 评论的新帖不插到第一位。所有已点过的 Older 页保留。Forum 卡上的 `reply_count` / `like_count` / `liked` 随这次响应更新。不转圈；后台失败不盖错误条。首次加载失败后若拉到数据则清错误。 |
 | 错误 | 栏目名下 `ErrorBanner` ← `error.message`。`opinion` 不发请求，直接空态句。 |
 
@@ -152,7 +151,8 @@ Photo of the Day / Track of the Day / Student Art：静态标题+空图框+固�
 | 加载 | 图框+标题横线。 |
 | 成功 | kicker←`category`；标题←`title`；byline←`author.display_name`、`created_at`。Forum 正文←`body`。News 按 `blocks[]` 分段渲染 `heading` 与 `body`，不展示未同意板块。 |
 | Forum | `category===forum` 时正文下有与列表相同的拇指（`like_count` / `liked`；未登录去登录），并请求 `GET /comments`。楼主与每条评论显示 `author.avatar`。有 `images[]` 则在正文下展示实图，不用校报占位图框。评论显示 `author.display_name`、`body`。不显示楼号，没有「新楼层」，也不能回复某一条评论。已登录显示评论框；未登录显示去登录。校报详情**不**请求评论、不加拇指，图框仍是 CSS 占位。停留时约每 4 秒再请求详情与已加载的评论页；有新评论则追加。输入框内容不丢。后台失败不盖错误条。精选表不在本页。 |
-| 删帖 | `roles` 含 `admin` 或 `super_admin` 时显示 `Delete`。确认后 `DELETE /api/v1/posts/{id}`，成功回到该帖栏目（Forum 去 `/forum`，News 去 `/`）。`403` 用 `ErrorBanner`。 |
+| 删帖 | `roles` 含 `admin` 或 `super_admin` 时显示 `Delete`。Forum 帖的作者在自己的详情也显示 `Delete`。确认后 `DELETE /api/v1/posts/{id}`。管理员删 News 回 `/`，删他人的 Forum 回 `/forum`；作者删自己的 Forum 回 `/forum/mine`。`403` 用 `ErrorBanner`。 |
+| 撤回 News | 已发布且带 `news_categories` 的文章，`roles` 含 `admin` 或 `super_admin` 时另显示 `Withdraw`。确认后 `POST /api/v1/news/submissions/{id}/withdraw`，成功回首页。文章不再公开，原稿回到 Draft。`403` 用 `ErrorBanner`。 |
 | 空 / 404 | `error.code === not_found`：衬线 “Story not found.” 无假文。 |
 | 错误 | `503`/`400`：`ErrorBanner` ← `error.message`。 |
 
@@ -241,6 +241,7 @@ Photo of the Day / Track of the Day / Student Art：静态标题+空图框+固�
 - `/news/submit`（导航名 Draft）仅 `editor` / `super_admin` 可进。表单含标题、正文、图片（最多 4 张）和多选分类；这里只保存原稿，不做排版或发布。
 - `/news/design`（导航名 Design）选择稿件后可切换 Original / API design。API design 由独立按钮生成预览；无 API key 时明确显示本地段落整理。编辑只能送审，超管可在此确认发布草稿，也可从审核队列审批待审稿。
 - `pending` 稿件不会出现在公开 Front Page；只有 `super_admin` 批准后才发布。退回后编辑可在 Draft 修改，再回 Design 重新选择版本并送审。
+- `admin` 或 `super_admin` 可在已发布文章详情撤回。撤回后首页对应分类不再显示该文，原稿仍在 Draft，可再编辑并送审。
 - 所有审核权限由后端校验；路由隐藏不能代替接口权限。详情与列表只返回已发布文章。
 
 ### 3.9 System `/system`
@@ -310,10 +311,8 @@ Photo of the Day / Track of the Day / Student Art：静态标题+空图框+固�
     - `<SectionRule>` CAMPUS LIFE
     - `<CampusTrio>` ← `items[12..14]`（`category` `title` `excerpt` `created_at` `id`）
     - `<SpecialFeature>` ← `items[15]`（`category` `title` `excerpt` `created_at` `id`）
-  - `<Rail>`
-    - `<StaticPhotoOfDay>`
-    - `<StaticTrackOfDay>`
-    - `<StaticStudentArt>`
+    - 没有对应 `items[n]` 的槽和整段标题不渲染
+  - 公开首页不放 Photo / Track / Student Art 静态栏
 
 - `<Page: Category>`
   - `<SectionRule>` 栏目名

@@ -98,7 +98,7 @@ export function ForumLikeButton({ post, signInNext, className = "" }) {
   );
 }
 
-export function CommunityCard({ post }) {
+export function CommunityCard({ post, onDelete = null }) {
   const { lang, t } = useI18n();
   const replies = post.reply_count ?? 0;
 
@@ -132,6 +132,15 @@ export function CommunityCard({ post }) {
               <span>{replies}</span>
             </Link>
             <ForumLikeButton post={post} signInNext="/sign-in?next=/forum" />
+            {onDelete ? (
+              <button
+                type="button"
+                onClick={onDelete}
+                className="ml-auto font-sans text-[11px] uppercase tracking-[0.14em] text-red-700"
+              >
+                {t("post.delete")}
+              </button>
+            ) : null}
           </div>
         </div>
       </div>

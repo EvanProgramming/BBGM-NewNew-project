@@ -12,7 +12,7 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
 from avatars import ALLOWED_TYPES, MAX_POST_IMAGE_BYTES, delete_post_image, delete_post_images, dump_images, normalize_avatar, parse_images, save_post_image
-from deps import get_core_db, get_db, get_newsroom_user, get_super_admin, require_not_muted
+from deps import get_core_db, get_db, get_moderator, get_newsroom_user, get_super_admin, require_not_muted
 from errors import ApiError, StorageError, forbidden, validation_error
 from models import NewsBlock, NewsCategory, Post, User, to_iso, utc_now
 from schemas import AuthorPublic, PatchNewsSubmissionBody, PublishNewsSubmissionBody, RemoveNewsSubmissionImageBody, PostDetail, PostList, PostSummary
@@ -453,6 +453,25 @@ def publish_submission(
     block.published_heading = post.title
     block.published_body = block.formatted_body if body.mode == "formatted" else block.draft_body
     block.review_status = "published"
+    block.updated_at = utc_now()
+    refresh_news_publication(db, post)
+    return _submission(db, core, post)
+
+
+@router.post("/news/submissions/{submission_id}/withdraw")
+def withdraw_submission(
+    submission_id: str,
+    _user: User = Depends(get_moderator),
+    db: Session = Depends(get_db),
+    core: Session = Depends(get_core_db),
+):
+    post = _require_article(db, parse_uuid(submission_id))
+    block = _article_block(db, post.id)
+    if post.status != "published" or block.review_status != "published":
+        raise validation_error([{"field": "status", "message": "Only published articles can be withdrawn."}])
+    block.published_heading = None
+    block.published_body = None
+    block.review_status = "editing"
     block.updated_at = utc_now()
     refresh_news_publication(db, post)
     return _submission(db, core, post)

@@ -260,6 +260,7 @@ export default function PaperShell() {
               { to: "/forum", end: true, label: "forum.recommended" },
               { to: "/forum/latest", label: "forum.latest" },
               { to: "/forum/all", label: "forum.all" },
+              { to: "/forum/mine", label: "forum.mine" },
             ].map((item) => (
               <NavLink
                 key={item.to}

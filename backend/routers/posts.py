@@ -6,8 +6,9 @@ from sqlalchemy.orm import Session
 from starlette.datastructures import UploadFile as StarletteUploadFile
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
-from deps import get_core_db, get_current_user, get_db, get_moderator, get_optional_user, require_not_muted
-from errors import ApiError, StorageError, forbidden, validation_error
+from deps import get_core_db, get_current_user, get_db, get_optional_user, require_not_muted
+from errors import ApiError, StorageError, forbidden, unauthenticated, validation_error
+from identity import user_has
 from avatars import (
     ALLOWED_TYPES,
     MAX_POST_IMAGE_BYTES,
@@ -30,6 +31,7 @@ from schemas import (
     CreateCommentBody,
     CreatePostBody,
     LikeState,
+    MODERATOR_ROLES,
     PostDetail,
     PostList,
     PostSummary,
@@ -343,6 +345,8 @@ def list_posts(
     parsed_size = parse_page_size(page_size)
     parsed_category = parse_optional_category(category)
     parsed_feed = parse_forum_feed(feed, parsed_category)
+    if parsed_feed == "mine" and viewer is None:
+        raise unauthenticated()
     if parsed_feed in ("recommended", "latest") and parsed_page != 1:
         raise validation_error(
             [{"field": "page", "message": "This forum feed only has the first page."}]
@@ -353,7 +357,7 @@ def list_posts(
         page=parsed_page,
         page_size=parsed_size,
         category=parsed_category,
-        author_id=None,
+        author_id=viewer.id if parsed_feed == "mine" and viewer is not None else None,
         viewer=viewer,
         feed=parsed_feed,
     )
@@ -695,13 +699,17 @@ def my_posts(
 @router.delete("/posts/{post_id}", status_code=204)
 def delete_post(
     post_id: str,
-    _: User = Depends(get_moderator),
+    user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
     core: Session = Depends(get_core_db),
 ):
     post_id = parse_uuid(post_id)
     post = _any_post(db, post_id)
-    add_system_notice(core, user_id=post.author_id, body=f'Your post "{post.title}" was removed.')
+    owns_forum = post.author_id == user.id and post.category == "forum"
+    if not owns_forum and not user_has(user, *MODERATOR_ROLES):
+        raise forbidden()
+    if post.author_id != user.id:
+        add_system_notice(core, user_id=post.author_id, body=f'Your post "{post.title}" was removed.')
     delete_post_graph(db, post)
     delete_post_images(post_id)
 
