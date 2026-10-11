@@ -17,7 +17,7 @@
 | `/forum` | Forum 推荐 | 公开 | `GET /api/v1/posts?category=forum&feed=recommended`。分数 `0.6 × 赞 + 0.4 × 评论`，取前 10。绑 `author.avatar` `title` `author.display_name` `excerpt` `created_at` `images[0]` `reply_count` `like_count` `liked` |
 | `/forum/latest` | Forum 最新 | 公开 | `feed=latest`。按时间前 10 |
 | `/forum/all` | Forum 所有 | 公开 | `feed=all`。按时间分页 |
-| `/cj` | CJ 角色入口 | 需登录 | `student` → `/cj/student`；`teacher` → `/cj/teacher`；`super_admin` → `/cj/admin`；其他角色回首页 |
+| `/cj` | CJ 角色入口 | 需登录 | 默认入口按 `super_admin`、`teacher`、`student` 取 `roles` 里靠前的一个。已经打开某个入口时，只要 `roles` 含该入口要求的身份就留下 |
 | `/cj/student` | 学生端月历 | 需 `student` | 每一行整周链到 `/cj/student/week?start=`；Period 选择存在浏览器本地 |
 | `/cj/student/week` | 学生端周视图 | 需 `student` | `GET /api/v1/cj?week_start=`，周一至周五五列同时展示 Period 1–8，并单列考试安排 |
 | `/cj/student/day` | 学生端旧单日页 | 需 `student` | 保留旧链接兼容，不作为月历主入口 |
@@ -32,7 +32,7 @@
 | `/me/posts` | 我的帖子 | 需登录 | `GET /api/v1/me/posts` |
 | `/me/avatar` | 选/上传头像 | 需登录 | `PUT` / `POST /api/v1/me/avatar` |
 | `/me/password` | 修改密码 | 需登录 | `PUT /api/v1/me/password`（`current_password` `password`） |
-| `/admin/users` | 用户与角色 | 需 `super_admin` | `GET /api/v1/admin/users`；`PATCH` 改 `role` 或 `muted`；`DELETE` 删用户 |
+| `/admin/users` | 用户与角色 | 需 `roles` 含 `super_admin` | `GET /api/v1/admin/users`；`PATCH` 改 `roles` 或 `muted`；`DELETE` 删用户 |
 | `/paper` | 旧路径 | — | 重定向到 `/` |
 | `/system` | System 通知 | 需登录 | `GET /api/v1/me/notices`。无回复框 |
 | `/sign-in` | 登录 | 访客 | `POST /api/v1/auth/login` |
@@ -44,12 +44,12 @@
 
 **全局壳 `PaperShell`**
 
-- 顶栏一行，从左到右：`SYSTEM`、登录后的 `SETTINGS`、登录后的 `MY POSTS`、`NOTICES`。`SYSTEM` 点开菜单：`ABOUT`、`TERMS`（当前页浮层，不切路由）、`CONTACT`，以及一项中英切换（当前英文时写「中文」，当前中文时写「English」）。点一下切换并收起菜单。选择记在浏览器本地 `elegram_lang`，默认英文，不进接口。字标 Elegram 不翻译。Forum 帖子的标题、正文、摘要和评论保持原文。News 稿件正文和已保存的 CJ 文字也按库存原文显示。`SETTINGS` 点开菜单：`AVATAR`（`/me/avatar`）、`PASSWORD`（`/me/password`）；`role===super_admin` 再加 `USERS`（`/admin/users`）。`MY POSTS` 直接去 `/me/posts`。`NOTICES` 直接去 `/system`（通知页，顶栏不叫 System）。菜单点外面、按 Esc 或选中一项后收起。子项不常驻顶栏。`TERMS` 浮层可滚动，点遮罩或关闭即收起，仍停在打开前的页面。
-- 顶栏右侧：本地日期 `Today: {formatted local date}`（不是 schema 字段）。`401` = 访客，日期前显示 `SIGN IN`（去 `/sign-in`），不显示 Settings 与 My Posts。`200` = 已登录，日期前显示头像（`avatar`）、`display_name`、`SIGN OUT`。启动时 `GET /api/v1/me`。登录后同一套 live refresh（约 4 秒）再拉 `/me`，超管改 `role` / `muted` / 删号后顶栏与导航跟着变，不必整页刷新。顶栏不放 `DRAFTS`。
+- 顶栏一行，从左到右：`SYSTEM`、登录后的 `SETTINGS`、登录后的 `MY POSTS`、`NOTICES`。`SYSTEM` 点开菜单：`ABOUT`、`TERMS`（当前页浮层，不切路由）、`CONTACT`，以及一项中英切换（当前英文时写「中文」，当前中文时写「English」）。点一下切换并收起菜单。选择记在浏览器本地 `elegram_lang`，默认英文，不进接口。字标 Elegram 不翻译。Forum 帖子的标题、正文、摘要和评论保持原文。News 稿件正文和已保存的 CJ 文字也按库存原文显示。`SETTINGS` 点开菜单：`AVATAR`（`/me/avatar`）、`PASSWORD`（`/me/password`）；`roles` 含 `super_admin` 再加 `USERS`（`/admin/users`）。`MY POSTS` 直接去 `/me/posts`。`NOTICES` 直接去 `/system`（通知页，顶栏不叫 System）。菜单点外面、按 Esc 或选中一项后收起。子项不常驻顶栏。`TERMS` 浮层可滚动，点遮罩或关闭即收起，仍停在打开前的页面。
+- 顶栏右侧：本地日期 `Today: {formatted local date}`（不是 schema 字段）。`401` = 访客，日期前显示 `SIGN IN`（去 `/sign-in`），不显示 Settings 与 My Posts。`200` = 已登录，日期前显示头像（`avatar`）、`display_name`、`SIGN OUT`。启动时 `GET /api/v1/me`。登录后同一套 live refresh（约 4 秒）再拉 `/me`，超管改 `roles` / `muted` / 删号后顶栏与导航跟着变，不必整页刷新。顶栏不放 `DRAFTS`。
 - 列表同步：首页 / Forum / 帖详情已 live refresh。`/admin/users`、`/news/drafts` 列表、`/system`、`/me/posts` 同样轮询，超管或其他人刚做的改动会进当前页。打开中的草稿编辑框不自动覆盖，以免冲掉未保存正文。
 - 报头：左搜索框（外形保留；提交不调接口，在报头下出一条静态说明）。中：斜体衬线字标 `Elegram` 链回 `/`。右：静态「OWNED BY / 广东智云建材有限公司」。
 - 标语静态：`YOUR STORIES. YOUR VOICE. YOUR PAGE.`
-- 导航：`NEWS`（`/`）`DRAFTS`（`/news/drafts`）`FORUM` `CJ` `OPINION`。`CJ` 与 `FORUM` 同一行，链到 `/cj`。`DRAFTS` 只在 `role` 为 `editor` 或 `super_admin` 时出现。当前路由下划黑线。无 `SUBMIT`，无单独的 News 列表项。Forum 发帖在栏目页内。News 稿在 `/news/drafts`。
+- 导航：`NEWS`（`/`）`DRAFTS`（`/news/drafts`）`FORUM` `CJ` `OPINION`。`CJ` 与 `FORUM` 同一行，链到 `/cj`。`DRAFTS` 只在 `roles` 含 `editor` 或 `super_admin` 时出现。当前路由下划黑线。无 `SUBMIT`，无单独的 News 列表项。Forum 发帖在栏目页内。News 稿在 `/news/drafts`。
 - CJ 欢迎屏：`/cj` 仍只按角色跳到学生、老师或管理页。跳转之后，若这次登录还没看过欢迎屏，内容区左上角显示大号衬线 “Welcome, {display_name}”（中文 “欢迎，{display_name}”），约 1.8 秒淡入，淡入结束后再停一会儿，大约 3.2 秒后才渲染课表。标记在 `localStorage`，键带用户 `id`。重新登录或退出时清除。淡入结束前离开 CJ 不写入标记。已在 CJ 内换日期或课程不再播放。
 - 会等待接口的按钮：请求从发出到返回期间，按钮文字旁显示转圈，并且不可再点。页面初次加载仍用原来的“正在读取”文案，不盖整页。
 - 页脚声明（非 schema）：`Owned by 广东智云建材有限公司.`
@@ -148,7 +148,7 @@ Photo of the Day / Track of the Day / Student Art：静态标题+空图框+固�
 | 加载 | 图框+标题横线。 |
 | 成功 | kicker←`category`；标题←`title`；byline←`author.display_name`、`created_at`。Forum 正文←`body`。News 按 `blocks[]` 分段渲染 `heading` 与 `body`，不展示未同意板块。 |
 | Forum | `category===forum` 时正文下有与列表相同的拇指（`like_count` / `liked`；未登录去登录），并请求 `GET /comments`。楼主与每条评论显示 `author.avatar`。有 `images[]` 则在正文下展示实图，不用校报占位图框。评论显示 `author.display_name`、`body`。不显示楼号，没有「新楼层」，也不能回复某一条评论。已登录显示评论框；未登录显示去登录。校报详情**不**请求评论、不加拇指，图框仍是 CSS 占位。停留时约每 4 秒再请求详情与已加载的评论页；有新评论则追加。输入框内容不丢。后台失败不盖错误条。精选表不在本页。 |
-| 删帖 | `role` 为 `admin` 或 `super_admin` 时显示 `Delete`。确认后 `DELETE /api/v1/posts/{id}`，成功回到该帖栏目（Forum 去 `/forum`，News 去 `/`）。`403` 用 `ErrorBanner`。 |
+| 删帖 | `roles` 含 `admin` 或 `super_admin` 时显示 `Delete`。确认后 `DELETE /api/v1/posts/{id}`，成功回到该帖栏目（Forum 去 `/forum`，News 去 `/`）。`403` 用 `ErrorBanner`。 |
 | 空 / 404 | `error.code === not_found`：衬线 “Story not found.” 无假文。 |
 | 错误 | `503`/`400`：`ErrorBanner` ← `error.message`。 |
 
@@ -195,7 +195,7 @@ Photo of the Day / Track of the Day / Student Art：静态标题+空图框+固�
 | 401 `invalid_credentials` | 表单上沿 ← `error.message`（Email or password is incorrect.）。 |
 | 409 `email_taken` | `email` 下 ← `fields[].message` 或 `error.message`。 |
 | 503 | 表单顶 ← `error.message`。 |
-| 成功 | 写入本地用户（`id` `email` `display_name` `role` `created_at`）。有 `next` 则回该路径，否则 `/`。 |
+| 成功 | 写入本地用户（`id` `email` `display_name` `roles` `created_at`）。有 `next` 则回该路径，否则 `/`。 |
 
 ### 3.6b 找回密码 `/reset-password`
 
@@ -212,14 +212,14 @@ Photo of the Day / Track of the Day / Student Art：静态标题+空图框+固�
 
 | 状态 | 表现 |
 | --- | --- |
-| 成功 | 行：`display_name` `email` `role` `muted`。不展示 `terms_accepted_at`。不是自己、也不是 `super_admin` 时：可设为 Student / Teacher / Editor / Admin，显示 `Mute` 或 `Unmute`（看 `muted`），以及 `Delete user`。 |
+| 成功 | 行：`display_name` `email` `roles` `muted`。不展示 `terms_accepted_at`。Role 列用约 10px 的小标签换行显示 Student / Teacher / Editor / Admin。已有的实心，没有的空心，点一下切换并 `PATCH` `roles`。有 `super_admin` 时多一个不可点的 Super admin 标签。自己和 `super_admin` 不显示 `Mute` / `Unmute` 与 `Delete user`。 |
 | 禁言 | `PATCH` body `{ "muted": true }`。成功行更新。对方仍可登录；发帖时见 `account_muted`。 |
 | 删除 | 确认后 `DELETE /api/v1/admin/users/{id}`。成功后该行消失。 |
 | 错误 | `ErrorBanner` ← `error.message`。 |
 
 ### 3.8 News 草稿 `/news/drafts`
 
-未登录去 `/sign-in?next=/news/drafts`。`student` 与 `admin` 去 `/`。`editor` / `super_admin` 留下。
+未登录去 `/sign-in?next=/news/drafts`。`roles` 不含 `editor` 且不含 `super_admin` 时去 `/`。
 
 | 状态 | 表现 |
 | --- | --- |
@@ -264,7 +264,7 @@ Photo of the Day / Track of the Day / Student Art：静态标题+空图框+固�
 - `<PaperShell>`
   - `<UtilityBar>`
     - `SYSTEM` 菜单：About / Terms / Contact / 中英切换
-    - 登录后 `SETTINGS` 菜单：Avatar / Password；`role===super_admin` 时 Users
+    - 登录后 `SETTINGS` 菜单：Avatar / Password；`roles` 含 `super_admin` 时 Users
     - 登录后 `MY POSTS` → `/me/posts`
     - `NOTICES` → `/system`
     - 右侧：访客 SIGN IN；登录后头像、`display_name` ← `GET /me`、SIGN OUT
@@ -365,7 +365,7 @@ Photo of the Day / Track of the Day / Student Art：静态标题+空图框+固�
 - `<Page: AdminUsers>`
   - `<SectionRule>` USERS
   - `<ErrorBanner>` ← `error.message`
-  - 行 ← `items[]` 的 `display_name` `email` `role` `muted`
+  - 行 ← `items[]` 的 `display_name` `email` `roles` `muted`
 
 `StoryTile` / `StoryRow` / `FeaturedLead` 共用绑定：`id` `title` `excerpt` `category` `created_at` `author.id` `author.display_name`。列表不绑 `body`。
 
@@ -381,7 +381,7 @@ Photo of the Day / Track of the Day / Student Art：静态标题+空图框+固�
 | 打开 `/` | `GET /api/v1/posts?page=1&page_size=20` | 按槽位绑 `items` | `ErrorBanner` ← `error.message` |
 | 点故事 | — | 去 `/posts/{id}` | — |
 | 点 NEWS | `GET /api/v1/posts?page=1&page_size=20` | 报头槽位 | `ErrorBanner` ← `error.message` |
-| 点 DRAFTS | `GET /api/v1/news/drafts` | 草稿页；仅 `editor` / `super_admin` 看见导航项 | 403 回 `/` |
+| 点 DRAFTS | `GET /api/v1/news/drafts` | 草稿页；仅 `roles` 含 `editor` 或 `super_admin` 时看见导航项 | 403 回 `/` |
 | 点 FORUM | `GET /api/v1/posts?category=forum` | 卡片列表 | 栏目下错误条 |
 | 打开详情 | `GET /api/v1/posts/{post_id}` | 绑 `PostDetail` | `404` 文案；`503` 错误条 |
 | Forum 详情 | `GET /api/v1/posts/{id}/comments` | 帖子下的评论 | `422` 不在校报页出现 |

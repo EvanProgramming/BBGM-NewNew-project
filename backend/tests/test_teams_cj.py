@@ -97,7 +97,7 @@ def test_teams_import_is_super_admin_only(tmp_path, monkeypatch):
         _register(student_client, "mia.chen@basischina.com", "student-hall-42", "Mia Chen")
         promoted = super_client.patch(
             f"/api/v1/admin/users/{teacher.json()['id']}",
-            json={"role": "teacher"},
+            json={"roles": ["teacher"]},
         )
         assert promoted.status_code == 200, promoted.text
         assert teacher_client.post("/api/v1/auth/logout").status_code == 204

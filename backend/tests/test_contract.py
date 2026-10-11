@@ -55,6 +55,50 @@ def _register(client, email, password, display_name):
     )
 
 
+def test_single_sqlite_file_deletes_user_and_post(tmp_path, monkeypatch):
+    db_path = tmp_path / "scoop.db"
+    monkeypatch.setenv("SESSION_SECRET", "pytest-session-secret")
+    monkeypatch.setenv("DATABASE_URL", f"sqlite:///{db_path}")
+    monkeypatch.setenv("CORE_DATABASE_URL", f"sqlite:///{db_path}")
+    monkeypatch.setenv("FRONTEND_ORIGIN", "http://localhost:5173")
+    monkeypatch.setenv("ADMIN_EMAIL", "ada.min@basischina.com")
+    monkeypatch.setenv("MAIL_BACKEND", "console")
+    app = create_app()
+    assert app.state.shared_database is True
+    with TestClient(app) as client:
+        admin = _register(client, "ada.min@basischina.com", "desk-key-99", "Ada Min")
+        assert admin.status_code == 201, admin.text
+        student = _register(client, "jordan.hale@basischina.com", "east-hall-8", "Jordan Hale")
+        assert student.status_code == 201, student.text
+        student_id = student.json()["id"]
+        created = client.post(
+            "/api/v1/posts",
+            json={"title": "Locker note", "body": "Left on the board.", "category": "forum"},
+        )
+        assert created.status_code == 201, created.text
+        post_id = created.json()["id"]
+
+        client.cookies.clear()
+        login = client.post(
+            "/api/v1/auth/login",
+            json={"email": "ada.min@basischina.com", "password": "desk-key-99"},
+        )
+        assert login.status_code == 200, login.text
+        removed_post = client.delete(f"/api/v1/posts/{post_id}")
+        assert removed_post.status_code == 204, removed_post.text
+        assert client.get(f"/api/v1/posts/{post_id}").status_code == 404
+
+        removed_user = client.delete(f"/api/v1/admin/users/{student_id}")
+        assert removed_user.status_code == 204, removed_user.text
+        client.cookies.clear()
+        gone = client.post(
+            "/api/v1/auth/login",
+            json={"email": "jordan.hale@basischina.com", "password": "east-hall-8"},
+        )
+        assert gone.status_code == 401
+    app.state.engine.dispose()
+
+
 def test_missing_session_secret_fails_startup(tmp_path, monkeypatch):
     monkeypatch.setenv("SESSION_SECRET", "")
     monkeypatch.setenv("DATABASE_URL", f"sqlite:///{tmp_path / 'scoop.db'}")
@@ -74,7 +118,7 @@ def test_register_login_create_post_public_read_and_persist(tmp_path, monkeypatc
         body = register.json()
         assert body["email"] == "jordan.hale@basischina.com"
         assert body["display_name"] == "Jordan Hale"
-        assert body["role"] == "super_admin"
+        assert body["roles"] == ["student", "super_admin"]
         assert body["muted"] is False
         assert body["terms_accepted_at"].endswith("Z")
         assert "password" not in body and "password_hash" not in body
@@ -342,7 +386,7 @@ def test_student_community_comments_promote_and_admin_roles(tmp_path, monkeypatc
     with TestClient(app) as client:
         student = _register(client, "jordan.hale@basischina.com", "east-hall-8", "Jordan Hale")
         assert student.status_code == 201
-        assert student.json()["role"] == "student"
+        assert student.json()["roles"] == ["student"]
 
         blocked = client.post(
             "/api/v1/posts",
@@ -429,7 +473,7 @@ def test_student_community_comments_promote_and_admin_roles(tmp_path, monkeypatc
 
         admin = _register(client, "Ada.Min@basischina.com", "desk-key-99", "Ada Min")
         assert admin.status_code == 201
-        assert admin.json()["role"] == "super_admin"
+        assert admin.json()["roles"] == ["student", "super_admin"]
         student_id = student.json()["id"]
 
         users = client.get("/api/v1/admin/users")
@@ -438,17 +482,17 @@ def test_student_community_comments_promote_and_admin_roles(tmp_path, monkeypatc
 
         granted = client.patch(
             f"/api/v1/admin/users/{student_id}",
-            json={"role": "editor"},
+            json={"roles": ["editor"]},
         )
         assert granted.status_code == 200
-        assert granted.json()["role"] == "editor"
+        assert granted.json()["roles"] == ["editor"]
 
         client.post(
             "/api/v1/auth/login",
             json={"email": "jordan.hale@basischina.com", "password": "east-hall-8"},
         )
         me = client.get("/api/v1/me")
-        assert me.json()["role"] == "editor"
+        assert me.json()["roles"] == ["editor"]
 
         drafted = client.post(
             "/api/v1/news/drafts",
@@ -495,15 +539,16 @@ def test_student_community_comments_promote_and_admin_roles(tmp_path, monkeypatc
         )
         revoked = client.patch(
             f"/api/v1/admin/users/{student_id}",
-            json={"role": "student"},
+            json={"roles": ["student"]},
         )
         assert revoked.status_code == 200
-        assert revoked.json()["role"] == "student"
-        cannot_admin = client.patch(
+        assert revoked.json()["roles"] == ["student"]
+        kept_super = client.patch(
             f"/api/v1/admin/users/{admin.json()['id']}",
-            json={"role": "editor"},
+            json={"roles": ["editor"]},
         )
-        assert cannot_admin.status_code == 403
+        assert kept_super.status_code == 200, kept_super.text
+        assert kept_super.json()["roles"] == ["editor", "super_admin"]
     app.state.engine.dispose()
 
 
@@ -1071,19 +1116,19 @@ def test_cj_role_portals_and_subject_scoping(tmp_path, monkeypatch):
         student_user = _register(student_client, "mia.chen@basischina.com", "student-hall-42", "Mia Chen")
         teacher_user = _register(teacher_client, "evan.wu@basischina.com", "teacher-lab-43", "Evan Wu")
         admin_user = _register(admin_client, "noah.zhou@basischina.com", "admin-office-44", "Noah Zhou")
-        assert super_user.json()["role"] == "super_admin"
-        assert student_user.json()["role"] == "student"
+        assert super_user.json()["roles"] == ["student", "super_admin"]
+        assert student_user.json()["roles"] == ["student"]
 
         teacher_id = teacher_user.json()["id"]
         admin_id = admin_user.json()["id"]
         promoted_teacher = super_client.patch(
-            f"/api/v1/admin/users/{teacher_id}", json={"role": "teacher"}
+            f"/api/v1/admin/users/{teacher_id}", json={"roles": ["teacher"]}
         )
         promoted_admin = super_client.patch(
-            f"/api/v1/admin/users/{admin_id}", json={"role": "admin"}
+            f"/api/v1/admin/users/{admin_id}", json={"roles": ["admin"]}
         )
         assert promoted_teacher.status_code == 200, promoted_teacher.text
-        assert promoted_teacher.json()["role"] == "teacher"
+        assert promoted_teacher.json()["roles"] == ["teacher"]
         assert promoted_admin.status_code == 200, promoted_admin.text
 
         for client, email, password, expected_role in (
@@ -1094,7 +1139,7 @@ def test_cj_role_portals_and_subject_scoping(tmp_path, monkeypatch):
             assert client.post("/api/v1/auth/logout").status_code == 204
             login = client.post("/api/v1/auth/login", json={"email": email, "password": password})
             assert login.status_code == 200, login.text
-            assert login.json()["role"] == expected_role
+            assert login.json()["roles"] == [expected_role]
 
         assert anonymous.get("/api/v1/cj?week_start=2026-10-05").status_code == 401
         assert admin_client.get("/api/v1/cj?week_start=2026-10-05").status_code == 403
@@ -1335,4 +1380,53 @@ def test_forum_feeds_rank_by_likes_or_time(tmp_path, monkeypatch):
         mixed = client.get("/api/v1/posts?category=news&feed=recommended")
         assert mixed.status_code == 422
         assert any(field["field"] == "feed" for field in mixed.json()["error"]["fields"])
+    app.state.engine.dispose()
+
+
+def test_roles_stack_and_super_admin_stays(tmp_path, monkeypatch):
+    app = _make_app(tmp_path, monkeypatch, admin_email="ada.min@basischina.com")
+    with TestClient(app) as client:
+        admin = _register(client, "ada.min@basischina.com", "desk-key-99", "Ada Min")
+        assert admin.status_code == 201
+        student = _register(client, "jordan.hale@basischina.com", "east-hall-8", "Jordan Hale")
+        student_id = student.json()["id"]
+        client.cookies.clear()
+        client.post(
+            "/api/v1/auth/login",
+            json={"email": "ada.min@basischina.com", "password": "desk-key-99"},
+        )
+
+        stacked = client.patch(
+            f"/api/v1/admin/users/{student_id}",
+            json={"roles": ["teacher", "editor"]},
+        )
+        assert stacked.status_code == 200, stacked.text
+        assert stacked.json()["roles"] == ["teacher", "editor"]
+
+        empty = client.patch(f"/api/v1/admin/users/{student_id}", json={"roles": []})
+        assert empty.status_code == 422
+        assert empty.json()["error"]["fields"][0]["field"] == "roles"
+
+        granted = client.patch(
+            f"/api/v1/admin/users/{student_id}",
+            json={"roles": ["teacher", "super_admin"]},
+        )
+        assert granted.status_code == 422
+
+        teachers = client.get("/api/v1/cj/teachers")
+        assert teachers.status_code == 200, teachers.text
+        assert student_id in {item["id"] for item in teachers.json()["items"]}
+
+        self_roles = client.patch(
+            f"/api/v1/admin/users/{admin.json()['id']}",
+            json={"roles": []},
+        )
+        assert self_roles.status_code == 200, self_roles.text
+        assert self_roles.json()["roles"] == ["super_admin"]
+
+        mute_self = client.patch(
+            f"/api/v1/admin/users/{admin.json()['id']}",
+            json={"muted": True},
+        )
+        assert mute_self.status_code == 403
     app.state.engine.dispose()

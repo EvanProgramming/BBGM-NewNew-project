@@ -3,7 +3,7 @@ import { Link, NavLink, Outlet, useLocation } from "react-router-dom";
 import { useAuth } from "../auth";
 import { Avatar } from "./Avatar";
 import { ButtonSpinner } from "./ui";
-import { canEditNews, CATEGORY_ROUTES, formatToday } from "../format";
+import { canEditNews, CATEGORY_ROUTES, formatToday, hasRole } from "../format";
 import { useI18n } from "../i18n";
 import { TermsDialog } from "../pages/Terms";
 
@@ -152,7 +152,7 @@ export default function PaperShell() {
                   <Link role="menuitem" to="/me/password" className={menuItemClass}>
                     {t("shell.password")}
                   </Link>
-                  {user.role === "super_admin" ? (
+                  {hasRole(user, "super_admin") ? (
                     <Link role="menuitem" to="/admin/users" className={menuItemClass}>
                       {t("shell.users")}
                     </Link>

@@ -49,8 +49,9 @@ def load_settings() -> Settings:
         raise RuntimeError("DATABASE_URL is required")
 
     # Two databases: content (DATABASE_URL) and core/CJ (CORE_DATABASE_URL).
-    # When CORE_DATABASE_URL is unset it falls back to DATABASE_URL (single-DB
-    # mode, used by the SQLite tests).
+    # When CORE_DATABASE_URL is unset it falls back to DATABASE_URL. Matching
+    # URLs share one connection per request so a single SQLite file is not
+    # written by two connections at once.
     core_database_url = (os.environ.get("CORE_DATABASE_URL") or "").strip() or database_url
 
     frontend_origin = (os.environ.get("FRONTEND_ORIGIN") or "http://localhost:5173").strip()

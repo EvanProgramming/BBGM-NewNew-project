@@ -103,7 +103,7 @@ Content-Type: application/json
 | `id` | string | |
 | `email` | string | |
 | `display_name` | string | |
-| `role` | string | `student` \| `teacher` \| `editor` \| `admin` \| `super_admin` |
+| `roles` | string[] | 身份，可同时有多个。顺序固定为 `student`、`teacher`、`editor`、`admin`、`super_admin`。注册为 `["student"]`。`ADMIN_EMAIL` 在注册或登录时加上 `super_admin`，不删掉已有身份。 |
 | `avatar` | string | 同 AuthorPublic |
 | `muted` | boolean | 是否禁言。注册默认为 `false`。禁言后仍可登录 |
 | `terms_accepted_at` | string \| null | 同意用户协议的时间，UTC ISO 8601 带 `Z`。注册成功时由服务端写入。协议上线前已存在的账号为 `null`。客户端不能指定该时间 |
@@ -723,22 +723,22 @@ Forum 详情停留时可重复请求本接口（间隔与列表相同），合�
 #### `PATCH /api/v1/admin/users/{user_id}`
 
 - **鉴权：** 是（须 `super_admin`）
-- **职责：** 将目标设为 `student`、`teacher`、`editor` 或 `admin`，和 / 或禁言、解除。不废除会话。
+- **职责：** 替换目标的可分配身份（`student`、`teacher`、`editor`、`admin`，可同时多个），和 / 或禁言、解除。不废除会话。已有的 `super_admin` 保留，不能通过本接口授予或去掉。
 
 **Request body**
 
 | 字段 | 类型 | 必填 | 约束 |
 | --- | --- | --- | --- |
-| `role` | string | 否 | 若出现：仅 `student` \| `teacher` \| `editor` \| `admin` |
-| `muted` | boolean | 否 | `true` 禁言；`false` 解除。与 `role` 至少出现一个 |
+| `roles` | string[] | 否 | 若出现：每一项仅 `student` \| `teacher` \| `editor` \| `admin`，替换这些身份。普通用户不能为空。目标已是 `super_admin` 时，结果仍含 `super_admin`。 |
+| `muted` | boolean | 否 | `true` 禁言；`false` 解除。与 `roles` 至少出现一个 |
 
 **Response**
 
 - `200` + 更新后的 `UserPrivate`
 - `401` `unauthenticated`
-- `403` `forbidden`（调用者不是 `super_admin`；或目标是 `super_admin`；或试图写成 `super_admin`；或禁言自己）
+- `403` `forbidden`（调用者不是 `super_admin`；或禁言自己；或禁言 `super_admin`）
 - `404` `not_found`
-- `422` `validation_error`（`role` 非法，或 `role` 与 `muted` 都缺）
+- `422` `validation_error`（`roles` 含非法身份或 `super_admin`，普通用户的 `roles` 为空，或 `roles` 与 `muted` 都缺）
 - `503` `storage_unavailable`
 
 #### `DELETE /api/v1/admin/users/{user_id}`
@@ -754,7 +754,7 @@ Forum 详情停留时可重复请求本接口（间隔与列表相同），合�
 - `404` `not_found`
 - `503` `storage_unavailable`
 
-`ADMIN_EMAIL`（环境变量，小写邮箱）在注册或登录时把该用户升为 `super_admin`。不要把真实邮箱写进仓库。
+`ADMIN_EMAIL`（环境变量，小写邮箱）在注册或登录时把 `super_admin` 加进该用户的 `roles`，不删掉已有身份。不要把真实邮箱写进仓库。
 
 #### `GET /api/v1/me/notices`
 
@@ -1029,7 +1029,7 @@ Forum 详情停留时可重复请求本接口（间隔与列表相同），合�
   "id": "8f2a1c6e-4b90-4d3a-9e1f-2c7b0d84a511",
   "email": "jordan.hale@basischina.com",
   "display_name": "Jordan Hale",
-  "role": "student",
+  "roles": ["student"],
   "avatar": "preset:oak",
   "muted": false,
   "terms_accepted_at": "2026-09-10T11:02:18Z",
@@ -1062,7 +1062,7 @@ Forum 详情停留时可重复请求本接口（间隔与列表相同），合�
   "id": "c3d9e0a4-1f27-4b8c-a056-9e4d2b71c880",
   "email": "priya.nair@basischina.com",
   "display_name": "Priya Nair",
-  "role": "editor",
+  "roles": ["editor"],
   "avatar": "preset:oak",
   "muted": false,
   "terms_accepted_at": "2026-08-21T09:10:00Z",
@@ -1113,7 +1113,7 @@ Forum 详情停留时可重复请求本接口（间隔与列表相同），合�
   "id": "8f2a1c6e-4b90-4d3a-9e1f-2c7b0d84a511",
   "email": "jordan.hale@basischina.com",
   "display_name": "Jordan Hale",
-  "role": "student",
+  "roles": ["student"],
   "avatar": "preset:oak",
   "muted": false,
   "terms_accepted_at": "2026-09-10T11:02:18Z",

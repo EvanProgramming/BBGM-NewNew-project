@@ -16,13 +16,18 @@ from routers.teams import router as teams_router
 
 def create_app() -> FastAPI:
     settings = load_settings()
-    core_engine = make_engine(settings.core_database_url)
-    content_engine = make_engine(settings.database_url)
+    shared_database = settings.database_url == settings.core_database_url
+    if shared_database:
+        core_engine = content_engine = make_engine(settings.database_url)
+    else:
+        core_engine = make_engine(settings.core_database_url)
+        content_engine = make_engine(settings.database_url)
     init_core_db(core_engine)
     init_content_db(content_engine)
 
     app = FastAPI(title="Elegram API")
     app.state.settings = settings
+    app.state.shared_database = shared_database
     app.state.core_engine = core_engine
     app.state.content_engine = content_engine
     app.state.core_session_factory = make_session_factory(core_engine)

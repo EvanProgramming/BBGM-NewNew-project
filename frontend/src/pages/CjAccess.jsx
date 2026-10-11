@@ -1,14 +1,20 @@
 import { useEffect, useState } from "react";
 import { Navigate, useLocation } from "react-router-dom";
 import { useAuth } from "../auth";
+import { hasRole } from "../format";
 import { hasSeenCjHello, markCjHelloSeen } from "../cjHello";
 import { useI18n } from "../i18n";
 
-const CJ_HOME = {
-  student: "/cj/student",
-  teacher: "/cj/teacher",
-  super_admin: "/cj/admin",
-};
+const CJ_HOME = [
+  ["super_admin", "/cj/admin"],
+  ["teacher", "/cj/teacher"],
+  ["student", "/cj/student"],
+];
+
+function cjHome(user) {
+  const match = CJ_HOME.find(([role]) => hasRole(user, role));
+  return match ? match[1] : "/";
+}
 
 function LoadingAccess() {
   const { t } = useI18n();
@@ -23,7 +29,7 @@ export default function CjPortal() {
     const next = `${location.pathname}${location.search}`;
     return <Navigate to={`/sign-in?next=${encodeURIComponent(next)}`} replace />;
   }
-  return <Navigate to={CJ_HOME[user.role] || "/"} replace />;
+  return <Navigate to={cjHome(user)} replace />;
 }
 
 function CjHello({ name }) {
@@ -58,8 +64,8 @@ export function RequireCjRole({ roles, children }) {
     const next = `${location.pathname}${location.search}`;
     return <Navigate to={`/sign-in?next=${encodeURIComponent(next)}`} replace />;
   }
-  if (!roles.includes(user.role)) {
-    return <Navigate to={CJ_HOME[user.role] || "/"} replace />;
+  if (!roles.some((role) => hasRole(user, role))) {
+    return <Navigate to={cjHome(user)} replace />;
   }
   if (!entered) return <CjHello name={user.display_name} />;
   return children;

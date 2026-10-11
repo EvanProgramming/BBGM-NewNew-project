@@ -12,7 +12,7 @@ function sameProfile(left, right) {
     left?.id === right?.id &&
     left?.email === right?.email &&
     left?.display_name === right?.display_name &&
-    left?.role === right?.role &&
+    JSON.stringify(left?.roles || []) === JSON.stringify(right?.roles || []) &&
     left?.avatar === right?.avatar &&
     Boolean(left?.muted) === Boolean(right?.muted)
   );

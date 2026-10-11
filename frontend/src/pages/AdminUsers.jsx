@@ -6,12 +6,7 @@ import { ButtonSpinner, ErrorBanner, FrontPageLink, SectionRule } from "../compo
 import { useI18n } from "../i18n";
 import { useLiveRefresh } from "../live";
 
-const ROLES = [
-  { value: "student", label: "Student" },
-  { value: "teacher", label: "Teacher" },
-  { value: "editor", label: "Editor" },
-  { value: "admin", label: "Admin" },
-];
+const ASSIGNABLE = ["student", "teacher", "editor", "admin"];
 
 export default function AdminUsers() {
   const { user, ready, setUser } = useAuth();
@@ -28,7 +23,7 @@ export default function AdminUsers() {
       navigate("/sign-in?next=/admin/users", { replace: true });
       return;
     }
-    if (user.role !== "super_admin") {
+    if (!user.roles?.includes("super_admin")) {
       navigate("/", { replace: true });
     }
   }, [ready, user, navigate]);
@@ -40,7 +35,7 @@ export default function AdminUsers() {
   }, []);
 
   useEffect(() => {
-    if (!user || user.role !== "super_admin") return undefined;
+    if (!user?.roles?.includes("super_admin")) return undefined;
     let cancelled = false;
     setLoading(true);
     refreshUsers()
@@ -65,7 +60,7 @@ export default function AdminUsers() {
     };
   }, [user, navigate, setUser, refreshUsers]);
 
-  useLiveRefresh(Boolean(user && user.role === "super_admin") && !loading, refreshUsers);
+  useLiveRefresh(Boolean(user?.roles?.includes("super_admin")) && !loading, refreshUsers);
 
   function replaceItem(updated) {
     setItems((current) => current.map((item) => (item.id === updated.id ? updated : item)));
@@ -83,9 +78,15 @@ export default function AdminUsers() {
     }
   }
 
-  function setRole(target, role) {
+  function toggleRole(target, role) {
+    const current = (target.roles || []).filter((item) => ASSIGNABLE.includes(item));
+    const next = current.includes(role)
+      ? current.filter((item) => item !== role)
+      : [...current, role];
     return runAction(`${target.id}:role:${role}`, async () => {
-      replaceItem(await api.patchUserRole(target.id, role));
+      const updated = await api.patchUserRoles(target.id, next);
+      replaceItem(updated);
+      if (updated.id === user.id) setUser(updated);
     });
   }
 
@@ -103,7 +104,7 @@ export default function AdminUsers() {
     });
   }
 
-  if (!ready || !user || user.role !== "super_admin") return null;
+  if (!ready || !user?.roles?.includes("super_admin")) return null;
 
   return (
     <div className="mt-8">
@@ -124,30 +125,42 @@ export default function AdminUsers() {
           </thead>
           <tbody>
             {items.map((item) => {
-              const locked = item.role === "super_admin" || item.id === user.id;
+              const roles = item.roles || [];
+              const protectedAccount = roles.includes("super_admin") || item.id === user.id;
               return (
                 <tr key={item.id} className="border-b border-neutral-200 align-top">
                   <td className="py-3">{item.display_name}</td>
                   <td className="py-3">{item.email}</td>
-                  <td className="py-3 uppercase tracking-[0.08em]">{item.role}</td>
+                  <td className="py-3">
+                    <div className="flex max-w-[18rem] flex-wrap gap-1">
+                      {ASSIGNABLE.map((role) => {
+                        const active = roles.includes(role);
+                        const key = `${item.id}:role:${role}`;
+                        return (
+                          <button
+                            key={role}
+                            type="button"
+                            disabled={Boolean(pending)}
+                            onClick={() => toggleRole(item, role)}
+                            className={`inline-flex items-center gap-1 border px-1.5 py-0.5 font-sans text-[10px] uppercase tracking-[0.08em] disabled:opacity-40 ${
+                              active ? "border-black bg-black text-white" : "border-black bg-white text-black"
+                            }`}
+                          >
+                            {pending === key ? <ButtonSpinner /> : null}
+                            {t(`users.${role}`)}
+                          </button>
+                        );
+                      })}
+                      {roles.includes("super_admin") ? (
+                        <span className="border border-[#1A4FBF] px-1.5 py-0.5 font-sans text-[10px] uppercase tracking-[0.08em] text-[#1A4FBF]">
+                          {t("users.superAdmin")}
+                        </span>
+                      ) : null}
+                    </div>
+                  </td>
                   <td className="py-3 text-right">
-                    {locked ? null : (
+                    {protectedAccount ? null : (
                       <div className="flex flex-wrap justify-end gap-x-4 gap-y-2">
-                        {ROLES.filter((role) => role.value !== item.role).map((role) => {
-                          const key = `${item.id}:role:${role.value}`;
-                          return (
-                            <button
-                              key={role.value}
-                              type="button"
-                              disabled={Boolean(pending)}
-                              onClick={() => setRole(item, role.value)}
-                              className="inline-flex items-center gap-1 uppercase tracking-[0.12em] text-[#1A4FBF] disabled:opacity-40"
-                            >
-                              {pending === key ? <ButtonSpinner /> : null}
-                              {t(`users.${role.value}`)}
-                            </button>
-                          );
-                        })}
                         <button
                           type="button"
                           disabled={Boolean(pending)}

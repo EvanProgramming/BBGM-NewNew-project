@@ -1,7 +1,8 @@
+import json
 from datetime import datetime, timezone
 from uuid import uuid4
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, Index, Integer, String, Text, UniqueConstraint, create_engine
+from sqlalchemy import Boolean, DateTime, ForeignKey, Index, Integer, String, Text, UniqueConstraint, create_engine, event
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship, sessionmaker
 
 
@@ -36,6 +37,7 @@ class User(CoreBase):
     password_hash: Mapped[str] = mapped_column(Text, nullable=False)
     display_name: Mapped[str] = mapped_column(String(40), nullable=False)
     role: Mapped[str] = mapped_column(String(16), nullable=False, default="student")
+    roles: Mapped[str] = mapped_column(Text, nullable=False, default='["student"]')
     avatar: Mapped[str] = mapped_column(String(160), nullable=False, default="preset:oak")
     muted: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     terms_accepted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
@@ -248,7 +250,18 @@ def make_engine(database_url: str):
     connect_args = {}
     if database_url.startswith("sqlite"):
         connect_args["check_same_thread"] = False
-    return create_engine(database_url, connect_args=connect_args)
+        # Seconds another connection may wait when this file is already being written.
+        connect_args["timeout"] = 30
+    engine = create_engine(database_url, connect_args=connect_args)
+    if database_url.startswith("sqlite"):
+
+        @event.listens_for(engine, "connect")
+        def _sqlite_wal(dbapi_connection, _connection_record):
+            cursor = dbapi_connection.cursor()
+            cursor.execute("PRAGMA journal_mode=WAL")
+            cursor.close()
+
+    return engine
 
 
 def make_session_factory(engine):
@@ -346,6 +359,19 @@ def migrate_core_schema(engine) -> None:
             cols = {row[1] for row in conn.exec_driver_sql("PRAGMA table_info(users)").fetchall()}
             if cols and "banned" in cols:
                 _sqlite_drop_users_banned(conn)
+            cols = {row[1] for row in conn.exec_driver_sql("PRAGMA table_info(users)").fetchall()}
+            if cols and "roles" not in cols:
+                conn.exec_driver_sql(
+                    "ALTER TABLE users ADD COLUMN roles TEXT NOT NULL DEFAULT '[\"student\"]'"
+                )
+                for user_id, role in conn.exec_driver_sql("SELECT id, role FROM users").fetchall():
+                    stored = json.dumps([role] if role in {
+                        "student", "teacher", "editor", "admin", "super_admin"
+                    } else ["student"])
+                    conn.exec_driver_sql(
+                        "UPDATE users SET roles = ? WHERE id = ?",
+                        (stored, user_id),
+                    )
             subject_cols = {row[1] for row in conn.exec_driver_sql("PRAGMA table_info(subjects)").fetchall()}
             subject_columns = {
                 "grade": "INTEGER NOT NULL DEFAULT 11",

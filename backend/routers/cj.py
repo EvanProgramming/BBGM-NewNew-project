@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 from cj_vision import recognize_homework
 from deps import get_cj_editor, get_cj_viewer, get_core_db, get_super_admin
 from errors import ApiError, validation_error
+from identity import user_has
 from models import CJEntry, CJTeacherSubject, Exam, Subject, User, to_iso, utc_now
 
 router = APIRouter()
@@ -603,9 +604,11 @@ def list_cj_teachers(
     _: User = Depends(get_super_admin),
     db: Session = Depends(get_core_db),
 ):
-    teachers = db.scalars(
-        select(User).where(User.role == "teacher").order_by(User.display_name, User.email)
-    ).all()
+    teachers = [
+        teacher
+        for teacher in db.scalars(select(User).order_by(User.display_name, User.email)).all()
+        if user_has(teacher, "teacher")
+    ]
     return {"items": [_teacher_payload(db, teacher) for teacher in teachers]}
 
 
@@ -617,7 +620,7 @@ def assign_cj_teacher_subjects(
     db: Session = Depends(get_core_db),
 ):
     teacher = db.get(User, teacher_id)
-    if teacher is None or teacher.role != "teacher":
+    if teacher is None or not user_has(teacher, "teacher"):
         raise ApiError(404, "not_found", "Teacher not found.")
 
     raw_ids = body.get("subject_ids")

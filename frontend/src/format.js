@@ -9,12 +9,16 @@ export const CATEGORY_ROUTES = [
   { to: "/opinion", label: "OPINION", category: null },
 ];
 
+export function hasRole(user, role) {
+  return Array.isArray(user?.roles) && user.roles.includes(role);
+}
+
 export function canEditNews(user) {
-  return user?.role === "editor" || user?.role === "super_admin";
+  return hasRole(user, "editor") || hasRole(user, "super_admin");
 }
 
 export function canDeletePosts(user) {
-  return user?.role === "admin" || user?.role === "super_admin";
+  return hasRole(user, "admin") || hasRole(user, "super_admin");
 }
 
 export function categoryLabel(category) {

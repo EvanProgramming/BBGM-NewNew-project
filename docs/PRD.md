@@ -5,7 +5,7 @@
 默认决策（可被后续 1.2 推翻）：
 
 - 账号：站点自建注册 / 登录；仅 `@basischina.com`。注册须邮箱验证码通过后才建账号。登录用邮箱 + 密码。忘记密码用同一套验证码重置。不接校园 SSO、不发短信。
-- 角色：注册默认为 `student`；`ADMIN_EMAIL` 匹配的账号为 `super_admin`。超级管理员可授予或取消 `teacher`、`editor` 与 `admin`，不能再造一个 `super_admin`。
+- 角色：一个人可以同时有多个身份。注册默认为 `student`。`ADMIN_EMAIL` 匹配时在注册或登录加上 `super_admin`，不覆盖已有身份。超级管理员可加上或去掉 `student`、`teacher`、`editor` 与 `admin`，不能授予或去掉 `super_admin`。普通用户至少保留一个可分配身份。
 - 发帖：Forum 发布即公开。News 以分板块草稿存在，超级管理员同意的板块才出现在 News 上。没有 Sports 栏目，也没有把 Forum 帖直接复制上 News 的精选。
 - 无活动帖：帖子不带开始时间与地点字段。
 
@@ -83,9 +83,9 @@ Must 服务主故事 P1-US1（Forum 发帖被看见）以及角色、跟帖、Ne
 | M26 | CJ | 与 Forum 平级的课表栏，必须登录并按角色进入三个独立入口。学生端从月历按整周进入周一至周五五列只读视图，Period 1–8 自选学科只存在浏览器本地；每位老师由超级管理员分配一个 CJ 学科，只能读取和更新该学科的 CJ 与考试；`super_admin` 管理端可读取和修改全部 CJ、考试以及老师学科分配。考试必须选择学科，学生端自动显示学科前缀。`editor` 与普通 `admin` 不自动获得 CJ 权限。老师或超级管理员可上传作业照片；百炼 `qwen3-vl-flash` 认出学科并写入当天的 IC / HW / A。裁切处补上的文字单独返回，不冒充照片原文。 |
 | M27 | Teams 群聊生成当周 CJ | 仅 `super_admin`。一个已在目标群里的 Teams 账号经 Microsoft 登录一次，服务器只保存刷新令牌。管理端选择周次后先预览，确认后才把群聊文字交给 DeepSeek `deepseek-flash`，总结成已有学科的 IC / HW / A 并写入 `CJEntry`。不下载附件。对不上学科、星期或超长的条目跳过。学生周视图仍读原来的 CJ 字段。未连接或上游失败时不写入半截 CJ。 |
 | M12 | Forum 评论 | 仅 Forum 详情：帖子下的评论。未登录可读；登录可写。不新增楼层，不写楼中楼。校报详情不加评论。 |
-| M13 | 角色 | `student` / `teacher` / `editor` / `admin` / `super_admin`。`ADMIN_EMAIL` 在注册或登录时升为 `super_admin`。 |
+| M13 | 角色 | `student` / `teacher` / `editor` / `admin` / `super_admin`，可同时拥有多项。`ADMIN_EMAIL` 在注册或登录时加上 `super_admin`，不覆盖已有身份。 |
 | M14 | News 分板块草稿 | `editor` 与 `super_admin` 在 `/news/drafts` 新建稿并按板块保存、提交。`super_admin` 可同意或退回单个板块。公开 News 只含已同意板块。已上线板块再改，仍须再次同意后才替换线上正文。 |
-| M15 | 超级管理员用户列表 | 仅 `super_admin` 查看用户，并可设为 `student` / `teacher` / `editor` / `admin`、禁言或解除、删除用户。不能改、禁言或删除自己，也不能动另一个 `super_admin`，不能授予 `super_admin`。 |
+| M15 | 超级管理员用户列表 | 仅 `super_admin` 查看用户，并可替换其 `student` / `teacher` / `editor` / `admin` 组合、禁言或解除、删除用户。不能禁言或删除自己，也不能禁言或删除 `super_admin`，不能授予或去掉 `super_admin`。身份标签可以改自己的那一行。 |
 | M16 | 头像 | 自带预设（`preset:oak` 等）或上传一张图；出现在顶栏、Forum 帖/楼、栏目内发帖表。校报栏目没有封面图字段。 |
 | M17 | Forum 卡片 | `/forum` 每条为独立模块卡：头像、展示名、时间、标题、`excerpt`、有则 `images[0]`；底栏气泡（`reply_count`，点进详情）与拇指（`like_count`）。列表不展开楼层预览。校报列表仍用原印刷行。 |
 | M18 | Forum 配图 | Forum 主帖作者可在发帖时或之后上传最多 4 张 jpeg/png/webp（每张 ≤2MB），存在 `images[]`。News 的 `images` 恒为 `[]`。跟帖不传图。 |
@@ -157,7 +157,7 @@ Must 服务主故事 P1-US1（Forum 发帖被看见）以及角色、跟帖、Ne
 19. 给定 Forum 帖，当未登录读取评论则成功；当未登录跟帖则 `401`，不落评论。
 20. 给定已登录用户在 Forum 详情，当发表一条评论，则该帖下可见；请求里带 `parent_id` 则 `422`，不新增楼层或楼中楼。
 21. 给定编辑提交一个 News 板块，当超级管理员退回，则公开详情不出现该板块的新正文；编辑仍可修改并再次提交。
-22. 给定超级管理员打开用户列表，当把一名学生设为 `editor` 或 `admin`，则对方角色更新。`admin`、`editor` 或学生调用该接口则 `403`。不能把人写成 `super_admin`。
+22. 给定超级管理员打开用户列表，当把一名学生的身份设为同时包含 `editor` 与 `teacher`，则对方 `roles` 含这两项。`admin`、`editor` 或学生调用该接口则 `403`。不能写入 `super_admin`。普通用户的 `roles` 不能为空。已有 `super_admin` 再被设成 `editor` 时，结果仍含 `super_admin`。
 23. 给定校报详情页，当请求该帖的评论接口，则 `422`，页面不展示评论。
 24. 给定已登录学生在 Forum 发帖并附上合法图片，当发布成功，则详情与 Forum 卡片能读到同一组 `images`；非法图片或向校报帖配图则失败且不落半截帖，校报 `images` 仍为 `[]`。
 25. 给定已登录用户在 Forum 列表，当点赞一帖再取消，则 `like_count` 与 `liked` 随之变化且刷新后仍对；再点一次已赞不加倍。未登录点赞不写入，去登录。校报帖点赞失败。
@@ -201,7 +201,7 @@ Elegram 应用（Web 页面 + 服务端）
 
 | 实体 | 关键字段 | 生命周期 |
 | --- | --- | --- |
-| User | id, email, password_hash, display_name, role, avatar, muted, terms_accepted_at, created_at | 邮箱须 `@basischina.com`；验证码通过且 `accept_terms` 为 `true` 后注册为 `student`，服务端写入 `terms_accepted_at`；`muted` 默认 false；禁言后仍可登录，不能写帖。协议上线前的账号该时间为 `null` |
+| User | id, email, password_hash, display_name, roles, avatar, muted, terms_accepted_at, created_at | 邮箱须 `@basischina.com`；验证码通过且 `accept_terms` 为 `true` 后注册为 `["student"]`，服务端写入 `terms_accepted_at`；`roles` 可含多项；`muted` 默认 false；禁言后仍可登录，不能写帖。协议上线前的账号该时间为 `null` |
 | EmailCode | email, purpose, code_hash, expires_at, attempt_count | 注册或找回密码发码；明文不入库；发出后 2 分钟过期，或用过后失效 |
 | Session | 可校验的登录凭证，绑定 user_id，可失效 | 登录创建 → 退出、删除用户或过期销毁。禁言不废除会话 |
 | Post | id, author_id, title, body, category, status, images, created_at, updated_at | Forum 校验通过后 `published`。News 在至少一块被同意前为 `draft`，公开接口不返回。`admin` / `super_admin` 可整帖删除 |
@@ -249,7 +249,7 @@ Comment（新评论不挂到另一条评论下）
 | 跟帖 | User、Post（须 Forum，且未禁言） | Comment |
 | 我的帖子 | Post where author = 当前用户且 `published` | 无 |
 | System | SystemNotice where user = 当前用户 | 无（删帖时由服务端写入） |
-| 超级管理员改角色 / 禁言 | User 列表 | User.role（`student` / `teacher` / `editor` / `admin`）或 `muted`。禁言不废除会话 |
+| 超级管理员改角色 / 禁言 | User 列表 | User.roles（可分配身份的新组合，已有 `super_admin` 保留）或 `muted`。禁言不废除会话 |
 | 超级管理员删用户 | User | 删除 User、Session、其 Post、Comment、PostLike、NewsBlock |
 | 删帖 | Post | 先写 SystemNotice 给作者，再删除 Post 及其 Comment、NewsBlock、PostLike、配图与该帖 AuditEvent |
 | 超管从 Teams 导入 CJ | TeamsConnection、Subject | 预览不写 CJEntry。确认后覆盖该周对应学科的 IC / HW / A |

@@ -178,10 +178,10 @@ export const api = {
     });
     return request(`/admin/users?${query}`);
   },
-  patchUserRole: (userId, role) =>
+  patchUserRoles: (userId, roles) =>
     request(`/admin/users/${encodeURIComponent(userId)}`, {
       method: "PATCH",
-      body: JSON.stringify({ role }),
+      body: JSON.stringify({ roles }),
     }),
   setUserMuted: (userId, muted) =>
     request(`/admin/users/${encodeURIComponent(userId)}`, {

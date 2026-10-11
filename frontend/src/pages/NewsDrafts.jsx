@@ -3,7 +3,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { ApiError, api, fieldMessage } from "../api";
 import { useAuth } from "../auth";
 import { ButtonSpinner, ErrorBanner, FieldError, FrontPageLink, SectionRule } from "../components/ui";
-import { canEditNews } from "../format";
+import { canEditNews, hasRole } from "../format";
 import { useI18n } from "../i18n";
 import { useLiveRefresh } from "../live";
 
@@ -506,7 +506,7 @@ export default function NewsDrafts() {
       {draft ? (
         <DraftBoard
           draft={draft}
-          isSuper={user.role === "super_admin"}
+          isSuper={hasRole(user, "super_admin")}
           error={error}
           acting={acting}
           onSave={(position, block, heading, body) => saveSlot(position, block, heading, body)}

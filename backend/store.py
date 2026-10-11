@@ -80,8 +80,10 @@ def users_by_ids(db: Session, ids: Iterable[str]) -> dict[str, User]:
 
 
 def apply_admin_email(user: User, admin_email: str) -> None:
-    if admin_email and user.email == admin_email and user.role != "super_admin":
-        user.role = "super_admin"
+    from identity import assign_roles, user_has, user_roles
+
+    if admin_email and user.email == admin_email and not user_has(user, "super_admin"):
+        assign_roles(user, [*user_roles(user), "super_admin"])
 
 
 def add_system_notice(db: Session, *, user_id: str, body: str) -> None:

@@ -68,7 +68,7 @@ class UserPrivate(BaseModel):
     id: str
     email: str
     display_name: str
-    role: str
+    roles: list[str]
     avatar: str
     muted: bool
     terms_accepted_at: str | None
@@ -92,7 +92,7 @@ class CreateCommentBody(BaseModel):
 class PatchUserRoleBody(BaseModel):
     model_config = ConfigDict(extra="ignore")
 
-    role: str | None = None
+    roles: list[str] | None = None
     muted: bool | None = None
 
 

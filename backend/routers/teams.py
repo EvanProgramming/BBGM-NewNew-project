@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 
 from deps import get_core_db, get_optional_user, get_super_admin
 from errors import ApiError, validation_error
+from identity import user_has
 from models import CJEntry, Subject, TeamsOAuthState, User, to_iso, utc_now
 from routers.cj import _ensure_subjects, _slot, _week_or_error
 from teams_cj import (
@@ -108,7 +109,7 @@ def teams_callback(
     if row is not None and not fresh:
         db.delete(row)
         db.flush()
-    if not fresh or user is None or user.role != "super_admin" or not code:
+    if not fresh or user is None or not user_has(user, "super_admin") or not code:
         return RedirectResponse(f"{target}?teams=error", status_code=302)
     db.delete(row)
     db.flush()

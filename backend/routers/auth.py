@@ -40,6 +40,7 @@ from store import (
     issue_email_code,
     list_system_notices,
 )
+from identity import dump_roles, primary_role, user_roles
 from validate import (
     change_password_field_errors,
     email_code_field_errors,
@@ -57,7 +58,7 @@ def _user_private(user: User) -> dict:
         id=user.id,
         email=user.email,
         display_name=user.display_name,
-        role=user.role,
+        roles=user_roles(user),
         avatar=normalize_avatar(user.avatar),
         muted=bool(user.muted),
         terms_accepted_at=to_iso(user.terms_accepted_at) if user.terms_accepted_at else None,
@@ -134,12 +135,16 @@ def register(body: RegisterBody, request: Request, db: Session = Depends(get_cor
         )
 
     admin_email = request.app.state.settings.admin_email
+    roles = ["student"]
+    if admin_email and email == admin_email:
+        roles.append("super_admin")
     user = User(
         id=str(uuid4()),
         email=email,
         password_hash=hash_password(body.password),
         display_name=body.display_name.strip(),
-        role="super_admin" if admin_email and email == admin_email else "student",
+        role=primary_role(roles),
+        roles=dump_roles(roles),
         muted=False,
         avatar=DEFAULT_AVATAR,
         terms_accepted_at=utc_now(),
