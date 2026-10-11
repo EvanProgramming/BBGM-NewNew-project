@@ -4,7 +4,7 @@ import { api } from "../api";
 import { useAuth } from "../auth";
 import { uploadSrc } from "../avatar";
 import { ErrorBanner, FrontPageLink, SectionRule } from "../components/ui";
-import { canEditNews, formatDateline, hasRole, newsTopicsLabel } from "../format";
+import { formatDateline, hasRole, newsTopicsLabel } from "../format";
 import { useI18n } from "../i18n";
 
 function ArticlePreview({ item, body, label }) {
@@ -40,7 +40,7 @@ export default function NewsDesign() {
   useEffect(() => {
     if (!ready) return;
     if (!user) navigate("/sign-in?next=/news/design", { replace: true });
-    else if (!canEditNews(user)) navigate("/", { replace: true });
+    else if (!hasRole(user, "super_admin")) navigate("/", { replace: true });
   }, [ready, user, navigate]);
 
   async function refresh(keepId = null) {
@@ -53,7 +53,7 @@ export default function NewsDesign() {
   }
 
   useEffect(() => {
-    if (!user || !canEditNews(user)) return undefined;
+    if (!user || !hasRole(user, "super_admin")) return undefined;
     let active = true;
     api.listNewsSubmissions().then(({ items: submissions }) => {
       if (!active) return;
@@ -89,22 +89,6 @@ export default function NewsDesign() {
     }
   }
 
-  async function sendForReview() {
-    if (!selected || (mode === "formatted" && !selected.formatted_body)) return;
-    setActing("submit");
-    setError(null);
-    try {
-      await api.submitNewsSubmission(selected.id, mode);
-      setItems((current) => current.filter((item) => item.id !== selected.id));
-      setNotice("Sent for super admin review. It will appear in News after approval.");
-      setSelected(null);
-    } catch (err) {
-      setError(err);
-    } finally {
-      setActing("");
-    }
-  }
-
   async function publish() {
     if (!selected || (mode === "formatted" && !selected.formatted_body)) return;
     setActing("publish");
@@ -121,13 +105,13 @@ export default function NewsDesign() {
     }
   }
 
-  if (!ready || !user || !canEditNews(user)) return null;
+  if (!ready || !user || !hasRole(user, "super_admin")) return null;
   return (
     <main className="mt-8">
       <FrontPageLink />
       <div className="flex flex-wrap items-end justify-between gap-4">
         <SectionRule>Design · Editorial layout</SectionRule>
-        {hasRole(user, "super_admin") ? <Link to="/news/review" className="mb-3 font-sans text-[10px] font-semibold uppercase tracking-[0.14em] text-[#1A4FBF]">Review queue</Link> : null}
+        <Link to="/news/review" className="mb-3 font-sans text-[10px] font-semibold uppercase tracking-[0.14em] text-[#1A4FBF]">Review queue</Link>
       </div>
       <ErrorBanner error={error} />
       {notice ? <p role="status" className="mb-4 border-l-2 border-[#1A4FBF] pl-3 font-sans text-sm">{notice}</p> : null}
@@ -177,11 +161,7 @@ export default function NewsDesign() {
               </div>
               <div className="mt-6 flex flex-wrap gap-3 border-t border-black pt-5">
                 {mode === "formatted" && !selected.formatted_body ? <button type="button" onClick={createDesign} disabled={Boolean(acting)} className="border border-[#1A4FBF] px-4 py-2 font-sans text-[10px] font-semibold uppercase tracking-[0.14em] text-[#1A4FBF] disabled:opacity-50">{acting === "design" ? "Designing…" : "Generate API design"}</button> : null}
-                {hasRole(user, "super_admin") ? (
-                  <button type="button" onClick={publish} disabled={Boolean(acting) || (mode === "formatted" && !selected.formatted_body)} className="bg-[#1A4FBF] px-4 py-2 font-sans text-[10px] font-semibold uppercase tracking-[0.14em] text-white disabled:opacity-50">{acting === "publish" ? "Publishing…" : "Publish to News"}</button>
-                ) : (
-                  <button type="button" onClick={sendForReview} disabled={Boolean(acting) || (mode === "formatted" && !selected.formatted_body)} className="bg-[#1A4FBF] px-4 py-2 font-sans text-[10px] font-semibold uppercase tracking-[0.14em] text-white disabled:opacity-50">{acting === "submit" ? "Sending…" : "Send for review"}</button>
-                )}
+                <button type="button" onClick={publish} disabled={Boolean(acting) || (mode === "formatted" && !selected.formatted_body)} className="bg-[#1A4FBF] px-4 py-2 font-sans text-[10px] font-semibold uppercase tracking-[0.14em] text-white disabled:opacity-50">{acting === "publish" ? "Publishing…" : "Publish to News"}</button>
               </div>
             </>
           ) : <p className="py-8 font-sans text-sm text-neutral-500">Select a saved draft.</p>}

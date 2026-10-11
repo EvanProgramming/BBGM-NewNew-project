@@ -164,6 +164,8 @@ def test_editor_review_publishes_into_homepage_categories(tmp_path, monkeypatch)
         )
         assert created.status_code == 201, created.text
         article_id = created.json()["id"]
+        denied_design = client.post(f"/api/v1/news/submissions/{article_id}/format")
+        assert denied_design.status_code == 403
         pending = client.post(f"/api/v1/news/submissions/{article_id}/submit", json={"mode": "original"})
         assert pending.status_code == 200, pending.text
         assert client.get("/api/v1/news/articles?topic=dorm").json()["total"] == 0

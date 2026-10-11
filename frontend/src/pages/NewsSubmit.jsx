@@ -4,7 +4,7 @@ import { ApiError, api, fieldMessage } from "../api";
 import { useAuth } from "../auth";
 import { uploadSrc } from "../avatar";
 import { ErrorBanner, FieldError, FrontPageLink, SectionRule } from "../components/ui";
-import { canEditNews, formatDateline } from "../format";
+import { canEditNews, formatDateline, hasRole } from "../format";
 import { useI18n } from "../i18n";
 
 const TOPICS = ["sport", "dorm", "scoop"];
@@ -35,6 +35,7 @@ export default function NewsSubmit() {
   const [topics, setTopics] = useState([]);
   const [files, setFiles] = useState([]);
   const [error, setError] = useState(null);
+  const [notice, setNotice] = useState("");
   const [loading, setLoading] = useState(true);
   const [acting, setActing] = useState("");
 
@@ -68,6 +69,7 @@ export default function NewsSubmit() {
     setTopics(item.topics);
     setFiles([]);
     setError(null);
+    setNotice("");
   }
 
   function toggleTopic(topic) {
@@ -142,6 +144,24 @@ export default function NewsSubmit() {
     }
   }
 
+  async function sendForReview() {
+    const item = await save();
+    if (!item) return;
+    setActing("submit");
+    setError(null);
+    setNotice("");
+    try {
+      const pending = await api.submitNewsSubmission(item.id, "original");
+      setSelected(pending);
+      setItems((current) => current.map((entry) => entry.id === pending.id ? pending : entry));
+      setNotice("Sent for super admin review. It will appear in News after approval.");
+    } catch (err) {
+      setError(err);
+    } finally {
+      setActing("");
+    }
+  }
+
   if (!ready || !user || !canEditNews(user)) return null;
   const isNew = !selected;
   const editable = isNew || selected.status === "draft";
@@ -151,11 +171,12 @@ export default function NewsSubmit() {
       <FrontPageLink />
       <SectionRule>Draft · Story editor</SectionRule>
       <ErrorBanner error={error && !error.fields?.length ? error : null} />
+      {notice ? <p role="status" className="mb-4 border-l-2 border-[#1A4FBF] pl-3 font-sans text-sm">{notice}</p> : null}
       <div className="mt-6 grid grid-cols-1 gap-10 lg:grid-cols-[260px_minmax(0,1fr)]">
         <aside>
           <div className="flex items-center justify-between border-b border-black pb-2">
             <h2 className="font-sans text-[11px] font-semibold uppercase tracking-[0.16em]">Your submissions</h2>
-            <button type="button" onClick={() => { setSelected(null); setTitle(""); setBody(""); setTopics([]); setFiles([]); setError(null); }} className="font-sans text-[11px] font-semibold uppercase text-[#1A4FBF]">New</button>
+            <button type="button" onClick={() => { setSelected(null); setTitle(""); setBody(""); setTopics([]); setFiles([]); setError(null); setNotice(""); }} className="font-sans text-[11px] font-semibold uppercase text-[#1A4FBF]">New</button>
           </div>
           {loading ? <p className="py-4 font-sans text-sm text-neutral-500">Loading…</p> : null}
           <ul className="divide-y divide-neutral-200">
@@ -217,6 +238,9 @@ export default function NewsSubmit() {
               ) : editable ? (
                 <>
                   <button type="submit" disabled={Boolean(acting)} className="border border-black px-4 py-2 font-sans text-[10px] font-semibold uppercase tracking-[0.14em] disabled:opacity-50">{acting === "save" ? "Saving…" : "Save changes"}</button>
+                  {!hasRole(user, "super_admin") ? (
+                    <button type="button" onClick={sendForReview} disabled={Boolean(acting)} className="bg-[#1A4FBF] px-4 py-2 font-sans text-[10px] font-semibold uppercase tracking-[0.14em] text-white disabled:opacity-50">{acting === "submit" ? "Sending…" : "Send for review"}</button>
+                  ) : null}
                 </>
               ) : <p className="font-sans text-sm text-neutral-500">This article is awaiting super admin review.</p>}
             </div>

@@ -327,14 +327,12 @@ def _local_format(text: str) -> str:
 @router.post("/news/submissions/{submission_id}/format")
 async def format_submission(
     submission_id: str,
-    user: User = Depends(get_newsroom_user),
+    user: User = Depends(get_super_admin),
     db: Session = Depends(get_db),
     core: Session = Depends(get_core_db),
 ):
     require_not_muted(user)
     post = _require_article(db, parse_uuid(submission_id))
-    if user.role != "super_admin":
-        _require_owner(user, post)
     if post.status != "draft":
         raise validation_error([{"field": "status", "message": "Only draft submissions can be formatted."}])
     block = _article_block(db, post.id)

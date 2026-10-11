@@ -700,7 +700,7 @@ News 文章仍使用 `Post(category="news")`，每篇文章只有一个内容板
 
 #### `POST /api/v1/news/submissions/{id}/format`
 
-- **鉴权：** 是（稿件作者或 `super_admin`；仅 `draft`）。使用配置的 AI 服务排版；无密钥时返回本地段落整理结果。响应写入并返回 `formatted_body` 与 `format_source`（`openai` 或 `local`）。不改原文、不发布。
+- **鉴权：** 是（仅 `super_admin`，且未禁言；仅 `draft`）。`editor` 为 `403`。使用配置的 AI 服务排版；无密钥时返回本地段落整理结果。响应写入并返回 `formatted_body` 与 `format_source`（`openai` 或 `local`）。不改原文、不发布。
 
 #### `POST /api/v1/news/submissions/{id}/submit`
 

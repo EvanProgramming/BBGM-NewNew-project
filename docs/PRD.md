@@ -82,7 +82,7 @@ Must 服务主故事 P1-US1（Forum 发帖被看见）以及角色、跟帖、Ne
 | M11 | Forum | 与 News、CJ 平级的单一讨论区，不是用户自建多吧。打开 `/forum` 是推荐：分数 `0.6 × 赞 + 0.4 × 评论`，取前 10，分数相同则较新的在前。`/forum/latest` 是最新：按时间取前 10。`/forum/all` 是所有：按时间列出全部，可翻页。 |
 | M26 | CJ | 与 Forum 平级的课表栏，必须登录并按角色进入三个独立入口。学生端从月历按整周进入周一至周五五列只读视图，Period 1–8 自选学科只存在浏览器本地；每位老师由超级管理员分配一个 CJ 学科，只能读取和更新该学科的 CJ 与考试；`super_admin` 管理端可读取和修改全部 CJ、考试以及老师学科分配。考试必须选择学科，学生端自动显示学科前缀。`editor` 与普通 `admin` 不自动获得 CJ 权限。老师或超级管理员可上传作业照片；百炼 `qwen3-vl-flash` 认出学科并写入当天的 IC / HW / A。裁切处补上的文字单独返回，不冒充照片原文。 |
 | M27 | Teams 群聊生成当周 CJ | 仅 `super_admin`。一个已在目标群里的 Teams 账号经 Microsoft 登录一次，服务器只保存刷新令牌。管理端选择周次后先预览，确认后才把群聊文字交给 DeepSeek `deepseek-flash`，总结成已有学科的 IC / HW / A 并写入 `CJEntry`。不下载附件。对不上学科、星期或超长的条目跳过。学生周视图仍读原来的 CJ 字段。未连接或上游失败时不写入半截 CJ。 |
-| M28 | News 独立投稿 | `editor` 或 `super_admin` 在 Draft 填写标题、正文、图片与类别并保存；Design 中选择原文或 API 排版。编辑提交后进入待审，只有 `super_admin` 可发布。公开 Front Page 按 `sport` / `dorm` / `scoop` 筛选，`all` 为汇总。没有稿件的首页槽位不显示占位内容。`admin` 与 `super_admin` 可撤回已发布文章：公开页不再返回，原稿回到 Draft。 |
+| M28 | News 独立投稿 | `editor` 或 `super_admin` 在 Draft 填写标题、正文、图片与类别并保存。`editor` 在 Draft 把原文送审，导航里没有 Design。仅 `super_admin` 在 Design 中选择原文或 API 排版并发布，也可从审核队列批准。公开 Front Page 按 `sport` / `dorm` / `scoop` 筛选，`all` 为汇总。没有稿件的首页槽位保留图框、栏目标题和右侧静态栏。`admin` 与 `super_admin` 可撤回已发布文章：公开页不再返回，原稿回到 Draft。 |
 | M12 | Forum 评论 | 仅 Forum 详情：帖子下的评论。未登录可读；登录可写。不新增楼层，不写楼中楼。校报详情不加评论。 |
 | M13 | 角色 | `student` / `teacher` / `editor` / `admin` / `super_admin`，可同时拥有多项。`ADMIN_EMAIL` 在注册或登录时加上 `super_admin`，不覆盖已有身份。 |
 | M14 | News 分板块草稿 | `editor` 与 `super_admin` 在 `/news/drafts` 新建稿并按板块保存、提交。`super_admin` 可同意或退回单个板块。公开 News 只含已同意板块。已上线板块再改，仍须再次同意后才替换线上正文。 |
@@ -258,7 +258,7 @@ Comment（新评论不挂到另一条评论下）
 
 未登录：只读 `published` Post 与 Forum 评论与赞数。  
 `student`：写 Forum 帖、评论与主帖点赞，并可删除自己的 Forum 帖。  
-`editor`：另写 News 草稿并提交板块。  
+`editor`：另写 News 草稿并提交板块；可在 Draft 送审原文，不能使用 Design。  
 `admin`：删除帖子，并可撤回已发布的独立 News 文章。  
 `super_admin`：另改角色、禁言、删除用户、写草稿、同意或退回板块、删除帖子、撤回已发布 News 文章，并按 M27 导入 Teams CJ。  
 存储失败时：上述写动作整笔失败，不出现「有详情 URL 但库中无行」或「有行无审计」的半成功（审计与帖子同一事务，或等价回滚）。

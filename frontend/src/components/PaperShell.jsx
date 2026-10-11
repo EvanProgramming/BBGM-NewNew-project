@@ -239,10 +239,10 @@ export default function PaperShell() {
             {t("nav.news")}
           </NavLink>
           {canEditNews(user) ? (
-            <>
-              <NavLink to="/news/submit" className={navClass}>DRAFT</NavLink>
-              <NavLink to="/news/design" className={navClass}>DESIGN</NavLink>
-            </>
+            <NavLink to="/news/submit" className={navClass}>DRAFT</NavLink>
+          ) : null}
+          {hasRole(user, "super_admin") ? (
+            <NavLink to="/news/design" className={navClass}>DESIGN</NavLink>
           ) : null}
           {CATEGORY_ROUTES.map((item) => (
             <NavLink key={item.to} to={item.to} className={navClass}>

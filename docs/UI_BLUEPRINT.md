@@ -14,7 +14,7 @@
 | `/` | News Front Page 杂志版式 | 公开 | `GET /api/v1/news/articles?topic=all|sport|dorm|scoop`，数据映射到首页既有主图、侧栏与故事版位 |
 | `/news/drafts` | News 固定版位草稿 | 需 `editor` 或 `super_admin` | 保留既有分板块草稿与审核 |
 | `/news/submit` | Draft | 需 `editor` 或 `super_admin` | 创建 / 编辑独立文章并保存原稿，不排版、不发布 |
-| `/news/design` | Design 工作区 | 需 `editor` 或 `super_admin` | 选择 Original 或 API design 并预览；编辑送审，超管发布 |
+| `/news/design` | Design 工作区 | 仅 `super_admin` | 选择 Original 或 API design 并预览后发布。`editor` 打开此地址回到首页 |
 | `/news/review` | News 审核 | 仅 `super_admin` | 待审队列；在独立预览窗批准发布或退回 |
 | `/news/articles/:id` | News 文章详情 | 公开 | `GET /api/v1/news/articles/{id}` |
 | `/sports` | 旧路径 | — | 重定向到 `/` |
@@ -54,7 +54,7 @@
 - 列表同步：首页 / Forum / 帖详情已 live refresh。`/admin/users`、`/news/drafts` 列表、`/system`、`/me/posts` 同样轮询，超管或其他人刚做的改动会进当前页。打开中的草稿编辑框不自动覆盖，以免冲掉未保存正文。
 - 报头：左搜索框（外形保留；提交不调接口，在报头下出一条静态说明）。中：斜体衬线字标 `Elegram` 链回 `/`。右：静态「OWNED BY / 广东智云建材有限公司」。
 - 标语静态：`YOUR STORIES. YOUR VOICE. YOUR PAGE.`
-- 导航：`NEWS`（`/`）`FORUM` `CJ` `OPINION`。`CJ` 与 `FORUM` 同一行，链到 `/cj`。`roles` 含 `editor` 或 `super_admin` 时，在 NEWS 之后另见 `DRAFT`（`/news/submit`）与 `DESIGN`（`/news/design`）。超级管理员从 Design 进入审核队列或直接发布。当前路由下划黑线。无 `SUBMIT`，无单独的 News 列表项。分板块草稿页仍是 `/news/drafts`，不放在主导航。旧 `/news` 重定向至首页。Forum 发帖在栏目页内。
+- 导航：`NEWS`（`/`）`FORUM` `CJ` `OPINION`。`CJ` 与 `FORUM` 同一行，链到 `/cj`。`roles` 含 `editor` 或 `super_admin` 时，在 NEWS 之后另见 `DRAFT`（`/news/submit`）。`DESIGN`（`/news/design`）只在 `roles` 含 `super_admin` 时出现。超级管理员从 Design 进入审核队列或直接发布。当前路由下划黑线。无 `SUBMIT`，无单独的 News 列表项。分板块草稿页仍是 `/news/drafts`，不放在主导航。旧 `/news` 重定向至首页。Forum 发帖在栏目页内。
 - CJ 欢迎屏：`/cj` 仍只按角色跳到学生、老师或管理页。跳转之后，若这次登录还没看过欢迎屏，内容区左上角显示大号衬线 “Welcome, {display_name}”（中文 “欢迎，{display_name}”），约 1.8 秒淡入，淡入结束后再停一会儿，大约 3.2 秒后才渲染课表。标记在 `localStorage`，键带用户 `id`。重新登录或退出时清除。淡入结束前离开 CJ 不写入标记。已在 CJ 内换日期或课程不再播放。
 - 会等待接口的按钮：请求从发出到返回期间，按钮文字旁显示转圈，并且不可再点。页面初次加载仍用原来的“正在读取”文案，不盖整页。
 - 页脚声明（非 schema）：`Owned by 广东智云建材有限公司.`
@@ -110,9 +110,9 @@
 
 | 状态 | 表现 |
 | --- | --- |
-| 加载 | 报头先出。还没有稿件的槽不显示占位标题、空图框或灰色横线。不挡报头转圈。 |
-| 成功 | 将 `items` 按更新时间已排序使用（服务端降序）。槽位按下表取 **互不重复的下标**；没有稿件的槽不渲染，不循环填充。某一整段都没有稿件时，该段标题也不出现。停留时约每 4 秒再请求 `page=1`（页签隐藏暂停），用新的 `items` 填槽；不转圈。后台失败保持当前槽，不盖错误条。 |
-| 空 | `total === 0`：分类条之下留白，不显示占位故事、空图框或右侧静态栏。 |
+| 加载 | 报头先出。图框已是 `#D6DEEE`；标题位一条 2px `bg-neutral-200` 横线。不挡报头转圈。 |
+| 成功 | 将 `items` 按更新时间已排序使用（服务端降序）。槽位按下表取 **互不重复的下标**；缺槽显示该槽空态，不循环填充。停留时约每 4 秒再请求 `page=1`（页签隐藏暂停），用新的 `items` 填槽；不转圈。后台失败保持当前槽，不盖错误条。 |
+| 空 | `total === 0`：版面槽位、LATEST / FEATURES 等栏目标题和右侧静态栏仍在。已登录学生链到 `/forum`，编辑链到 `/news/drafts`。 |
 | 错误 | `503` / 其他：主栏顶 `ErrorBanner` ← `error.message`（如 Could not save… 类存储文案以响应为准）。不造假列表。 |
 
 **News 槽位 ← `items[i]`（PostSummary）**
@@ -129,7 +129,7 @@
 | CAMPUS LIFE 三列 | `[12]` `[13]` `[14]` | `category` `title` `excerpt` `created_at` |
 | SPECIAL FEATURE | `[15]` | `category` `title` `excerpt` `created_at` |
 
-点击任一故事 → `/posts/{id}`。公开首页不渲染没有稿件的槽，也不显示 Photo of the Day / Track of the Day / Student Art。分板块草稿页仍保留这三栏静态壳。搜索提交：报头下静态 “Search comes in a later version.”
+点击任一故事 → `/posts/{id}`。没有稿件的槽保留图框与占位标题。Photo of the Day / Track of the Day / Student Art：静态标题+空图框+固定说明（无 schema）。搜索提交：报头下静态 “Search comes in a later version.”
 
 ### 3.2 栏目页 `/forum` `/opinion`
 
@@ -238,9 +238,9 @@
 ### 3.8a News 投稿 `/` `/news/submit` `/news/design` `/news/review`
 
 - 首页 `/` 保留 Front Page 杂志版式，News 文章填入既有主图、侧栏和故事版位。版面内提供 `All`、`Sports`、`Dorm`、`Scoop` 四个筛选；All 是汇总，不是稿件类别。文章标题和首图均打开完整文章内容。
-- `/news/submit`（导航名 Draft）仅 `editor` / `super_admin` 可进。表单含标题、正文、图片（最多 4 张）和多选分类；这里只保存原稿，不做排版或发布。
-- `/news/design`（导航名 Design）选择稿件后可切换 Original / API design。API design 由独立按钮生成预览；无 API key 时明确显示本地段落整理。编辑只能送审，超管可在此确认发布草稿，也可从审核队列审批待审稿。
-- `pending` 稿件不会出现在公开 Front Page；只有 `super_admin` 批准后才发布。退回后编辑可在 Draft 修改，再回 Design 重新选择版本并送审。
+- `/news/submit`（导航名 Draft）仅 `editor` / `super_admin` 可进。表单含标题、正文、图片（最多 4 张）和多选分类；这里保存原稿。`editor` 可把已保存的原文送审。`super_admin` 不在这里送审。
+- `/news/design`（导航名 Design）仅 `super_admin` 可见、可进。选择稿件后可切换 Original / API design。API design 由独立按钮生成预览；无 API key 时明确显示本地段落整理。超管可在此确认发布草稿，也可从审核队列审批待审稿。`editor` 没有这一栏，直接打开地址回到首页。
+- `pending` 稿件不会出现在公开 Front Page；只有 `super_admin` 批准后才发布。退回后编辑可在 Draft 修改并再次送审。
 - `admin` 或 `super_admin` 可在已发布文章详情撤回。撤回后首页对应分类不再显示该文，原稿仍在 Draft，可再编辑并送审。
 - 所有审核权限由后端校验；路由隐藏不能代替接口权限。详情与列表只返回已发布文章。
 
@@ -287,7 +287,7 @@
     - 字标 `Elegram` 链 `/`
     - 静态 Community hosted
   - `<Tagline>` 静态
-  - `<SectionNav>` NEWS（`/`）/ DRAFT 与 DESIGN（仅 `editor` 或 `super_admin`，`/news/submit` `/news/design`）/ FORUM / CJ（`/cj`）/ OPINION
+  - `<SectionNav>` NEWS（`/`）/ DRAFT（`editor` 或 `super_admin`，`/news/submit`）/ DESIGN（仅 `super_admin`，`/news/design`）/ FORUM / CJ（`/cj`）/ OPINION
   - `<SearchNotice>` 仅搜索提交后显示（静态文案）
   - `<Outlet>` 下列页面之一
   - `<Disclaimer>` Owned by 广东智云建材有限公司.
