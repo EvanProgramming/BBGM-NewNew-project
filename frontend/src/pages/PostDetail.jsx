@@ -181,7 +181,7 @@ export default function PostDetail() {
   }
 
   return (
-    <article className="mx-auto mt-10 max-w-[42rem]">
+    <article className="mx-auto mt-10 min-w-0 max-w-[42rem]">
       <FrontPageLink />
       {loading ? (
         <>
@@ -196,7 +196,7 @@ export default function PostDetail() {
       ) : (
         <>
           <Kicker category={post.category} />
-          <Headline className="mt-2 text-4xl sm:text-5xl">{post.title}</Headline>
+          <Headline className="mt-2 text-4xl [overflow-wrap:anywhere] sm:text-5xl">{post.title}</Headline>
           <div className="mt-3 flex items-center gap-3">
             {isForum ? <Avatar avatar={post.author?.avatar} size={48} /> : null}
             <p className="font-sans text-sm text-neutral-500">
@@ -231,7 +231,7 @@ export default function PostDetail() {
               ))}
             </div>
           ) : (
-            <div className="mt-8 whitespace-pre-wrap font-sans text-[16px] leading-7 text-neutral-900">
+            <div className={`mt-8 whitespace-pre-wrap font-sans text-[16px] leading-7 text-neutral-900 [overflow-wrap:anywhere] ${isForum ? "rounded-2xl bg-[#F4F5F7] p-4" : ""}`}>
               {post.body}
             </div>
           )}
@@ -279,13 +279,13 @@ export default function PostDetail() {
                         {item.author?.display_name}
                       </p>
                     </div>
-                    <p className="mt-2 whitespace-pre-wrap font-sans text-sm leading-6">{item.body}</p>
+                    <p className="mt-2 whitespace-pre-wrap font-sans text-sm leading-6 [overflow-wrap:anywhere]">{item.body}</p>
                     {item.replies?.map((reply) => (
-                      <div key={reply.id} className="mt-3 ml-6 flex gap-2 border-l border-black pl-4">
+                      <div key={reply.id} className="mt-3 ml-6 flex min-w-0 gap-2 border-l border-black pl-4">
                         <Avatar avatar={reply.author?.avatar} size={22} />
-                        <div>
+                        <div className="min-w-0">
                           <p className="font-sans text-[11px] text-neutral-500">{reply.author?.display_name}</p>
-                          <p className="mt-1 whitespace-pre-wrap font-sans text-sm leading-6">{reply.body}</p>
+                          <p className="mt-1 min-w-0 whitespace-pre-wrap font-sans text-sm leading-6 [overflow-wrap:anywhere]">{reply.body}</p>
                         </div>
                       </div>
                     ))}
@@ -312,7 +312,7 @@ export default function PostDetail() {
                     value={commentBody}
                     onChange={(event) => setCommentBody(event.target.value)}
                     rows={4}
-                    className="mt-2 w-full border border-black p-3 font-sans text-sm outline-none"
+                    className="mt-2 w-full resize-y overflow-x-hidden border border-black p-3 font-sans text-sm outline-none [overflow-wrap:anywhere]"
                   />
                   <FieldError message={fieldMessage(commentError, "body")} />
                   <button

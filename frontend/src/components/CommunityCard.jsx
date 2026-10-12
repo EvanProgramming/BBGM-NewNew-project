@@ -103,17 +103,17 @@ export function CommunityCard({ post, onDelete = null }) {
   const replies = post.reply_count ?? 0;
 
   return (
-    <article className="mb-3 rounded-2xl bg-[#F4F5F7] p-4">
+    <article className="mb-3 min-w-0 overflow-hidden rounded-2xl bg-[#F4F5F7] p-4">
       <div className="flex gap-3">
         <Avatar avatar={post.author?.avatar} size={44} className="rounded-full" />
         <div className="min-w-0 flex-1">
           <p className="font-sans text-sm font-medium text-[#111111]">{post.author?.display_name}</p>
           <p className="mt-0.5 font-sans text-xs text-neutral-500">{formatRelative(post.created_at, lang)}</p>
-          <Link to={`/posts/${post.id}`} className="mt-3 block font-sans text-[15px] font-medium leading-6 text-[#111111]">
+          <Link to={`/posts/${post.id}`} className="mt-3 block font-sans text-[15px] font-medium leading-6 text-[#111111] [overflow-wrap:anywhere]">
             {post.title}
           </Link>
           {post.excerpt ? (
-            <p className="mt-1 whitespace-pre-wrap font-sans text-sm leading-6 text-neutral-700">{post.excerpt}</p>
+            <p className="mt-1 whitespace-pre-wrap font-sans text-sm leading-6 text-neutral-700 [overflow-wrap:anywhere]">{post.excerpt}</p>
           ) : null}
           {post.images?.[0] ? (
             <img

@@ -111,7 +111,7 @@ export default function ComposeForm({ category, onPublished, onCancel, onBusy })
         value={body}
         onChange={(event) => setBody(event.target.value)}
         rows={10}
-        className="mt-2 w-full border border-black p-3 font-sans text-[15px] leading-7 outline-none"
+        className="mt-2 w-full resize-y overflow-x-hidden border border-black p-3 font-sans text-[15px] leading-7 outline-none [overflow-wrap:anywhere]"
       />
       <FieldError message={fieldMessage(error, "body")} />
 
