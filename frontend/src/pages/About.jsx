@@ -9,21 +9,7 @@ export default function About() {
       <SectionRule>{t("about.kicker")}</SectionRule>
       <p className="font-serif text-3xl leading-snug">{t("about.lead")}</p>
       <p className="mt-4 font-sans text-[15px] leading-7">{t("about.body")}</p>
-      <p className="mt-4 font-sans text-[15px] leading-7">
-        {t("about.reach")}{" "}
-        <a
-          className="text-[#1A4FBF] hover:text-[#111111]"
-          href="mailto:tori.zhao1700299-bbgm@basischina.com"
-        >
-          tori.zhao1700299-bbgm@basischina.com
-        </a>
-        .
-      </p>
       <p className="mt-4 font-sans text-[15px] leading-7 text-neutral-500">{t("about.not")}</p>
-      <SectionRule>{t("about.contributors")}</SectionRule>
-      <p className="mt-4 font-sans text-[15px] leading-7">
-        This website was created by Tori Zhao, Leo Gao, Ben Lu, and Dewey Peng.
-      </p>
     </div>
   );
 }

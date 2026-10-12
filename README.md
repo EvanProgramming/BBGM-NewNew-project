@@ -1,6 +1,6 @@
 # Elegram
 
-由广东智云建材有限公司所有并运营（登录发帖、按栏目阅读）。
+由 Tori Zhao、Ben Lu、Leo Gao、Dewey Peng 所有（登录发帖、按栏目阅读）。Jason 和他的社团参与 BBGM News。
 
 > 第一版范围以 `docs/PRD.md`、`docs/schema.md`、`docs/UI_BLUEPRINT.md` 为准。
 
@@ -18,7 +18,7 @@
 
 ## 用户
 
-第一版面向日常阅读和发帖的人。本站由广东智云建材有限公司运营。
+第一版面向日常阅读和发帖的人。本站由 Tori Zhao、Ben Lu、Leo Gao、Dewey Peng 所有。
 
 - 读者：想快速知道「今天校园有什么」、宿舍和体育分别发生了什么。
 - 发帖学生：有账号后能发帖，不需要先成为编辑。

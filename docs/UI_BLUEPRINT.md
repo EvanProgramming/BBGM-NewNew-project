@@ -1,6 +1,6 @@
 # UI 蓝图：Elegram 印刷版
 
-选定 2.3A **提案 1** 的版式（报头、头条、栏目）。产品名 **Elegram**。由 **广东智云建材有限公司** 所有并运营。字段只绑定 `docs/schema.md`；没有封面图、featured 标记、检索接口——图框是 CSS 占位，不是数据。
+选定 2.3A **提案 1** 的版式（报头、头条、栏目）。产品名 **Elegram**。由 Tori Zhao、Ben Lu、Leo Gao、Dewey Peng 所有。Jason 和他的社团参与 BBGM News。字段只绑定 `docs/schema.md`；没有封面图、检索接口——图框是 CSS 占位，不是数据。已发布帖可以有 `pinned`。
 
 ---
 
@@ -43,8 +43,8 @@
 | `/sign-in` | 登录 | 访客 | `POST /api/v1/auth/login` |
 | `/register` | 注册 | 访客 | `POST /api/v1/auth/email-codes`（`purpose=register`）后 `POST /api/v1/auth/register` |
 | `/reset-password` | 找回密码 | 访客 | `POST /api/v1/auth/email-codes`（`purpose=reset`）后 `POST /api/v1/auth/password-reset` |
-| `/about` | 静态稿。写明由广东智云建材有限公司所有，并给出联系邮箱。另有 Contributors：本网站是由 Tori zhao, Leo Gao, Ben lu, Dewey Peng 制作的 | 公开 | 无 API |
-| `/contact` | 静态稿。联系方式为该超管邮箱 | 公开 | 无 API |
+| `/about` | 静态稿。写明由 Tori Zhao、Ben Lu、Leo Gao、Dewey Peng 所有。Jason 和他的社团参与 BBGM News | 公开 | 无 API |
+| `/contact` | 静态稿。Write to BBGM Vibe Coding Club. | 公开 | 无 API |
 | `/terms` | 用户协议 | 公开 | 无 API。中英跟 System 菜单里的总开关走，本页没有单独的语言按钮。直接打开此地址是整页。站内顶栏与注册勾选不跳到本页，改为当前页浮层 |
 
 **全局壳 `PaperShell`**
@@ -52,12 +52,12 @@
 - 顶栏一行，从左到右：`SYSTEM`、登录后的 `SETTINGS`、登录后的 `MY POSTS`、`NOTICES`。`SYSTEM` 点开菜单：`ABOUT`、`TERMS`（当前页浮层，不切路由）、`CONTACT`，以及一项中英切换（当前英文时写「中文」，当前中文时写「English」）。点一下切换并收起菜单。选择记在浏览器本地 `elegram_lang`，默认英文，不进接口。字标 Elegram 不翻译。Forum 帖子的标题、正文、摘要和评论保持原文。News 稿件正文和已保存的 CJ 文字也按库存原文显示。`SETTINGS` 点开菜单：`AVATAR`（`/me/avatar`）、`PASSWORD`（`/me/password`）；`roles` 含 `super_admin` 再加 `USERS`（`/admin/users`）。`MY POSTS` 直接去 `/me/posts`。`NOTICES` 直接去 `/system`（通知页，顶栏不叫 System）。菜单点外面、按 Esc 或选中一项后收起。子项不常驻顶栏。`TERMS` 浮层可滚动，点遮罩或关闭即收起，仍停在打开前的页面。
 - 顶栏右侧：本地日期 `Today: {formatted local date}`（不是 schema 字段）。`401` = 访客，日期前显示 `SIGN IN`（去 `/sign-in`），不显示 Settings 与 My Posts。`200` = 已登录，日期前显示头像（`avatar`）、`display_name`、`SIGN OUT`。启动时 `GET /api/v1/me`。登录后同一套 live refresh（约 4 秒）再拉 `/me`，超管改 `roles` / `muted` / 删号后顶栏与导航跟着变，不必整页刷新。顶栏不放 `DRAFTS`。
 - 列表同步：首页 / Forum / 帖详情已 live refresh。`/admin/users`、`/news/drafts` 列表、`/system`、`/me/posts` 同样轮询，超管或其他人刚做的改动会进当前页。打开中的草稿编辑框不自动覆盖，以免冲掉未保存正文。
-- 报头：左搜索框（外形保留；提交不调接口，在报头下出一条静态说明）。中：斜体衬线字标 `Elegram` 链回 `/`。右：静态「OWNED BY / 广东智云建材有限公司」。
+- 报头：左搜索框（外形保留；提交不调接口，在报头下出一条静态说明）。中：斜体衬线字标 `Elegram` 链回 `/`。右：静态「OWNED BY / Tori Zhao, Ben Lu, Leo Gao, Dewey Peng」。
 - 标语静态：`YOUR STORIES. YOUR VOICE. YOUR PAGE.`
 - 导航：`NEWS`（`/`）`FORUM` `CJ` `OPINION`。`CJ` 与 `FORUM` 同一行，链到 `/cj`。`roles` 含 `editor` 或 `super_admin` 时，在 NEWS 之后另见 `DRAFT`（`/news/submit`）。`DESIGN`（`/news/design`）只在 `roles` 含 `super_admin` 时出现。超级管理员从 Design 进入审核队列或直接发布。当前路由下划黑线。无 `SUBMIT`，无单独的 News 列表项。分板块草稿页仍是 `/news/drafts`，不放在主导航。旧 `/news` 重定向至首页。Forum 发帖在栏目页内。
 - CJ 欢迎屏：`/cj` 仍只按角色跳到学生、老师或管理页。跳转之后，若这次登录还没看过欢迎屏，内容区左上角显示大号衬线 “Welcome, {display_name}”（中文 “欢迎，{display_name}”），约 1.8 秒淡入，淡入结束后再停一会儿，大约 3.2 秒后才渲染课表。标记在 `localStorage`，键带用户 `id`。重新登录或退出时清除。淡入结束前离开 CJ 不写入标记。已在 CJ 内换日期或课程不再播放。
 - 会等待接口的按钮：请求从发出到返回期间，按钮文字旁显示转圈，并且不可再点。页面初次加载仍用原来的“正在读取”文案，不盖整页。
-- 页脚声明（非 schema）：`Owned by 广东智云建材有限公司.`
+- 页脚声明（非 schema）：`Owned by Tori Zhao, Ben Lu, Leo Gao, and Dewey Peng.`
 
 **栏目枚举 → 导航文案（展示层，不是新字段）**
 
@@ -291,7 +291,7 @@
   - `<SectionNav>` NEWS（`/`）/ DRAFT（`editor` 或 `super_admin`，`/news/submit`）/ DESIGN（仅 `super_admin`，`/news/design`）/ FORUM / CJ（`/cj`）/ OPINION
   - `<SearchNotice>` 仅搜索提交后显示（静态文案）
   - `<Outlet>` 下列页面之一
-  - `<Disclaimer>` Owned by 广东智云建材有限公司.
+  - `<Disclaimer>` Owned by Tori Zhao, Ben Lu, Leo Gao, and Dewey Peng.
 
 - `<Page: Home>`
   - `<ErrorBanner>` ← `error.code` `error.message`（仅列表失败）
@@ -333,6 +333,7 @@
 - `<Page: PostDetail>`
   - `<ErrorBanner>` 或 `<NotFoundHed>` ← `error.code` `error.message`
   - `<Article>`
+    - `<Pinned>` ← `pinned` 为 true 时显示
     - `<Kicker>` ← `category`
     - `<Headline>` ← `title`
     - `<Byline>` ← `author.display_name` `created_at`
@@ -342,6 +343,7 @@
     - 不展示 `status`、`email`、`excerpt`（详情以 `body` 为准）
     - Forum 时 `<CommentThread>` ← `GET .../comments` 的 `items[]`（`floor` `body` `author` `replies`）
     - `admin` 或 `super_admin` 时 `<DeletePost>` → `DELETE /api/v1/posts/{id}`
+    - `super_admin` 时 `<PinPost>` → `POST /api/v1/posts/{id}/pin`，请求 `{ pinned }`
 
 - `<Page: NewsDrafts>`
   - `<SectionRule>` DRAFTS

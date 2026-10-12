@@ -164,6 +164,7 @@ class PostSummary(BaseModel):
     news_categories: list[str] = Field(default_factory=list)
     like_count: int
     liked: bool
+    pinned: bool = False
 
 
 class PublishedBlock(BaseModel):
@@ -176,6 +177,10 @@ class PublishedBlock(BaseModel):
 class PostDetail(PostSummary):
     body: str
     blocks: list[PublishedBlock] = []
+
+
+class PinPostBody(BaseModel):
+    pinned: bool
 
 
 class Notice(BaseModel):

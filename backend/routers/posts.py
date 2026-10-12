@@ -1,12 +1,12 @@
 from fastapi import APIRouter, Depends, File, Query, Request, UploadFile
 from fastapi.responses import JSONResponse
-from sqlalchemy import func, select
+from sqlalchemy import case, func, select
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 from starlette.datastructures import UploadFile as StarletteUploadFile
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
-from deps import get_core_db, get_current_user, get_db, get_optional_user, require_not_muted
+from deps import get_core_db, get_current_user, get_db, get_optional_user, get_super_admin, require_not_muted
 from errors import ApiError, StorageError, forbidden, unauthenticated, validation_error
 from identity import user_has
 from avatars import (
@@ -19,7 +19,7 @@ from avatars import (
     parse_images,
     save_post_image,
 )
-from models import Comment, NewsBlock, NewsCategory, Post, PostLike, User, to_iso
+from models import Comment, NewsBlock, NewsCategory, Post, PostLike, User, to_iso, utc_now
 from schemas import (
     CATEGORIES,
     CATEGORY_MESSAGE,
@@ -32,6 +32,7 @@ from schemas import (
     CreatePostBody,
     LikeState,
     MODERATOR_ROLES,
+    PinPostBody,
     PostDetail,
     PostList,
     PostSummary,
@@ -93,6 +94,7 @@ def _summary(
         news_categories=news_categories or [],
         like_count=like_count if post.category == "forum" else 0,
         liked=liked if post.category == "forum" else False,
+        pinned=bool(post.pinned),
     )
 
 
@@ -219,6 +221,9 @@ def _list_posts(
         order = (score.desc(), Post.created_at.desc())
     else:
         order = (Post.created_at.desc(),)
+    if author_id is None:
+        rank = case((Post.pinned.is_(True), 0), else_=1)
+        order = (rank.asc(), Post.pinned_at.desc(), *order)
     try:
         total = db.scalar(select(func.count()).select_from(Post).where(*filters)) or 0
         rows = db.scalars(
@@ -555,6 +560,10 @@ def get_post(
     viewer: User | None = Depends(get_optional_user),
 ):
     post = _published_post(db, parse_uuid(post_id))
+    return _public_detail(db, core, post, viewer)
+
+
+def _public_detail(db: Session, core: Session, post: Post, viewer: User | None):
     blocks = _published_blocks(db, post)
     like_count = count_likes(db, post.id) if post.category == "forum" else 0
     liked = (
@@ -712,6 +721,28 @@ def delete_post(
         add_system_notice(core, user_id=post.author_id, body=f'Your post "{post.title}" was removed.')
     delete_post_graph(db, post)
     delete_post_images(post_id)
+
+
+@router.post("/posts/{post_id}/pin")
+def pin_post(
+    post_id: str,
+    body: PinPostBody,
+    user: User = Depends(get_super_admin),
+    db: Session = Depends(get_db),
+    core: Session = Depends(get_core_db),
+):
+    post = _any_post(db, parse_uuid(post_id))
+    if post.status != "published":
+        raise validation_error([{"field": "pinned", "message": "Only a published post can be pinned."}])
+    post.pinned = body.pinned
+    post.pinned_at = utc_now() if body.pinned else None
+    try:
+        db.commit()
+    except SQLAlchemyError as exc:
+        db.rollback()
+        raise StorageError() from exc
+    db.refresh(post)
+    return _public_detail(db, core, post, user)
 
 
 @router.api_route("/posts/{post_id}/promote", methods=["POST"])

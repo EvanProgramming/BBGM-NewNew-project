@@ -42,6 +42,10 @@ export function canDeletePosts(user) {
   return hasRole(user, "admin") || hasRole(user, "super_admin");
 }
 
+export function canPinPosts(user) {
+  return hasRole(user, "super_admin");
+}
+
 export function categoryLabel(category) {
   return CATEGORY_LABELS[category] || (category || "").toUpperCase();
 }

@@ -1,3 +1,4 @@
+import time
 from datetime import datetime, timedelta, timezone
 
 from fastapi.testclient import TestClient
@@ -1661,4 +1662,44 @@ def test_roles_stack_and_super_admin_stays(tmp_path, monkeypatch):
             json={"muted": True},
         )
         assert mute_self.status_code == 403
+    app.state.engine.dispose()
+
+
+def test_super_admin_pins_published_post_to_the_front(tmp_path, monkeypatch):
+    app = _make_app(tmp_path, monkeypatch, admin_email="ada.min@basischina.com")
+    with TestClient(app) as admin, TestClient(app) as student:
+        registered = _register(admin, "ada.min@basischina.com", "desk-key-99", "Ada Min")
+        assert registered.status_code == 201
+        assert "super_admin" in registered.json()["roles"]
+        older = admin.post(
+            "/api/v1/posts",
+            json={"title": "Older note", "body": "First.", "category": "forum"},
+        )
+        time.sleep(1.1)
+        newer = admin.post(
+            "/api/v1/posts",
+            json={"title": "Newer note", "body": "Second.", "category": "forum"},
+        )
+        assert older.status_code == 201 and newer.status_code == 201
+        assert older.json()["pinned"] is False
+        pinned = admin.post(f"/api/v1/posts/{older.json()['id']}/pin", json={"pinned": True})
+        assert pinned.status_code == 200, pinned.text
+        assert pinned.json()["pinned"] is True
+        listing = admin.get("/api/v1/posts?category=forum&feed=latest")
+        assert listing.status_code == 200, listing.text
+        assert listing.json()["items"][0]["id"] == older.json()["id"]
+        pupil = _register(student, "jordan.hale@basischina.com", "east-hall-8", "Jordan Hale")
+        assert pupil.status_code == 201
+        denied = student.post(f"/api/v1/posts/{older.json()['id']}/pin", json={"pinned": False})
+        assert denied.status_code == 403
+        cleared = admin.post(f"/api/v1/posts/{older.json()['id']}/pin", json={"pinned": False})
+        assert cleared.status_code == 200, cleared.text
+        assert cleared.json()["pinned"] is False
+        restored = admin.get("/api/v1/posts?category=forum&feed=latest")
+        assert restored.json()["items"][0]["id"] == newer.json()["id"]
+        draft = admin.post("/api/v1/news/drafts", json={"title": "Not live"})
+        assert draft.status_code == 201, draft.text
+        blocked = admin.post(f"/api/v1/posts/{draft.json()['id']}/pin", json={"pinned": True})
+        assert blocked.status_code == 422
+        assert blocked.json()["error"]["fields"][0]["field"] == "pinned"
     app.state.engine.dispose()

@@ -127,6 +127,7 @@ Content-Type: application/json
 | `like_count` | integer | Forum 主帖赞数。校报栏目与无 `category` 的列表为 `0` |
 | `liked` | boolean | 当前会话是否已赞该帖；无会话或校报列表为 `false` |
 | `news_categories` | string[] | News 独立投稿的类别子集：`sport`、`dorm`、`scoop`；旧版位稿与 Forum 为 `[]` |
+| `pinned` | boolean | 是否置顶。缺省 `false`。仅 `super_admin` 可改。公开列表把 `true` 排在前面，最近置顶的更靠前 |
 
 **ReplyPreview**（Forum 卡片用）
 
@@ -479,6 +480,26 @@ Content-Type: application/json
 - `503` `storage_unavailable`
 
 `PATCH /api/v1/posts/{post_id}` 仍不提供，误调用 `405`。
+
+#### `POST /api/v1/posts/{post_id}/pin`
+
+- **鉴权：** 是（仅 `super_admin`）
+- **职责：** 置顶或取消置顶一篇已发布帖，Forum 与 News 都可以。正文不变。
+
+**Request**
+
+| 字段 | 类型 | 必填 | 说明 |
+| --- | --- | --- | --- |
+| `pinned` | boolean | 是 | `true` 置顶并记下时间；`false` 取消置顶 |
+
+**Response**
+
+- `200` + `PostDetail`，`pinned` 为请求中的值
+- `401` `unauthenticated`
+- `403` `forbidden`（不是 `super_admin`）
+- `404` `not_found`
+- `422` `validation_error`（帖子不是 `published`，`fields[].field` 为 `pinned`）
+- `503` `storage_unavailable`
 
 ---
 

@@ -1,4 +1,5 @@
 import { createContext, useContext, useEffect, useMemo } from "react";
+import { TERMS } from "./terms";
 
 const COPY = {
   en: {
@@ -19,8 +20,9 @@ const COPY = {
     "shell.searchPlaceholder": "Search...",
     "shell.searchLater": "Search comes in a later version.",
     "shell.ownedBy": "OWNED BY",
+    "shell.owners": "Tori Zhao, Ben Lu, Leo Gao, Dewey Peng",
     "shell.tagline": "Your stories. Your voice. Your page.",
-    "shell.footer": "Owned by Guangdong Zhiyun Building Materials Co., Ltd.",
+    "shell.footer": "Owned by Tori Zhao, Ben Lu, Leo Gao, and Dewey Peng.",
     "nav.news": "News",
     "nav.drafts": "Drafts",
     "nav.forum": "Forum",
@@ -82,6 +84,9 @@ const COPY = {
     "compose.cancel": "Cancel",
     "compose.changeAvatar": "Change avatar",
     "post.missing": "Story not found.",
+    "post.pinned": "Pinned",
+    "post.pin": "Pin",
+    "post.unpin": "Unpin",
     "post.delete": "Delete",
     "post.deleteConfirm": "Delete this post?",
     "post.withdraw": "Withdraw",
@@ -175,14 +180,13 @@ const COPY = {
     "terms.agree": "I agree",
     "terms.dialog": "User agreement",
     "about.kicker": "About",
-    "about.lead": "Elegram is owned by Guangdong Zhiyun Building Materials Co., Ltd.",
-    "about.body": "Guangdong Zhiyun Building Materials Co., Ltd. owns and operates this site. Its registered address is Building 2, No. 88 Gang'ao Avenue, Hengqin New Area, Zhuhai. People sign in and write in Forum. Editors draft News in sections, and a super admin approves each section before it appears on the News page.",
-    "about.reach": "To reach the company, write to",
-    "about.not": "The owner is Guangdong Zhiyun Building Materials Co., Ltd. This site is not a ticket office, and not a recommendation engine.",
+    "about.lead": "The website is owned by Tori Zhao, Ben Lu, Leo Gao, and Dewey Peng.",
+    "about.body": "Jason and his club contribute to the BBGM News part.",
+    "about.not": "This site is not a ticket office, and not a recommendation engine.",
     "about.contributors": "Contributors",
     "contact.kicker": "Contact",
-    "contact.lead": "Write to Guangdong Zhiyun Building Materials Co., Ltd.",
-    "contact.body": "Elegram is owned by Guangdong Zhiyun Building Materials Co., Ltd., Building 2, No. 88 Gang'ao Avenue, Hengqin New Area, Zhuhai. Tips, corrections, and section questions go to the company.",
+    "contact.lead": "Write to BBGM Vibe Coding Club.",
+    "contact.body": "Write to BBGM Vibe Coding Club.",
     "cj.directory": "Monthly directory",
     "cj.pickWeek": "Pick a week",
     "cj.pickHint": "Choose any calendar row to open the full Monday–Friday CJ.",
@@ -329,8 +333,9 @@ const COPY = {
     "shell.searchPlaceholder": "搜索…",
     "shell.searchLater": "搜索会在以后的版本开放。",
     "shell.ownedBy": "所有者",
+    "shell.owners": "Tori Zhao, Ben Lu, Leo Gao, Dewey Peng",
     "shell.tagline": "你的故事。你的声音。你的页面。",
-    "shell.footer": "由广东智云建材有限公司所有。",
+    "shell.footer": "由 Tori Zhao、Ben Lu、Leo Gao、Dewey Peng 所有。",
     "nav.news": "新闻",
     "nav.drafts": "草稿",
     "nav.forum": "论坛",
@@ -392,6 +397,9 @@ const COPY = {
     "compose.cancel": "取消",
     "compose.changeAvatar": "更换头像",
     "post.missing": "没有找到这篇。",
+    "post.pinned": "置顶",
+    "post.pin": "置顶",
+    "post.unpin": "取消置顶",
     "post.delete": "删除",
     "post.deleteConfirm": "删除这篇帖子？",
     "post.withdraw": "撤回",
@@ -485,14 +493,13 @@ const COPY = {
     "terms.agree": "我同意",
     "terms.dialog": "用户协议",
     "about.kicker": "关于",
-    "about.lead": "Elegram 由广东智云建材有限公司所有。",
-    "about.body": "广东智云建材有限公司所有并运营本站。注册地址是珠海市横琴新区港澳大道88号2栋1507。登录后可以在论坛发帖。编辑按板块写新闻草稿，超级管理员同意后才会出现在新闻页。",
-    "about.reach": "联系公司请写到",
-    "about.not": "所有者是广东智云建材有限公司。本站不是售票处，也不是推荐引擎。",
+    "about.lead": "本网站由 Tori Zhao、Ben Lu、Leo Gao、Dewey Peng 所有。",
+    "about.body": "Jason 和他的社团参与 BBGM News 部分。",
+    "about.not": "本站不是售票处，也不是推荐引擎。",
     "about.contributors": "制作者",
     "contact.kicker": "联系",
-    "contact.lead": "写信给广东智云建材有限公司。",
-    "contact.body": "Elegram 由广东智云建材有限公司所有，地址珠海市横琴新区港澳大道88号2栋1507。建议、更正和板块问题都发给公司。",
+    "contact.lead": "写信给 BBGM Vibe Coding Club。",
+    "contact.body": "写信给 BBGM Vibe Coding Club。",
     "cj.directory": "月历",
     "cj.pickWeek": "选择一周",
     "cj.pickHint": "点击日历中的任意一行，查看周一到周五的完整 CJ。",
@@ -620,94 +627,6 @@ const COPY = {
     "drafts.status.published": "已发布",
     "drafts.status.editing": "编辑中",
     "drafts.status.pending": "待审",
-  },
-};
-
-const TERMS = {
-  en: {
-    title: "Terms",
-    lead: "Elegram is owned and operated by Guangdong Zhiyun Building Materials Co., Ltd. It is not a ticket office, and not a recommendation engine. Creating an account means you accept this agreement.",
-    sections: [
-      {
-        heading: "Account and cybersecurity",
-        items: [
-          "Use only your own email address.",
-          "Do not give your password to anyone else.",
-          "Do not break into another account, skip sign-in, upload malicious files, or disrupt the service.",
-          "Passwords are stored as hashes. The session cookie is HttpOnly.",
-        ],
-      },
-      {
-        heading: "A healthy network",
-        intro: "Do not post:",
-        items: [
-          "Content that breaks the law, including material that endangers national security, rumors, obscenity, pornography, gambling, violence, terrorism or extremism, insults, defamation, or another person’s private information.",
-          "Harassment or impersonation.",
-        ],
-      },
-      {
-        heading: "What the site will do",
-        items: [
-          "A News section stays off the public page until a super admin approves it.",
-          "An admin can delete a post that breaks these rules. The author sees a notice on System.",
-          "A super admin can mute an account. A muted account can still sign in and read, and cannot post, reply, like, or write a draft.",
-          "A super admin can delete an account. That ends its session and removes its posts and comments.",
-          "Forum posts are public as soon as they are published. Elegram does not review them automatically.",
-        ],
-      },
-      {
-        heading: "What you should do",
-        items: [
-          "Register with your own email address.",
-          "Do not spread the content listed above.",
-          "If you see a violation, tell a super admin. This site has no report form. The Contact page does not send mail.",
-        ],
-      },
-    ],
-    closing:
-      "These are Elegram’s own site rules. This page is not a government filing, and the site does not send reports to an authority.",
-  },
-  zh: {
-    title: "用户协议",
-    lead: "Elegram 由广东智云建材有限公司所有并运营。不是售票处，也不是推荐引擎。注册即表示接受本协议。",
-    sections: [
-      {
-        heading: "账号与网络安全",
-        items: [
-          "只用自己的邮箱。",
-          "不要把密码交给别人。",
-          "不要入侵他人账号、绕过登录、上传恶意文件或扰乱服务。",
-          "密码只以哈希保存。会话 Cookie 为 HttpOnly。",
-        ],
-      },
-      {
-        heading: "维护健康的网络环境",
-        intro: "不要发布：",
-        items: [
-          "违法信息，包括危害国家安全、谣言、淫秽色情、赌博、暴力、恐怖极端、侮辱诽谤，以及他人的隐私。",
-          "骚扰与冒充。",
-        ],
-      },
-      {
-        heading: "站点会怎么处理",
-        items: [
-          "新闻板块在超级管理员同意之前不会出现在公开页面。",
-          "管理员可以删除违规帖。作者会在通知里看到一条消息。",
-          "超级管理员可以禁言。被禁言的账号仍可登录阅读，不能发帖、跟帖、点赞或写稿。",
-          "超级管理员可以删除账号。删除后会话作废，其帖子与评论一并去掉。",
-          "论坛帖子一经发布即公开。Elegram 不做自动审核。",
-        ],
-      },
-      {
-        heading: "你该怎么做",
-        items: [
-          "用本人的邮箱注册。",
-          "不传播上面列出的内容。",
-          "看到违规内容，告诉超级管理员。站内没有举报表单。联系页不发信。",
-        ],
-      },
-    ],
-    closing: "本页是 Elegram 自己的站点规则，不是备案，站点也不向主管机关报送。",
   },
 };
 

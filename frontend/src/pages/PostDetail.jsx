@@ -6,7 +6,7 @@ import { uploadSrc } from "../avatar";
 import { Avatar } from "../components/Avatar";
 import { ForumLikeButton } from "../components/CommunityCard";
 import { ErrorBanner, FieldError, FrontPageLink, Headline, ImageWell, Kicker, TitleLine, ButtonSpinner } from "../components/ui";
-import { canDeletePosts, formatDateline, forumListPath, newsTopicsLabel } from "../format";
+import { canDeletePosts, canPinPosts, formatDateline, forumListPath, newsTopicsLabel } from "../format";
 import { useI18n } from "../i18n";
 import { mergeLiveFloors, useLiveRefresh } from "../live";
 
@@ -24,6 +24,7 @@ export default function PostDetail() {
   const [commentPage, setCommentPage] = useState(1);
   const [commentError, setCommentError] = useState(null);
   const [deleting, setDeleting] = useState(false);
+  const [pinning, setPinning] = useState(false);
   const [withdrawing, setWithdrawing] = useState(false);
   const [commentBody, setCommentBody] = useState("");
   const [commentSubmitting, setCommentSubmitting] = useState(false);
@@ -120,6 +121,24 @@ export default function PostDetail() {
     }
   }
 
+  async function onPin() {
+    if (!post) return;
+    setPinning(true);
+    setError(null);
+    try {
+      setPost(await api.pinPost(postId, !post.pinned));
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 401) {
+        setUser(null);
+        navigate(`/sign-in?next=/posts/${postId}`);
+        return;
+      }
+      setError(err);
+    } finally {
+      setPinning(false);
+    }
+  }
+
   async function onDelete() {
     if (!post || !window.confirm(t("post.deleteConfirm"))) return;
     setDeleting(true);
@@ -197,6 +216,9 @@ export default function PostDetail() {
         <ErrorBanner error={error} />
       ) : (
         <>
+          {post.pinned ? (
+            <p className="mb-2 font-sans text-[11px] font-semibold uppercase tracking-[0.16em] text-[#1A4FBF]">{t("post.pinned")}</p>
+          ) : null}
           <Kicker category={post.category} />
           <Headline className="mt-2 text-4xl [overflow-wrap:anywhere] sm:text-5xl">{post.title}</Headline>
           <div className="mt-3 flex items-center gap-3">
@@ -240,6 +262,18 @@ export default function PostDetail() {
 
           {isForum ? (
             <ForumLikeButton post={post} signInNext={`/sign-in?next=/posts/${post.id}`} className="mt-6" />
+          ) : null}
+
+          {canPinPosts(user) ? (
+            <button
+              type="button"
+              onClick={onPin}
+              disabled={pinning || deleting || withdrawing}
+              className="mt-8 mr-6 inline-flex items-center gap-2 font-sans text-[11px] uppercase tracking-[0.18em] text-[#1A4FBF] disabled:opacity-40"
+            >
+              {pinning ? <ButtonSpinner /> : null}
+              {post.pinned ? t("post.unpin") : t("post.pin")}
+            </button>
           ) : null}
 
           {canDeletePosts(user) && post.category === "news" && post.news_categories?.length ? (

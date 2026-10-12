@@ -186,6 +186,8 @@ class Post(ContentBase):
     location: Mapped[str | None] = mapped_column(String(200), nullable=True)
     status: Mapped[str] = mapped_column(String(32), nullable=False)
     images: Mapped[str] = mapped_column(Text, nullable=False, default="[]")
+    pinned: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    pinned_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 
@@ -425,11 +427,28 @@ def migrate_content_schema(engine) -> None:
                 conn.exec_driver_sql(
                     "ALTER TABLE posts ADD COLUMN images TEXT NOT NULL DEFAULT '[]'"
                 )
+            if post_cols and "pinned" not in post_cols:
+                conn.exec_driver_sql(
+                    "ALTER TABLE posts ADD COLUMN pinned INTEGER NOT NULL DEFAULT 0"
+                )
+            if post_cols and "pinned_at" not in post_cols:
+                conn.exec_driver_sql("ALTER TABLE posts ADD COLUMN pinned_at DATETIME")
             block_cols = {row[1] for row in conn.exec_driver_sql("PRAGMA table_info(news_blocks)").fetchall()}
             if block_cols and "formatted_body" not in block_cols:
                 conn.exec_driver_sql("ALTER TABLE news_blocks ADD COLUMN formatted_body TEXT")
             if block_cols and "format_source" not in block_cols:
                 conn.exec_driver_sql("ALTER TABLE news_blocks ADD COLUMN format_source VARCHAR(16)")
+    elif engine.dialect.name == "mysql":
+        with engine.begin() as conn:
+            post_cols = {
+                row[0] for row in conn.exec_driver_sql("SHOW COLUMNS FROM posts").fetchall()
+            }
+            if post_cols and "pinned" not in post_cols:
+                conn.exec_driver_sql(
+                    "ALTER TABLE posts ADD COLUMN pinned TINYINT(1) NOT NULL DEFAULT 0"
+                )
+            if post_cols and "pinned_at" not in post_cols:
+                conn.exec_driver_sql("ALTER TABLE posts ADD COLUMN pinned_at DATETIME NULL")
     ContentBase.metadata.create_all(engine)
     if engine.dialect.name == "sqlite":
         with engine.begin() as conn:

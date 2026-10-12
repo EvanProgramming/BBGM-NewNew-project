@@ -20,14 +20,27 @@ function StoryImage({ post, className }) {
 }
 
 function SlotKicker({ post, fallback }) {
+  const { t } = useI18n();
+  const label = post?.pinned ? (
+    <p className="font-sans text-[11px] font-semibold uppercase tracking-[0.16em] text-[#1A4FBF]">{t("post.pinned")}</p>
+  ) : null;
+  let topic = null;
   if (post?.news_categories?.length) {
-    return <p className="font-sans text-[11px] font-semibold uppercase tracking-[0.16em] text-[#1A4FBF]">{newsTopicsLabel(post.news_categories)}</p>;
+    topic = <p className="font-sans text-[11px] font-semibold uppercase tracking-[0.16em] text-[#1A4FBF]">{newsTopicsLabel(post.news_categories)}</p>;
+  } else if (post?.category) {
+    topic = <Kicker category={post.category} />;
+  } else {
+    topic = (
+      <p className="font-sans text-[11px] font-semibold uppercase tracking-[0.16em] text-[#1A4FBF]">
+        {fallback}
+      </p>
+    );
   }
-  if (post?.category) return <Kicker category={post.category} />;
   return (
-    <p className="font-sans text-[11px] font-semibold uppercase tracking-[0.16em] text-[#1A4FBF]">
-      {fallback}
-    </p>
+    <>
+      {label}
+      {topic}
+    </>
   );
 }
 

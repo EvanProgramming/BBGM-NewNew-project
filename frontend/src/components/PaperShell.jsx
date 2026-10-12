@@ -223,7 +223,7 @@ export default function PaperShell() {
               {t("shell.ownedBy")}
             </p>
             <p className="mt-[3px] font-sans text-[10px] font-normal tracking-[0.01em] text-neutral-500">
-              Guangdong Zhiyun Building Materials Co., Ltd.
+              {t("shell.owners")}
             </p>
           </div>
         </header>

@@ -93,6 +93,7 @@ Must 服务主故事 P1-US1（Forum 发帖被看见）以及角色、跟帖、Ne
 | M19 | Forum 点赞 | 仅 Forum 主帖。登录可赞/取消（同一用户同一帖不加倍）；未登录只读数量，点赞去登录。校报帖不可赞。 |
 | M20 | 停留时看到新帖 | News（`/`）与 Forum 打开后重复请求已有公开列表；他人新发的帖进入当前列表，无需整页刷新。Forum 详情同样拉新评论。后台拉失败不打断当前阅读、不盖错误条。不另开推送通道或新字段。 |
 | M21 | 删帖与 System 通知 | 作者可删除自己已发布的 Forum 帖，不给自己写通知。`admin` 与 `super_admin` 可删除任意帖；删除他人的帖之前给作者写一条 System 通知（标题已被移除）。帖、其评论、点赞、配图、板块与该帖审计一并去掉。作者不能删除他人的帖或 News。System 页不可回复。 |
+| M29 | 置顶 | 仅 `super_admin` 可把已发布的 Forum 帖或 News 文章置顶或取消。公开列表里置顶项在前，最近置顶的更靠前。其他人 `403`。未发布的稿不能置顶。 |
 | M22 | 禁言 | 仅 `super_admin` 可禁言或解除。被禁言者可以登录和阅读，不能发帖、跟帖、点赞、创建或提交草稿。不废除其会话。已发帖仍公开。 |
 | M25 | 删除用户 | 仅 `super_admin` 可删除用户。作废其会话，并删除其帖子、评论、点赞与草稿。不给被删用户发 System 通知。 |
 
@@ -170,6 +171,7 @@ Must 服务主故事 P1-US1（Forum 发帖被看见）以及角色、跟帖、Ne
 31. 给定一篇已有一块已同意内容的 News，当编辑修改该块并提交、超级管理员尚未同意，则公开详情仍是同意前的正文；同意后才换成新正文。
 29. 给定已注册校内邮箱用户在找回密码页，当用该邮箱收到验证码并提交新密码，则旧密码不能再登录、新密码可以。非 `@basischina.com` 或不存在的账号：前者当场拒绝不发信；后者发码接口仍回成功、重置失败不泄露该邮箱是否已注册。
 32. 给定未注册访客提交注册，当 `accept_terms` 不是 `true`（缺省或 `false`），则 `422`，不建账号，且该验证码仍可再用于一次成功注册。协议上线前已存在的账号 `terms_accepted_at` 为 `null`，用原密码登录仍成功。
+34. 给定两篇已发布帖，较新的一篇在公开列表更前。当 `super_admin` 置顶较旧的一篇，则该篇排到公开列表最前；取消后恢复按时间。学生调用置顶则 `403`。未发布的稿置顶则 `422`。
 
 ### 4.3 关键非功能（可测、且为本产品需要）
 
@@ -205,7 +207,7 @@ Elegram 应用（Web 页面 + 服务端）
 | User | id, email, password_hash, display_name, roles, avatar, muted, terms_accepted_at, created_at | 邮箱须 `@basischina.com`；验证码通过且 `accept_terms` 为 `true` 后注册为 `["student"]`，服务端写入 `terms_accepted_at`；`roles` 可含多项；`muted` 默认 false；禁言后仍可登录，不能写帖。协议上线前的账号该时间为 `null` |
 | EmailCode | email, purpose, code_hash, expires_at, attempt_count | 注册或找回密码发码；明文不入库；发出后 2 分钟过期，或用过后失效 |
 | Session | 可校验的登录凭证，绑定 user_id，可失效 | 登录创建 → 退出、删除用户或过期销毁。禁言不废除会话 |
-| Post | id, author_id, title, body, category, status, images, created_at, updated_at | Forum 校验通过后 `published`。News 在至少一块被同意前为 `draft`，公开接口不返回。`admin` / `super_admin` 可整帖删除 |
+| Post | id, author_id, title, body, category, status, images, pinned, pinned_at, created_at, updated_at | Forum 校验通过后 `published`。News 在至少一块被同意前为 `draft`，公开接口不返回。`admin` / `super_admin` 可整帖删除。仅 `super_admin` 可改 `pinned` |
 | NewsCategory | post_id, topic | 独立 News 投稿的类别关联，`topic` 为 `sport` / `dorm` / `scoop`；文章可有多个类别 |
 | NewsBlock | id, post_id, position, heading, published_heading, draft_body, published_body, review_status | `editing` / `pending` / `published`。同意把草稿写入已发布字段。公开详情只用已发布字段 |
 | SystemNotice | id, user_id, body, created_at | 删帖时写给作者；只读，无回复 |

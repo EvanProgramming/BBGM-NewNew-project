@@ -2,25 +2,38 @@ import { useEffect } from "react";
 import { FrontPageLink, SectionRule } from "../components/ui";
 import { useI18n } from "../i18n";
 
+function Paragraph({ part }) {
+  return (
+    <p className={`mt-3 font-sans text-[15px] leading-7 ${part.bold ? "font-semibold text-[#111111]" : ""}`}>
+      {part.text}
+    </p>
+  );
+}
+
 function TermsBody() {
   const { terms } = useI18n();
 
   return (
     <>
       <SectionRule>{terms.title}</SectionRule>
-      <p className="font-serif text-3xl leading-snug">{terms.lead}</p>
+      <p className="font-serif text-3xl leading-snug">{terms.makers}</p>
+      <p className="mt-4 font-sans text-[15px] leading-7">{terms.covers}</p>
+      <p className="mt-2 font-sans text-[13px] text-neutral-500">{terms.version}</p>
+      <p className="mt-6 font-sans text-[15px] leading-7">
+        {terms.lead.map((part) => (
+          <span key={part.text} className={part.bold ? "font-semibold" : ""}>
+            {part.text}
+          </span>
+        ))}
+      </p>
       {terms.sections.map((section) => (
         <section key={section.heading} className="mt-8">
           <h3 className="font-serif text-xl">{section.heading}</h3>
-          {section.intro ? <p className="mt-3 font-sans text-[15px] leading-7">{section.intro}</p> : null}
-          <ul className="mt-3 list-disc space-y-2 pl-5 font-sans text-[15px] leading-7">
-            {section.items.map((item) => (
-              <li key={item}>{item}</li>
-            ))}
-          </ul>
+          {section.paragraphs.map((part) => (
+            <Paragraph key={part.text} part={part} />
+          ))}
         </section>
       ))}
-      <p className="mt-8 font-sans text-[15px] leading-7 text-neutral-500">{terms.closing}</p>
     </>
   );
 }

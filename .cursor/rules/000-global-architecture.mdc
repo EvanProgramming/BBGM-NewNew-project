@@ -6,7 +6,7 @@ alwaysApply: true
 
 # 全局架构
 
-Elegram 由广东智云建材有限公司所有并运营：登录发帖、按栏目阅读。前后端分目录，不要搭成单仓混写或后台套件。
+Elegram 是登录发帖、按栏目阅读的站点，由 Tori Zhao、Ben Lu、Leo Gao、Dewey Peng 所有。前后端分目录，不要搭成单仓混写或后台套件。
 
 ## 目录
 

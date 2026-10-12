@@ -111,6 +111,9 @@ export function CommunityCard({ post, onDelete = null }) {
         <div className="min-w-0 flex-1">
           <p className="font-sans text-sm font-medium text-[#111111]">{post.author?.display_name}</p>
           <p className="mt-0.5 font-sans text-xs text-neutral-500">{formatRelative(post.created_at, lang)}</p>
+          {post.pinned ? (
+            <p className="mt-2 font-sans text-[11px] font-semibold uppercase tracking-[0.16em] text-[#1A4FBF]">{t("post.pinned")}</p>
+          ) : null}
           <Link to={`/posts/${post.id}`} state={detailState} className="mt-3 block font-sans text-[15px] font-medium leading-6 text-[#111111] [overflow-wrap:anywhere]">
             {post.title}
           </Link>

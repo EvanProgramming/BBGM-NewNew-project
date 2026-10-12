@@ -7,7 +7,7 @@ from uuid import uuid4
 import httpx
 from fastapi import APIRouter, Depends, File, Form, Query, UploadFile
 from fastapi.responses import JSONResponse
-from sqlalchemy import select
+from sqlalchemy import case, select
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
@@ -105,6 +105,7 @@ def _post_summary(db: Session, core: Session, post: Post) -> PostSummary:
         news_categories=_categories(db, post.id),
         like_count=0,
         liked=False,
+        pinned=bool(post.pinned),
     )
 
 
@@ -127,7 +128,14 @@ def list_articles(
         matching_ids = select(NewsCategory.post_id).where(NewsCategory.topic.in_([topic, "school"] if topic == "scoop" else [topic]))
         filters.append(Post.id.in_(matching_ids))
     try:
-        rows = db.scalars(select(Post).where(*filters).order_by(Post.updated_at.desc(), Post.created_at.desc()).offset((parsed_page - 1) * parsed_size).limit(parsed_size)).all()
+        pin_rank = case((Post.pinned.is_(True), 0), else_=1)
+        rows = db.scalars(
+            select(Post)
+            .where(*filters)
+            .order_by(pin_rank.asc(), Post.pinned_at.desc(), Post.updated_at.desc(), Post.created_at.desc())
+            .offset((parsed_page - 1) * parsed_size)
+            .limit(parsed_size)
+        ).all()
         total = db.query(Post).filter(*filters).count()
     except SQLAlchemyError as exc:
         raise StorageError() from exc

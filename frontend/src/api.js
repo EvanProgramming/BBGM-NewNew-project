@@ -217,6 +217,11 @@ export const api = {
     }),
   deleteUser: (userId) => request(`/admin/users/${encodeURIComponent(userId)}`, { method: "DELETE" }),
   deletePost: (postId) => request(`/posts/${encodeURIComponent(postId)}`, { method: "DELETE" }),
+  pinPost: (postId, pinned) =>
+    request(`/posts/${encodeURIComponent(postId)}/pin`, {
+      method: "POST",
+      body: JSON.stringify({ pinned }),
+    }),
   readCj: (weekStart) => {
     const query = new URLSearchParams({ week_start: weekStart });
     return request(`/cj?${query}`);
