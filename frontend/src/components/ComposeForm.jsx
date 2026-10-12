@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { ApiError, api, fieldMessage } from "../api";
 import { useAuth } from "../auth";
+import { forumListPath } from "../format";
 import { useI18n } from "../i18n";
 import { Avatar } from "./Avatar";
 import { ErrorBanner, FieldError } from "./ui";
@@ -38,7 +39,9 @@ export default function ComposeForm({ category, onPublished, onCancel, onBusy })
         isForum ? images.map((item) => item.file) : [],
       );
       if (isForum) {
-        navigate(`/posts/${created.id}`);
+        navigate(`/posts/${created.id}`, {
+          state: { forumBack: forumListPath(location.pathname) || "/forum" },
+        });
         return;
       }
       onPublished(created);

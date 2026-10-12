@@ -50,12 +50,12 @@ export function ManualPasswordInput({ id, value, onChange }) {
   );
 }
 
-export function FrontPageLink() {
+export function FrontPageLink({ to = "/", labelKey = "link.front" }) {
   const { t } = useI18n();
   return (
     <p className="mb-6 font-sans text-[11px] font-medium uppercase tracking-[0.16em]">
-      <Link to="/" className="text-[#1A4FBF] hover:text-[#111111]">
-        {t("link.front")}
+      <Link to={to} className="text-[#1A4FBF] hover:text-[#111111]">
+        {t(labelKey)}
       </Link>
     </p>
   );

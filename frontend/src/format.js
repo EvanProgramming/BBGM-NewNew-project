@@ -9,6 +9,12 @@ export const CATEGORY_ROUTES = [
   { to: "/opinion", label: "OPINION", category: null },
 ];
 
+const FORUM_LISTS = new Set(["/forum", "/forum/latest", "/forum/all", "/forum/mine"]);
+
+export function forumListPath(pathname) {
+  return FORUM_LISTS.has(pathname) ? pathname : null;
+}
+
 export function hasRole(user, role) {
   return Array.isArray(user?.roles) && user.roles.includes(role);
 }

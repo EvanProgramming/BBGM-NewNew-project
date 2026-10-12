@@ -150,6 +150,7 @@
 | --- | --- |
 | 加载 | 图框+标题横线。 |
 | 成功 | kicker←`category`；标题←`title`；byline←`author.display_name`、`created_at`。Forum 正文←`body`。News 按 `blocks[]` 分段渲染 `heading` 与 `body`，不展示未同意板块。 |
+| 返回 | 详情顶上的返回链：News 回 `/`。Forum 回进入时的列表（`/forum`、`/forum/latest`、`/forum/all`、`/forum/mine`）；直接打开则回 `/forum`。发完评论后仍停在详情，点返回进 Forum，不回首页。 |
 | Forum | `category===forum` 时正文放在与列表相同的灰色卡片里，按卡片宽度换行，长串不撑出卡片。正文下有与列表相同的拇指（`like_count` / `liked`；未登录去登录），并请求 `GET /comments`。楼主与每条评论显示 `author.avatar`。有 `images[]` 则在正文下展示实图，不用校报占位图框。评论显示 `author.display_name`、`body`，同样按栏宽换行。不显示楼号，没有「新楼层」，也不能回复某一条评论。已登录显示评论框；未登录显示去登录。校报详情**不**请求评论、不加拇指，图框仍是 CSS 占位。停留时约每 4 秒再请求详情与已加载的评论页；有新评论则追加。输入框内容不丢。后台失败不盖错误条。精选表不在本页。 |
 | 删帖 | `roles` 含 `admin` 或 `super_admin` 时显示 `Delete`。Forum 帖的作者在自己的详情也显示 `Delete`。确认后 `DELETE /api/v1/posts/{id}`。管理员删 News 回 `/`，删他人的 Forum 回 `/forum`；作者删自己的 Forum 回 `/forum/mine`。`403` 用 `ErrorBanner`。 |
 | 撤回 News | 已发布且带 `news_categories` 的文章，`roles` 含 `admin` 或 `super_admin` 时另显示 `Withdraw`。确认后 `POST /api/v1/news/submissions/{id}/withdraw`，成功回首页。文章不再公开，原稿回到 Draft。`403` 用 `ErrorBanner`。 |

@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { ApiError, api } from "../api";
 import { useAuth } from "../auth";
 import { uploadSrc } from "../avatar";
-import { formatRelative } from "../format";
+import { formatRelative, forumListPath } from "../format";
 import { useI18n } from "../i18n";
 import { TitleLine } from "./ui";
 import { Avatar } from "./Avatar";
@@ -100,7 +100,9 @@ export function ForumLikeButton({ post, signInNext, className = "" }) {
 
 export function CommunityCard({ post, onDelete = null }) {
   const { lang, t } = useI18n();
+  const location = useLocation();
   const replies = post.reply_count ?? 0;
+  const detailState = { forumBack: forumListPath(location.pathname) || "/forum" };
 
   return (
     <article className="mb-3 min-w-0 overflow-hidden rounded-2xl bg-[#F4F5F7] p-4">
@@ -109,7 +111,7 @@ export function CommunityCard({ post, onDelete = null }) {
         <div className="min-w-0 flex-1">
           <p className="font-sans text-sm font-medium text-[#111111]">{post.author?.display_name}</p>
           <p className="mt-0.5 font-sans text-xs text-neutral-500">{formatRelative(post.created_at, lang)}</p>
-          <Link to={`/posts/${post.id}`} className="mt-3 block font-sans text-[15px] font-medium leading-6 text-[#111111] [overflow-wrap:anywhere]">
+          <Link to={`/posts/${post.id}`} state={detailState} className="mt-3 block font-sans text-[15px] font-medium leading-6 text-[#111111] [overflow-wrap:anywhere]">
             {post.title}
           </Link>
           {post.excerpt ? (
@@ -125,6 +127,7 @@ export function CommunityCard({ post, onDelete = null }) {
           <div className="mt-4 flex items-center gap-10 text-neutral-500">
             <Link
               to={`/posts/${post.id}`}
+              state={detailState}
               className="flex items-center gap-1.5 font-sans text-sm"
               aria-label={t("forum.comments", { count: replies })}
             >

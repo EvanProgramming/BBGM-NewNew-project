@@ -1,17 +1,18 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Link, useNavigate, useParams } from "react-router-dom";
+import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import { ApiError, api, fieldMessage } from "../api";
 import { useAuth } from "../auth";
 import { uploadSrc } from "../avatar";
 import { Avatar } from "../components/Avatar";
 import { ForumLikeButton } from "../components/CommunityCard";
 import { ErrorBanner, FieldError, FrontPageLink, Headline, ImageWell, Kicker, TitleLine, ButtonSpinner } from "../components/ui";
-import { canDeletePosts, formatDateline, newsTopicsLabel } from "../format";
+import { canDeletePosts, formatDateline, forumListPath, newsTopicsLabel } from "../format";
 import { useI18n } from "../i18n";
 import { mergeLiveFloors, useLiveRefresh } from "../live";
 
 export default function PostDetail() {
   const { postId } = useParams();
+  const location = useLocation();
   const { user, setUser } = useAuth();
   const { lang, t } = useI18n();
   const navigate = useNavigate();
@@ -95,6 +96,7 @@ export default function PostDetail() {
 
   const notFound = error instanceof ApiError && error.code === "not_found";
   const isForum = post?.category === "forum";
+  const forumBack = forumListPath(location.state?.forumBack) || (isForum ? "/forum" : null);
 
   useLiveRefresh(ready && !commentSubmitting && !notFound, refreshThread);
 
@@ -182,7 +184,7 @@ export default function PostDetail() {
 
   return (
     <article className="mx-auto mt-10 min-w-0 max-w-[42rem]">
-      <FrontPageLink />
+      <FrontPageLink to={forumBack || "/"} labelKey={forumBack ? "link.forum" : "link.front"} />
       {loading ? (
         <>
           <ImageWell className="h-64" />
