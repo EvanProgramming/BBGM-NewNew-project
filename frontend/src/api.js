@@ -272,6 +272,8 @@ export const api = {
     }),
   likePost: (postId) => request(`/posts/${encodeURIComponent(postId)}/likes`, { method: "POST" }),
   unlikePost: (postId) => request(`/posts/${encodeURIComponent(postId)}/likes`, { method: "DELETE" }),
+  forumActivity: () => request("/me/forum-activity"),
+  readForumActivity: () => request("/me/forum-activity/read", { method: "POST" }),
 };
 
 export function fieldMessage(error, field) {

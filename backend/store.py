@@ -12,6 +12,7 @@ from models import (
     AuditEvent,
     Comment,
     EmailCode,
+    ForumActivitySeen,
     NewsBlock,
     NewsCategory,
     Post,
@@ -205,6 +206,7 @@ def delete_user_account(core: Session, content: Session, user: User) -> list[str
             content.execute(delete(Comment).where(Comment.id.in_(floor_ids)))
         content.execute(delete(PostLike).where(PostLike.user_id == user_id))
         content.execute(delete(AuditEvent).where(AuditEvent.actor_id == user_id))
+        content.execute(delete(ForumActivitySeen).where(ForumActivitySeen.user_id == user_id))
         core.execute(delete(CJTeacherSubject).where(CJTeacherSubject.user_id == user_id))
         core.execute(delete(SessionRecord).where(SessionRecord.user_id == user_id))
         core.delete(user)
@@ -347,6 +349,57 @@ def add_like(db: Session, *, user_id: str, post_id: str) -> bool:
         return True
     except IntegrityError:
         return False
+    except SQLAlchemyError as exc:
+        raise StorageError() from exc
+
+
+def forum_activity_unread(db: Session, user_id: str) -> int:
+    """1 when someone else liked or commented on this user's forum posts since Mine was opened."""
+    try:
+        seen_at = db.scalar(
+            select(ForumActivitySeen.seen_at).where(ForumActivitySeen.user_id == user_id)
+        )
+        like_match = (
+            select(PostLike.id)
+            .join(Post, Post.id == PostLike.post_id)
+            .where(
+                Post.author_id == user_id,
+                Post.category == "forum",
+                Post.status == "published",
+                PostLike.user_id != user_id,
+            )
+            .limit(1)
+        )
+        comment_match = (
+            select(Comment.id)
+            .join(Post, Post.id == Comment.post_id)
+            .where(
+                Post.author_id == user_id,
+                Post.category == "forum",
+                Post.status == "published",
+                Comment.author_id != user_id,
+            )
+            .limit(1)
+        )
+        if seen_at is not None:
+            like_match = like_match.where(PostLike.created_at > seen_at)
+            comment_match = comment_match.where(Comment.created_at > seen_at)
+        if db.scalar(like_match) is not None or db.scalar(comment_match) is not None:
+            return 1
+        return 0
+    except SQLAlchemyError as exc:
+        raise StorageError() from exc
+
+
+def mark_forum_activity_read(db: Session, user_id: str) -> None:
+    now = utc_now()
+    try:
+        row = db.get(ForumActivitySeen, user_id)
+        if row is None:
+            db.add(ForumActivitySeen(user_id=user_id, seen_at=now))
+        else:
+            row.seen_at = now
+        db.flush()
     except SQLAlchemyError as exc:
         raise StorageError() from exc
 

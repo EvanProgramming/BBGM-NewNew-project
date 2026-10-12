@@ -242,6 +242,10 @@ class LikeState(BaseModel):
     liked: bool
 
 
+class ForumActivity(BaseModel):
+    unread: int
+
+
 class PostList(BaseModel):
     items: list[PostSummary]
     page: int

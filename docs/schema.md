@@ -160,6 +160,12 @@ Content-Type: application/json
 | `body` | string | 给当前用户的一句说明，例如帖子标题已被移除 |
 | `created_at` | string | |
 
+**ForumActivity**
+
+| 字段 | 类型 | 说明 |
+| --- | --- | --- |
+| `unread` | integer | 只有 `0` 或 `1`。`1` 表示别人在你上次把 Forum 互动标成已读之后，赞过或评论过你已发布的 Forum 帖。自己的赞和评论不算。校报帖不算。不会大于 1 |
+
 **NewsBlockStaff**（草稿接口，含未公开正文）
 
 | 字段 | 类型 | 说明 |
@@ -778,6 +784,32 @@ News 文章仍使用 `Post(category="news")`，每篇文章只有一个内容板
 - `403` `account_muted`
 - `404` `not_found`
 - `422` `validation_error`（非 Forum 帖）
+- `503` `storage_unavailable`
+
+#### `GET /api/v1/me/forum-activity`
+
+- **鉴权：** 是
+- **职责：** 当前用户有没有未读的 Forum 互动。别人赞了或评论了自己已发布的 Forum 帖，并且发生在上次 `POST /api/v1/me/forum-activity/read` 之后，则 `unread` 为 `1`。自己的赞和评论不算。校报帖不算。从未标成已读时，已有的他人赞和评论也算未读。值只有 `0` 或 `1`。
+
+**Request：** 无。
+
+**Response**
+
+- `200` + `ForumActivity`
+- `401` `unauthenticated`
+- `503` `storage_unavailable`
+
+#### `POST /api/v1/me/forum-activity/read`
+
+- **鉴权：** 是
+- **职责：** 把当前用户的 Forum 互动标成已读。打开 Forum「我的」时调用。
+
+**Request：** 无 body。
+
+**Response**
+
+- `204` 无 body
+- `401` `unauthenticated`
 - `503` `storage_unavailable`
 
 ### 1.5 Admin users

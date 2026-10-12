@@ -1,6 +1,8 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Link, NavLink, Outlet, useLocation } from "react-router-dom";
+import { api } from "../api";
 import { useAuth } from "../auth";
+import { useLiveRefresh } from "../live";
 import { Avatar } from "./Avatar";
 import { ButtonSpinner } from "./ui";
 import { canEditNews, CATEGORY_ROUTES, formatToday, hasRole } from "../format";
@@ -62,6 +64,17 @@ const NAV_KEYS = {
   "/opinion": "nav.opinion",
 };
 
+function ActivityBadge({ label }) {
+  return (
+    <span
+      title={label}
+      className="ml-1 inline-flex h-[15px] min-w-[15px] items-center justify-center rounded-full bg-[#E10600] px-[4px] font-sans text-[9px] font-bold leading-none tracking-normal text-white normal-case"
+    >
+      1
+    </span>
+  );
+}
+
 export default function PaperShell() {
   const { user, signOut } = useAuth();
   const { lang, t } = useI18n();
@@ -72,6 +85,41 @@ export default function PaperShell() {
   const [termsOpen, setTermsOpen] = useState(false);
   const [signingOut, setSigningOut] = useState(false);
   const [openMenu, setOpenMenu] = useState(null);
+  const [forumUnread, setForumUnread] = useState(false);
+  const activitySeq = useRef(0);
+  const onMine = location.pathname === "/forum/mine";
+
+  const syncForumActivity = useCallback(async () => {
+    const seq = activitySeq.current + 1;
+    activitySeq.current = seq;
+    const data = await api.forumActivity();
+    if (seq !== activitySeq.current) return;
+    const unread = data?.unread === 1;
+    if (onMine) {
+      if (unread) await api.readForumActivity();
+      if (seq !== activitySeq.current) return;
+      setForumUnread(false);
+      return;
+    }
+    setForumUnread(unread);
+  }, [onMine]);
+
+  useEffect(() => {
+    if (onMine) setForumUnread(false);
+  }, [onMine]);
+
+  useEffect(() => {
+    if (!user) {
+      setForumUnread(false);
+      return undefined;
+    }
+    syncForumActivity().catch(() => {
+      /* keep the last badge */
+    });
+    return undefined;
+  }, [user, syncForumActivity]);
+
+  useLiveRefresh(Boolean(user), syncForumActivity);
 
   useEffect(() => {
     setOpenMenu(null);
@@ -246,7 +294,10 @@ export default function PaperShell() {
           ) : null}
           {CATEGORY_ROUTES.map((item) => (
             <NavLink key={item.to} to={item.to} className={navClass}>
-              {t(NAV_KEYS[item.to] || item.label)}
+              <span className="inline-flex items-center">
+                {t(NAV_KEYS[item.to] || item.label)}
+                {item.to === "/forum" && forumUnread ? <ActivityBadge label={t("forum.activityBadge")} /> : null}
+              </span>
             </NavLink>
           ))}
         </nav>
@@ -267,14 +318,21 @@ export default function PaperShell() {
                 to={item.to}
                 end={item.end}
                 className={({ isActive }) =>
-                  `font-sans text-[13px] ${
-                    isActive
-                      ? "text-[#1A4FBF] underline decoration-2 underline-offset-[7px]"
-                      : "text-neutral-900 hover:text-[#1A4FBF]"
+                  `inline-flex items-center font-sans text-[13px] ${
+                    isActive ? "text-[#1A4FBF]" : "text-neutral-900 hover:text-[#1A4FBF]"
                   }`
                 }
               >
-                {t(item.label)}
+                {({ isActive }) => (
+                  <>
+                    <span className={isActive ? "underline decoration-2 underline-offset-[7px]" : undefined}>
+                      {t(item.label)}
+                    </span>
+                    {item.to === "/forum/mine" && forumUnread ? (
+                      <ActivityBadge label={t("forum.activityBadge")} />
+                    ) : null}
+                  </>
+                )}
               </NavLink>
             ))}
           </nav>

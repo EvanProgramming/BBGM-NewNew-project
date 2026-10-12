@@ -248,6 +248,15 @@ class PostLike(ContentBase):
     post: Mapped[Post] = relationship(back_populates="likes")
 
 
+class ForumActivitySeen(ContentBase):
+    """When this user last opened Forum → Mine. Likes and comments after this are unread."""
+
+    __tablename__ = "forum_activity_seen"
+
+    user_id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    seen_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
 class AuditEvent(ContentBase):
     __tablename__ = "audit_events"
 

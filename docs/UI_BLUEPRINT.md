@@ -54,7 +54,7 @@
 - 列表同步：首页 / Forum / 帖详情已 live refresh。`/admin/users`、`/news/drafts` 列表、`/system`、`/me/posts` 同样轮询，超管或其他人刚做的改动会进当前页。打开中的草稿编辑框不自动覆盖，以免冲掉未保存正文。
 - 报头：左搜索框（外形保留；提交不调接口，在报头下出一条静态说明）。中：斜体衬线字标 `Elegram` 链回 `/`。右：静态「OWNED BY / Tori Zhao, Ben Lu, Leo Gao, Dewey Peng」。
 - 标语静态：`YOUR STORIES. YOUR VOICE. YOUR PAGE.`
-- 导航：`NEWS`（`/`）`FORUM` `CJ` `OPINION`。`CJ` 与 `FORUM` 同一行，链到 `/cj`。`roles` 含 `editor` 或 `super_admin` 时，在 NEWS 之后另见 `DRAFT`（`/news/submit`）。`DESIGN`（`/news/design`）只在 `roles` 含 `super_admin` 时出现。超级管理员从 Design 进入审核队列或直接发布。当前路由下划黑线。无 `SUBMIT`，无单独的 News 列表项。分板块草稿页仍是 `/news/drafts`，不放在主导航。旧 `/news` 重定向至首页。Forum 发帖在栏目页内。
+- 导航：`NEWS`（`/`）`FORUM` `CJ` `OPINION`。`CJ` 与 `FORUM` 同一行，链到 `/cj`。`roles` 含 `editor` 或 `super_admin` 时，在 NEWS 之后另见 `DRAFT`（`/news/submit`）。`DESIGN`（`/news/design`）只在 `roles` 含 `super_admin` 时出现。超级管理员从 Design 进入审核队列或直接发布。当前路由下划黑线。无 `SUBMIT`，无单独的 News 列表项。分板块草稿页仍是 `/news/drafts`，不放在主导航。旧 `/news` 重定向至首页。Forum 发帖在栏目页内。已登录时约每 4 秒 `GET /api/v1/me/forum-activity`（页签隐藏暂停）。`unread` 为 `1` 时，`FORUM` 文字旁有一个红底白字的 `1`。未登录不请求、不显示。请求失败不盖错误条，保留上一次的红点。
 - CJ 欢迎屏：`/cj` 仍只按角色跳到学生、老师或管理页。跳转之后，若这次登录还没看过欢迎屏，内容区左上角显示大号衬线 “Welcome, {display_name}”（中文 “欢迎，{display_name}”），约 1.8 秒淡入，淡入结束后再停一会儿，大约 3.2 秒后才渲染课表。标记在 `localStorage`，键带用户 `id`。重新登录或退出时清除。淡入结束前离开 CJ 不写入标记。已在 CJ 内换日期或课程不再播放。
 - 会等待接口的按钮：请求从发出到返回期间，按钮文字旁显示转圈，并且不可再点。页面初次加载仍用原来的“正在读取”文案，不盖整页。
 - 页脚声明（非 schema）：`Owned by Tori Zhao, Ben Lu, Leo Gao, and Dewey Peng.`
@@ -140,7 +140,7 @@
 | Forum | **不用 StoryRow**。每条独立模块卡：`author.avatar`、`author.display_name`、`created_at`、`title`（链详情）、`excerpt`、有则 `images[0]`。标题和摘要按卡片宽度换行，长串不撑出灰色卡片。底栏：气泡图标 + `reply_count`（链 `/posts/{id}`）；拇指图标 + `like_count`（已登录切换赞；游客去 `/sign-in?next=/forum`）。**不**展示 `reply_preview`。 |
 | 发帖 | Forum：右下角固定蓝色圆形加号。已登录点开浮层表单；未登录加号去 `/sign-in?next=/forum`。`opinion` 无发帖。News 不在本页发稿。独立投稿在导航 `DRAFT` / `DESIGN`，分板块草稿在 `/news/drafts`。 |
 | 空 | `items.length === 0`：图框保留，“No stories in {栏目名} yet.” 不链独立发帖页。 |
-| 栏目 | Forum 主导航下：推荐、最新、所有、我的。当前项字色 `#1A4FBF` 并带下划线。推荐与最新不显示 Older stories。我的需要登录，卡片上作者可删除该帖，确认后该卡消失。 |
+| 栏目 | Forum 主导航下：推荐、最新、所有、我的。当前项字色 `#1A4FBF` 并带下划线。推荐与最新不显示 Older stories。我的需要登录，卡片上作者可删除该帖，确认后该卡消失。`unread` 为 `1` 且当前不在 `/forum/mine` 时，「我的」文字旁有一个红底白字的 `1`，与主导航 `FORUM` 同时出现。进入 `/forum/mine` 后 `POST /api/v1/me/forum-activity/read`，两处红点消失。人还停在「我的」时，新的赞或评论随这次刷新标成已读，红点不留在当前这一栏。 |
 | 停留 | 约每 4 秒再请求当前栏目 `page=1`（页签隐藏暂停）。最新与所有：新帖出现在列表顶部。推荐：0 赞且 0 评论的新帖不插到第一位。所有已点过的 Older 页保留。Forum 卡上的 `reply_count` / `like_count` / `liked` 随这次响应更新。不转圈；后台失败不盖错误条。首次加载失败后若拉到数据则清错误。 |
 | 错误 | 栏目名下 `ErrorBanner` ← `error.message`。`opinion` 不发请求，直接空态句。 |
 

@@ -13,7 +13,7 @@ from avatars import (
     normalize_avatar,
     preset_avatar,
 )
-from deps import get_core_db, get_current_user
+from deps import get_core_db, get_current_user, get_db
 from errors import ApiError, StorageError, unauthenticated, validation_error
 from models import User, to_iso, utc_now
 from mail import send_verification_email
@@ -21,6 +21,7 @@ from schemas import (
     AVATAR_PRESETS,
     ChangePasswordBody,
     EmailCodeBody,
+    ForumActivity,
     LoginBody,
     Notice,
     NoticeList,
@@ -36,9 +37,11 @@ from store import (
     consume_email_code,
     create_session,
     get_active_session,
+    forum_activity_unread,
     get_user_by_email,
     issue_email_code,
     list_system_notices,
+    mark_forum_activity_read,
 )
 from identity import dump_roles, primary_role, user_roles
 from validate import (
@@ -280,6 +283,16 @@ def set_avatar_preset(
     except SQLAlchemyError as exc:
         raise StorageError() from exc
     return _user_private(user)
+
+
+@router.get("/me/forum-activity")
+def forum_activity(user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> dict:
+    return ForumActivity(unread=forum_activity_unread(db, user.id)).model_dump()
+
+
+@router.post("/me/forum-activity/read", status_code=204)
+def read_forum_activity(user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> None:
+    mark_forum_activity_read(db, user.id)
 
 
 @router.get("/me/notices")

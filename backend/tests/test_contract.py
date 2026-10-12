@@ -1703,3 +1703,50 @@ def test_super_admin_pins_published_post_to_the_front(tmp_path, monkeypatch):
         assert blocked.status_code == 422
         assert blocked.json()["error"]["fields"][0]["field"] == "pinned"
     app.state.engine.dispose()
+
+
+def test_forum_activity_badge_tracks_other_people_only(tmp_path, monkeypatch):
+    app = _make_app(tmp_path, monkeypatch)
+    with TestClient(app) as author, TestClient(app) as other:
+        assert _register(author, "jordan.hale@basischina.com", "east-hall-8", "Jordan Hale").status_code == 201
+        assert _register(other, "priya.nair@basischina.com", "west-hall-8", "Priya Nair").status_code == 201
+        assert author.get("/api/v1/me/forum-activity").json() == {"unread": 0}
+        assert TestClient(app).get("/api/v1/me/forum-activity").status_code == 401
+
+        created = author.post(
+            "/api/v1/posts",
+            json={"title": "Locker note", "body": "Left on the board.", "category": "forum"},
+        )
+        assert created.status_code == 201, created.text
+        post_id = created.json()["id"]
+        assert author.post(f"/api/v1/posts/{post_id}/likes").status_code == 201
+        assert author.post(
+            f"/api/v1/posts/{post_id}/comments",
+            json={"body": "Adding this myself."},
+        ).status_code == 201
+        assert author.get("/api/v1/me/forum-activity").json()["unread"] == 0
+
+        assert other.post(f"/api/v1/posts/{post_id}/likes").status_code == 201
+        assert author.get("/api/v1/me/forum-activity").json() == {"unread": 1}
+        assert other.get("/api/v1/me/forum-activity").json()["unread"] == 0
+
+        read = author.post("/api/v1/me/forum-activity/read")
+        assert read.status_code == 204
+        assert author.get("/api/v1/me/forum-activity").json()["unread"] == 0
+
+        time.sleep(1.1)
+        commented = other.post(
+            f"/api/v1/posts/{post_id}/comments",
+            json={"body": "Saw this on the board."},
+        )
+        assert commented.status_code == 201, commented.text
+        assert author.get("/api/v1/me/forum-activity").json()["unread"] == 1
+        assert author.post("/api/v1/me/forum-activity/read").status_code == 204
+
+        time.sleep(1.1)
+        assert other.delete(f"/api/v1/posts/{post_id}/likes").status_code == 200
+        assert other.post(f"/api/v1/posts/{post_id}/likes").status_code == 201
+        assert author.get("/api/v1/me/forum-activity").json()["unread"] == 1
+        assert other.delete(f"/api/v1/posts/{post_id}/likes").status_code == 200
+        assert author.get("/api/v1/me/forum-activity").json()["unread"] == 0
+    app.state.engine.dispose()
