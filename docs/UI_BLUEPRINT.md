@@ -27,7 +27,7 @@
 | `/cj/student/week` | 学生端周视图 | 需 `student` | `GET /api/v1/cj?week_start=`，周一至周五五列同时展示 Period 1–8，并单列考试安排 |
 | `/cj/student/day` | 学生端旧单日页 | 需 `student` | 保留旧链接兼容，不作为月历主入口 |
 | `/cj/teacher` | 老师端 | 需 `teacher` | 只读取和写入超级管理员分配给该老师的唯一学科，包括该学科 CJ 与考试；不显示其他学科。每日 CJ 可上传作业照片，`POST /api/v1/cj/recognize` 后把 IC / HW / A 写入所选日期，并标出裁切补全 |
-| `/cj/admin` | CJ 完整管理端 | 仅 `super_admin` | 管理全部 CJ、考试与老师学科分配；可连接 Teams 并在预览确认后写入当周 IC / HW / A。不再使用共享口令 |
+| `/cj/admin` | CJ 完整管理端 | 仅 `super_admin` | 管理全部 CJ、考试与老师学科分配。不再使用共享口令 |
 | `/cj/admin/student-preview` | 学生端只读预览 | 仅 `super_admin` | 与学生周视图读取同一份 CJ，供管理端在独立标签页验证保存结果；不放宽学生端路由权限 |
 | `/cj/day` `/cj/week` | 旧路径 | 需 `student` | `/cj/week` 转到学生端周视图；`/cj/day` 保留单日兼容页 |
 | `/opinion` | 栏目占位 | 公开 | **不请求** `category=opinion`（枚举外会 422）。固定空态。 |
@@ -254,23 +254,6 @@
 | 成功 | `GET /api/v1/me/notices` 的 `items[]`：`body`、`created_at`。没有回复框，没有发帖表。 |
 | 空 | `items.length === 0`：“No messages.” |
 
-### 3.10 CJ 管理端 Teams 导入 `/cj/admin`
-
-仅 `super_admin` 看见。老师端不显示这组按钮。学生周视图不增加字段，仍读 `ic`、`hw`、`announcement`。
-
-| 状态 | 表现 |
-| --- | --- |
-| 打开页面 | `GET /api/v1/cj/teams/status`。显示 Teams 是否已连接、DeepSeek 是否已配置。不显示令牌或 key。 |
-| 未配置 Microsoft | 不跳转登录。说明需要先配置 Microsoft 应用。 |
-| 连接 | `POST /api/v1/cj/teams/connect`，浏览器打开返回的 `authorize_url`。回到本页且查询为 `teams=connected` 时显示已连接；`teams=error` 显示 `error.message` 同级的失败说明。 |
-| 导入 | 使用当前周次。`POST /api/v1/cj/teams/preview`，body 只有 `week_start`。列出将写入的学科、星期、IC、HW、A，以及跳过原因。此步不改变已保存的 CJ。 |
-| 确认 | `POST /api/v1/cj/teams/apply`，body 为该周与预览里的 `entries`。成功后重新 `GET /api/v1/cj?week_start=`。没有可写入条目时不出现确认。 |
-| 失败 | `403` 不渲染此面板（路由已挡）。`422` / `503` 用 `error.message`，不把未确认的总结写进周视图。 |
-
-不要用断网假数据充当错误处理。
-
----
-
 ## 4. 组件树
 
 叶子标注 schema 字段。`ImageWell` 无数据绑定。
@@ -418,7 +401,3 @@
 | 打开我的帖子 | `GET /api/v1/me/posts?page=1&page_size=20` | 列表 | 401 去登录；503 错误条 |
 | Older stories | 同一列表接口 `page` 递增 | 追加或换页 `items` | `bad_request` 错误条 |
 | 搜索提交 | 无 | 静态说明 | — |
-| 超管打开 `/cj/admin` | `GET /api/v1/cj/teams/status` | 显示连接状态 | `401` 去登录；`403` 不进此页 |
-| 超管连接 Teams | `POST /api/v1/cj/teams/connect` | 转到 Microsoft 登录 | `503` 说明未配置，不跳转 |
-| 超管预览本周 CJ | `POST /api/v1/cj/teams/preview` | 列出将写入与将跳过 | `503` 用 `error.message`；周视图不变 |
-| 超管确认写入 | `POST /api/v1/cj/teams/apply` | 本周 CJ 更新 | `503` 不留下半截；`422` 字段错误 |

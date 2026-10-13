@@ -66,12 +66,12 @@ Content-Type: application/json
 | 400 | `bad_request` | 分页参数非法等无法归到字段校验的请求错误 |
 | 401 | `unauthenticated` | 无会话或会话无效 |
 | 401 | `invalid_credentials` | 登录邮箱或密码不对（不区分「用户不存在」与「密码错误」） |
-| 403 | `forbidden` | 已登录但无权（直接发 News、非编辑写草稿、非超级管理员改角色 / 禁言 / 删用户 / 同意板块 / 导入 Teams CJ、既不是该 Forum 帖作者也不是 `admin` / `super_admin` 时删帖） |
+| 403 | `forbidden` | 已登录但无权（直接发 News、非编辑写草稿、非超级管理员改角色 / 禁言 / 删用户 / 同意板块、既不是该 Forum 帖作者也不是 `admin` / `super_admin` 时删帖） |
 | 403 | `account_muted` | 已登录但被禁言，仍调用发帖、跟帖、点赞、创建或提交草稿 |
 | 404 | `not_found` | 帖子、评论父楼或用户不存在 |
 | 409 | `email_taken` | 注册邮箱已被占用 |
 | 422 | `validation_error` | 缺必填、超长、非法栏目、非法配图、非校内邮箱后缀、验证码无效或过期、注册时 `accept_terms` 不是 `true` |
-| 503 | `storage_unavailable` | 存储写入失败，或 Teams / DeepSeek 调用失败；不得返回成功或半截资源 |
+| 503 | `storage_unavailable` | 存储写入失败，或作业照片识别调用失败；不得返回成功或半截资源 |
 
 成功响应不包 `{ "data": ... }` 中间层：对象或列表字段直接放在 JSON 根上。
 
@@ -1043,75 +1043,6 @@ News 文章仍使用 `Post(category="news")`，每篇文章只有一个内容板
 - `403` `forbidden`
 - `404` `not_found`（账号不存在或不是老师）
 - `422` `validation_error`（学科不存在或格式错误）
-
-#### `GET /api/v1/cj/teams/status`
-
-仅 `super_admin`。报告 Teams 是否已连接、DeepSeek 与 Microsoft 应用是否已配置。响应不含刷新令牌、访问令牌或 API key。
-
-- `200`
-
-```json
-{
-  "teams_connected": false,
-  "deepseek_configured": false,
-  "microsoft_configured": false
-}
-```
-
-- `401` `unauthenticated`
-- `403` `forbidden`
-
-#### `POST /api/v1/cj/teams/connect`
-
-仅 `super_admin`。开始 Microsoft 登录。成功时返回授权地址，浏览器转到该地址。登录完成后，微软把浏览器带到 `GET /api/v1/cj/teams/callback`。回调不是 JSON：校验一次性 `state` 与当前超级管理员会话，用授权码换刷新令牌，只在服务端保存，再重定向到 `{FRONTEND_ORIGIN}/cj/admin?teams=connected`。失败重定向到同一页 `?teams=error`，地址里不带令牌。
-
-**Response**
-
-- `200` `{ "authorize_url": "https://login.microsoftonline.com/..." }`
-- `401` `unauthenticated`
-- `403` `forbidden`
-- `503` `storage_unavailable`（Microsoft 应用未配置）
-
-#### `POST /api/v1/cj/teams/preview`
-
-仅 `super_admin`。Body 只有 `week_start`（`YYYY-MM-DD`）。读取已连接账号能看到的群聊文字，交给 DeepSeek，返回将写入与将跳过的条目。不写 `CJEntry`。
-
-将写入的每条为 `subject_id`、`day_index`（0–4）、`ic`、`hw`、`announcement`。跳过原因：`unknown_subject`、`invalid_day`、`field_too_long`、`empty`、`duplicate`、`invalid_payload`。跳过项的 `day_index` 无法识别时为 `null`。
-
-- `200`
-
-```json
-{
-  "week_start": "2026-10-05",
-  "entries": [{
-    "subject_id": "ap-calculus-11ac",
-    "day_index": 0,
-    "ic": "Limits and continuity review",
-    "hw": "Complete FRQ Set 2",
-    "announcement": "Quiz on Wednesday"
-  }],
-  "skipped": [{
-    "subject_id": "not-a-course",
-    "day_index": 0,
-    "reason": "unknown_subject"
-  }]
-}
-```
-
-- `401` `unauthenticated`
-- `403` `forbidden`
-- `422` `validation_error`（`week_start` 非法或缺失）
-- `503` `storage_unavailable`（未连接 Teams、未配置 DeepSeek，或 Graph / DeepSeek 失败）。不写入 CJ
-
-#### `POST /api/v1/cj/teams/apply`
-
-仅 `super_admin`。Body 为 `week_start` 与预览返回的 `entries`。服务端再次校验：只覆盖通过校验的周、日、学科槽的 `ic`、`hw`、`announcement`。无效条目进入 `skipped`，不写入。任一条目落库失败则整笔回滚。
-
-- `200` `{ "week_start": "2026-10-05", "written": 1, "skipped": [] }`
-- `401` `unauthenticated`
-- `403` `forbidden`
-- `422` `validation_error`
-- `503` `storage_unavailable`（写入失败；不留下半截 CJ）
 
 ---
 

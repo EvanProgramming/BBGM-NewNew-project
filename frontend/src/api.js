@@ -258,18 +258,6 @@ export const api = {
       method: "PUT",
       body: JSON.stringify({ subject_ids: subjectIds }),
     }),
-  teamsStatus: () => request("/cj/teams/status"),
-  connectTeams: () => request("/cj/teams/connect", { method: "POST" }),
-  previewTeamsCj: (weekStart) =>
-    request("/cj/teams/preview", {
-      method: "POST",
-      body: JSON.stringify({ week_start: weekStart }),
-    }),
-  applyTeamsCj: (body) =>
-    request("/cj/teams/apply", {
-      method: "POST",
-      body: JSON.stringify(body),
-    }),
   likePost: (postId) => request(`/posts/${encodeURIComponent(postId)}/likes`, { method: "POST" }),
   unlikePost: (postId) => request(`/posts/${encodeURIComponent(postId)}/likes`, { method: "DELETE" }),
   forumActivity: () => request("/me/forum-activity"),

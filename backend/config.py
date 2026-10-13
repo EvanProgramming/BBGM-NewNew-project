@@ -21,11 +21,6 @@ class Settings:
     smtp_user: str
     smtp_password: str
     smtp_from: str
-    deepseek_api_key: str
-    microsoft_client_id: str
-    microsoft_client_secret: str
-    microsoft_tenant_id: str
-    microsoft_redirect_uri: str
     dashscope_api_key: str
 
 
@@ -78,10 +73,5 @@ def load_settings() -> Settings:
         smtp_user=smtp_user,
         smtp_password=os.environ.get("SMTP_PASSWORD") or "",
         smtp_from=smtp_from,
-        deepseek_api_key=(os.environ.get("DEEPSEEK_API_KEY") or "").strip(),
-        microsoft_client_id=(os.environ.get("MICROSOFT_CLIENT_ID") or "").strip(),
-        microsoft_client_secret=(os.environ.get("MICROSOFT_CLIENT_SECRET") or "").strip(),
-        microsoft_tenant_id=(os.environ.get("MICROSOFT_TENANT_ID") or "").strip(),
-        microsoft_redirect_uri=(os.environ.get("MICROSOFT_REDIRECT_URI") or "").strip(),
         dashscope_api_key=(os.environ.get("DASHSCOPE_API_KEY") or "").strip(),
     )

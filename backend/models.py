@@ -17,7 +17,7 @@ def to_iso(dt: datetime) -> str:
 
 
 class CoreBase(DeclarativeBase):
-    """CJ student database: users, sessions, subjects, exams, CJ entries, Teams."""
+    """CJ student database: users, sessions, subjects, exams, and CJ entries."""
 
 
 class ContentBase(DeclarativeBase):
@@ -133,21 +133,6 @@ class CJEntry(CoreBase):
     hw: Mapped[str] = mapped_column(Text, nullable=False, default="")
     announcement: Mapped[str] = mapped_column(Text, nullable=False, default="")
     updated_at: Mapped[str] = mapped_column(String(32), nullable=False)
-
-
-class TeamsConnection(CoreBase):
-    __tablename__ = "teams_connections"
-
-    id: Mapped[str] = mapped_column(String(16), primary_key=True)
-    refresh_token: Mapped[str] = mapped_column(Text, nullable=False)
-    updated_at: Mapped[str] = mapped_column(String(32), nullable=False)
-
-
-class TeamsOAuthState(CoreBase):
-    __tablename__ = "teams_oauth_states"
-
-    state: Mapped[str] = mapped_column(String(80), primary_key=True)
-    created_at: Mapped[str] = mapped_column(String(32), nullable=False)
 
 
 class EmailCode(CoreBase):

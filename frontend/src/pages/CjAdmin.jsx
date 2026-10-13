@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Link, useSearchParams } from "react-router-dom";
+import { Link } from "react-router-dom";
 import { api } from "../api";
 import CjPortalBadge from "../components/CjPortalBadge";
 import { ButtonSpinner } from "../components/ui";
@@ -36,10 +36,6 @@ export default function CjAdmin({ portal = "admin" }) {
   const saving = Boolean(busyKey);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
-  const [teamsStatus, setTeamsStatus] = useState(null);
-  const [teamsPreview, setTeamsPreview] = useState(null);
-  const [teamsError, setTeamsError] = useState("");
-  const [searchParams] = useSearchParams();
 
   const loadWeek = useCallback(async () => {
     setLoading(true);
@@ -63,62 +59,6 @@ export default function CjAdmin({ portal = "admin" }) {
   useEffect(() => {
     loadWeek();
   }, [loadWeek]);
-
-  useEffect(() => {
-    if (teacherMode) return undefined;
-    let cancelled = false;
-    api.teamsStatus().then((status) => {
-      if (!cancelled) setTeamsStatus(status);
-    }).catch((statusError) => {
-      if (!cancelled) setTeamsError(statusError instanceof Error ? statusError.message : t("cj.teamsError"));
-    });
-    if (searchParams.get("teams") === "connected") setNotice(t("cj.teamsConnected"));
-    if (searchParams.get("teams") === "error") setTeamsError(t("cj.teamsError"));
-    return () => {
-      cancelled = true;
-    };
-  }, [teacherMode, searchParams, t]);
-
-  async function handleTeamsConnect() {
-    setBusyKey("teams-connect");
-    setTeamsError("");
-    try {
-      const payload = await api.connectTeams();
-      window.location.assign(payload.authorize_url);
-    } catch (connectError) {
-      setTeamsError(connectError instanceof Error ? connectError.message : t("cj.teamsError"));
-      setBusyKey("");
-    }
-  }
-
-  async function handleTeamsPreview() {
-    setBusyKey("teams-preview");
-    setTeamsError("");
-    setNotice("");
-    try {
-      setTeamsPreview(await api.previewTeamsCj(weekStart));
-    } catch (previewError) {
-      setTeamsPreview(null);
-      setTeamsError(previewError instanceof Error ? previewError.message : t("cj.teamsError"));
-    } finally {
-      setBusyKey("");
-    }
-  }
-
-  async function handleTeamsApply() {
-    setBusyKey("teams-apply");
-    setTeamsError("");
-    try {
-      const result = await api.applyTeamsCj({ week_start: weekStart, entries: teamsPreview.entries });
-      setNotice(t("cj.teamsWritten", { n: result.written }));
-      setTeamsPreview(null);
-      await loadWeek();
-    } catch (applyError) {
-      setTeamsError(applyError instanceof Error ? applyError.message : t("cj.teamsError"));
-    } finally {
-      setBusyKey("");
-    }
-  }
 
   const currentEntry = useMemo(
     () => (data?.entries || []).find((entry) => entry.day_index === dayIndex && entry.subject_id === subjectId),
@@ -295,96 +235,6 @@ export default function CjAdmin({ portal = "admin" }) {
       </p>
 
       {notice ? <p className="mt-3 font-sans text-sm">{notice}</p> : null}
-
-      {!teacherMode ? (
-        <div className="mt-6 border border-black p-4">
-          <h2 className="font-serif text-2xl">{t("cj.teamsTitle")}</h2>
-          <p className="mt-2 font-sans text-sm text-neutral-600">{t("cj.teamsLead")}</p>
-          {teamsStatus ? (
-            <p className="mt-3 font-sans text-[11px] uppercase tracking-[0.14em] text-neutral-600">
-              {teamsStatus.teams_connected ? t("cj.teamsConnected") : t("cj.teamsNotConnected")}
-              {" · "}
-              {teamsStatus.deepseek_configured ? t("cj.deepseekReady") : t("cj.deepseekMissing")}
-            </p>
-          ) : null}
-          {teamsStatus && !teamsStatus.microsoft_configured ? (
-            <p className="mt-2 font-sans text-sm">{t("cj.microsoftMissing")}</p>
-          ) : null}
-          {teamsError ? <p className="mt-3 font-sans text-sm text-red-700">{teamsError}</p> : null}
-          <div className="mt-4 flex flex-wrap gap-3">
-            <button
-              type="button"
-              disabled={saving || !teamsStatus?.microsoft_configured}
-              onClick={handleTeamsConnect}
-              className="inline-flex items-center gap-2 border border-black px-5 py-2 font-sans text-[11px] uppercase tracking-[0.16em] disabled:opacity-40"
-            >
-              {busyKey === "teams-connect" ? <ButtonSpinner /> : null}
-              {t("cj.teamsConnect")}
-            </button>
-            <button
-              type="button"
-              disabled={saving || !teamsStatus?.teams_connected || !teamsStatus?.deepseek_configured}
-              onClick={handleTeamsPreview}
-              className="inline-flex items-center gap-2 bg-black px-5 py-2 font-sans text-[11px] uppercase tracking-[0.16em] text-white disabled:opacity-40"
-            >
-              {busyKey === "teams-preview" ? <ButtonSpinner /> : null}
-              {t("cj.teamsImport")}
-            </button>
-          </div>
-          {teamsPreview ? (
-            <div className="mt-4">
-              {teamsPreview.entries.length === 0 ? (
-                <p className="font-sans text-sm">{t("cj.teamsNothing")}</p>
-              ) : (
-                <ul className="font-sans text-sm">
-                  {teamsPreview.entries.map((entry) => (
-                    <li key={`${entry.subject_id}-${entry.day_index}`} className="border-t border-neutral-200 py-2">
-                      <p className="font-medium">
-                        {subjectMap.get(entry.subject_id)?.name || entry.subject_id}
-                        {" · "}
-                        {t(`cj.wd.${entry.day_index}`)}
-                      </p>
-                      <p>IC: {entry.ic || "—"}</p>
-                      <p>HW: {entry.hw || "—"}</p>
-                      <p>A: {entry.announcement || "—"}</p>
-                    </li>
-                  ))}
-                </ul>
-              )}
-              {teamsPreview.skipped.length > 0 ? (
-                <ul className="mt-3 font-sans text-sm text-neutral-600">
-                  {teamsPreview.skipped.map((item, index) => (
-                    <li key={`${item.subject_id}-${item.reason}-${index}`}>
-                      {t("cj.teamsSkipped")}: {item.subject_id || "—"} · {t(`cj.teamsReason.${item.reason}`)}
-                    </li>
-                  ))}
-                </ul>
-              ) : null}
-              <div className="mt-4 flex flex-wrap gap-3">
-                {teamsPreview.entries.length > 0 ? (
-                  <button
-                    type="button"
-                    disabled={saving}
-                    onClick={handleTeamsApply}
-                    className="inline-flex items-center gap-2 bg-black px-5 py-2 font-sans text-[11px] uppercase tracking-[0.16em] text-white disabled:opacity-40"
-                  >
-                    {busyKey === "teams-apply" ? <ButtonSpinner /> : null}
-                    {t("cj.teamsConfirm")}
-                  </button>
-                ) : null}
-                <button
-                  type="button"
-                  disabled={saving}
-                  onClick={() => setTeamsPreview(null)}
-                  className="border border-black px-5 py-2 font-sans text-[11px] uppercase tracking-[0.16em] disabled:opacity-40"
-                >
-                  {t("cj.teamsCancel")}
-                </button>
-              </div>
-            </div>
-          ) : null}
-        </div>
-      ) : null}
 
       <div className="mt-6 flex gap-3 font-sans text-[11px] uppercase tracking-[0.14em]">
         <button type="button" onClick={() => setTab("cj")} className={tab === "cj" ? "border-b-2 border-black pb-1" : "pb-1 text-neutral-500"}>

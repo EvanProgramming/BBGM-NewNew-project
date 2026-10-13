@@ -12,7 +12,6 @@ from routers.cj import router as cj_router
 from routers.news import router as news_router
 from routers.news_articles import router as news_articles_router
 from routers.posts import router as posts_router
-from routers.teams import router as teams_router
 
 
 def create_app() -> FastAPI:
@@ -48,7 +47,6 @@ def create_app() -> FastAPI:
     app.include_router(auth_router, prefix="/api/v1")
     app.include_router(posts_router, prefix="/api/v1")
     app.include_router(cj_router, prefix="/api/v1")
-    app.include_router(teams_router, prefix="/api/v1")
     app.include_router(news_router, prefix="/api/v1")
     app.include_router(news_articles_router, prefix="/api/v1")
     app.include_router(admin_router, prefix="/api/v1")

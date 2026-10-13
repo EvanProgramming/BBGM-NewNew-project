@@ -51,7 +51,7 @@ def get_db(request: Request):
 
 
 def get_core_db(request: Request):
-    """CJ student database session (users, sessions, CJ schedule, Teams)."""
+    """CJ student database session (users, sessions, and the CJ schedule)."""
     yield from _session_scope(request, request.app.state.core_session_factory)
 
 
