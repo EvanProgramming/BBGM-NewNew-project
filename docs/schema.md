@@ -2,7 +2,7 @@
 
 依据：`docs/PRD.md` Must Have 与 Entity Flow。本文件同时约束前端 Mock 与后端实现。不包含业务代码。
 
-第一版 **无公开审计查询接口**（M10 仅服务端落库）。作者不能改自己的帖或评论，也不能删评论。作者可以删除自己已发布的 Forum 帖，不能删除他人的帖，也不能删除 News。`admin` 与 `super_admin` 可整帖删除；删除他人的帖时给作者一条 System 通知。仅 `super_admin` 可禁言或删除用户。包含 Forum 评论、角色、News 分板块草稿与独立 News 投稿。新评论直接挂在帖子上，不新增楼层或楼中楼。
+第一版 **无公开审计查询接口**（M10 仅服务端落库）。作者不能改自己的帖或评论。作者可以删除自己已发布的 Forum 帖，也可以撤回自己的评论；不能删除他人的帖或评论，也不能删除 News。`admin` 与 `super_admin` 可删除任意帖和任意评论；删除他人的帖或评论时给作者一条 System 通知。仅 `super_admin` 可禁言或删除用户。包含 Forum 评论、角色、News 分板块草稿与独立 News 投稿。新评论直接挂在帖子上，不新增楼层或楼中楼。
 
 ---
 
@@ -122,7 +122,7 @@ Content-Type: application/json
 | `updated_at` | string | 创建时与 `created_at` 相同 |
 | `author` | AuthorPublic | |
 | `reply_count` | integer | 楼层数。校报栏目与无 `category` 的列表为 `0` |
-| `reply_preview` | ReplyPreview[] | Forum 最多 4 条楼层（无楼中楼）。其他列表为 `[]`。Forum **列表 UI 不展示**此字段 |
+| `reply_preview` | ReplyPreview[] | Forum 最多 2 条最近的主评论（无楼中楼），按 `created_at` 从早到晚。其他列表为 `[]`。Forum 列表在卡片底栏下展示这 2 条 |
 | `images` | string[] | Forum 或独立 News 投稿配图，同源路径 `/uploads/posts/{post_id}/{file}`，最多 4 张 |
 | `like_count` | integer | Forum 主帖赞数。校报栏目与无 `category` 的列表为 `0` |
 | `liked` | boolean | 当前会话是否已赞该帖；无会话或校报列表为 `false` |
@@ -405,6 +405,7 @@ Content-Type: application/json
 | --- | --- | --- | --- |
 | `category` | string | 否 | 若出现必须是 `news` \| `forum` |
 | `feed` | string | 否 | 仅 `category=forum`。`recommended` \| `latest` \| `all` \| `mine`。缺省为 `recommended`。`mine` 需要登录，只返回当前用户已发布的 Forum 帖 |
+| `q` | string | 否 | 仅 `category=forum`。去掉首尾空白后 1–80 字符。命中标题或正文（不区分大小写）的帖排在前面，未命中的仍返回。不写入库，也不改变不带这个参数的请求。空字符串当作未传 |
 | `page` | integer | 否 | ≥ 1，默认 1。`recommended` 与 `latest` 只允许 1 |
 | `page_size` | integer | 否 | 1–50，默认 20。`recommended` 与 `latest` 忽略此值，固定最多 10 条 |
 
@@ -413,9 +414,11 @@ Content-Type: application/json
 - `200` `{ items: PostSummary[], page, page_size, total }`
 - `400` `bad_request`（`page` / `page_size` 非法）
 - `401` `unauthenticated`（`feed=mine` 且无会话）
-- `422` `validation_error`（`category` 有值但不在枚举内；`feed` 非法，或与非 `forum` 栏目同时出现；`recommended` / `latest` 的 `page` 大于 1）
+- `422` `validation_error`（`category` 有值但不在枚举内；`feed` 非法，或与非 `forum` 栏目同时出现；`q` 与非 `forum` 栏目同时出现，或去掉空白后超过 80 字；`recommended` / `latest` 的 `page` 大于 1）
 
 `feed=recommended`：分数为 `0.6 × like_count + 0.4 × reply_count`（`reply_count` 只计主评论），降序，分数相同则 `created_at` 降序，最多 10 条，`total` 不超过 10。`feed=latest`：按 `created_at` 降序，最多 10 条，`total` 不超过 10。`feed=all`：按 `created_at` 降序并分页。`feed=mine`：当前用户已发布的 Forum 帖，按 `created_at` 降序并分页，不含 News、不含他人的帖。
+
+带 `q` 时先按是否命中分成两组，命中在前。组内顺序与不带 `q` 时相同：非「我的」先置顶，再按该 feed 的分数或时间。`recommended` / `latest` 仍最多 10 条，所以原先在第 11 位及以后的命中帖可以进入这 10 条。`feed=all` 与 `feed=mine` 的 `total` 仍是全部篇数，未命中的帖留在后面的页。另一位读者不带 `q` 时顺序不变。
 - `503` `storage_unavailable`
 
 停留页面时客户端可重复请求本接口（建议间隔 ≥ 4 秒；页签隐藏时暂停），用同一 JSON 合并列表。不新增 query、不另开 WebSocket / SSE。
@@ -563,7 +566,7 @@ Forum 详情停留时可重复请求本接口（间隔与列表相同），合�
 #### `POST /api/v1/posts/{post_id}/comments`
 
 - **鉴权：** 是
-- **职责：** 在 Forum 帖下写一条评论。评论直接挂在帖子上。不新增楼层，不写楼中楼。本版不能改删评论。
+- **职责：** 在 Forum 帖下写一条评论。评论直接挂在帖子上。不新增楼层，不写楼中楼。不能改评论正文。作者撤回自己的评论见下。
 
 **Request body**
 
@@ -580,6 +583,30 @@ Forum 详情停留时可重复请求本接口（间隔与列表相同），合�
 - `404` `not_found`（帖不存在）
 - `422` `validation_error`（非 Forum 帖、正文非法、传入 `parent_id`）
 - `503` `storage_unavailable`
+
+#### `DELETE /api/v1/posts/{post_id}/comments/{comment_id}`
+
+- **鉴权：** 是
+- **职责：** 评论作者撤回自己的那一条，不写 System 通知。`admin` 与 `super_admin` 可删除任意评论；删除别人的评论时给评论作者一条 System 通知。公开列表与详情不再返回它，`reply_count` 随之减少。不能改评论正文。旧数据里挂在这条下面的回复一并去掉。
+
+**路径参数**
+
+| 参数 | 类型 | 约束 |
+| --- | --- | --- |
+| `post_id` | string | UUID，须是已发布的 Forum 帖 |
+| `comment_id` | string | UUID，须属于该帖 |
+
+**Response**
+
+- `204` 无 body
+- `400` `bad_request`（`post_id` 或 `comment_id` 不是 UUID）
+- `401` `unauthenticated`
+- `403` `forbidden`（既不是该评论作者，也不是 `admin` 或 `super_admin`。禁言不阻止撤回自己的评论）
+- `404` `not_found`（帖或评论不存在，或评论不属于该帖）
+- `422` `validation_error`（帖不是 Forum）
+- `503` `storage_unavailable`
+
+`PATCH` 该路径仍是 `405`。
 
 ### 1.4 News 草稿
 
@@ -883,7 +910,7 @@ News 文章仍使用 `Post(category="news")`，每篇文章只有一个内容板
 | `PATCH` | `/api/v1/posts/{post_id}` | 作者改帖仍不做。若误调用：`405`。 |
 | `DELETE` | `/api/v1/posts/{post_id}` | 见上文：`admin` 或 `super_admin`。 |
 | `POST` | `/api/v1/posts/{post_id}/promote` | 已移除。News 走草稿同意。误调用 `405`。 |
-| `PATCH` / `DELETE` | `/api/v1/posts/{post_id}/comments/{comment_id}` | 本版不能改删单条评论。若误调用：`405`。 |
+| `PATCH` | `/api/v1/posts/{post_id}/comments/{comment_id}` | 不能改评论正文。若误调用：`405`。 |
 | `GET` | `/api/v1/audit-events` | Should（S5）。审计只写不读。 |
 
 ### 1.7 CJ

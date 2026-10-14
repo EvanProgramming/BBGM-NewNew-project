@@ -54,6 +54,19 @@ def parse_forum_feed(value: str | None, category: str | None) -> str | None:
     return value
 
 
+def parse_forum_query(value: str | None, category: str | None) -> str | None:
+    if value is None:
+        return None
+    text = value.strip()
+    if not text:
+        return None
+    if category != "forum":
+        raise validation_error([{"field": "q", "message": "q applies only to forum."}])
+    if len(text) > 80:
+        raise validation_error([{"field": "q", "message": "Search must be 1–80 characters."}])
+    return text
+
+
 def parse_uuid(value: str, field: str = "post_id") -> str:
     try:
         return str(UUID(value))

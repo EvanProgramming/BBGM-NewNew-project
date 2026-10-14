@@ -39,25 +39,6 @@ function BarMenu({ label, open, onToggle, children }) {
   );
 }
 
-function SearchIcon() {
-  return (
-    <svg
-      xmlns="http://www.w3.org/2000/svg"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.75"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      className="h-[15px] w-[15px] shrink-0 text-[#1A4FBF]"
-      aria-hidden="true"
-    >
-      <circle cx="11" cy="11" r="6.5" />
-      <path d="m16.2 16.2 4.3 4.3" />
-    </svg>
-  );
-}
-
 const NAV_KEYS = {
   "/forum": "nav.forum",
   "/cj": "nav.cj",
@@ -80,8 +61,6 @@ export default function PaperShell() {
   const { lang, t } = useI18n();
   const location = useLocation();
   const barRef = useRef(null);
-  const [query, setQuery] = useState("");
-  const [searchNotice, setSearchNotice] = useState(false);
   const [termsOpen, setTermsOpen] = useState(false);
   const [signingOut, setSigningOut] = useState(false);
   const [openMenu, setOpenMenu] = useState(null);
@@ -142,11 +121,6 @@ export default function PaperShell() {
 
   function toggleMenu(name) {
     setOpenMenu((current) => (current === name ? null : name));
-  }
-
-  function onSearch(event) {
-    event.preventDefault();
-    setSearchNotice(true);
   }
 
   async function onSignOut() {
@@ -244,19 +218,7 @@ export default function PaperShell() {
         </div>
 
         <header className="grid grid-cols-[1fr_auto_1fr] items-center gap-6 pb-1 pt-8">
-          <form onSubmit={onSearch} className="flex max-w-[13rem] items-end gap-2">
-            <label className="sr-only" htmlFor="masthead-search">
-              {t("shell.search")}
-            </label>
-            <SearchIcon />
-            <input
-              id="masthead-search"
-              value={query}
-              onChange={(event) => setQuery(event.target.value)}
-              placeholder={t("shell.searchPlaceholder")}
-              className="w-full border-0 border-b border-black bg-transparent pb-[3px] font-sans text-[13px] font-normal text-[#111111] outline-none placeholder:text-neutral-400"
-            />
-          </form>
+          <div />
 
           <Link
             to="/"
@@ -336,10 +298,6 @@ export default function PaperShell() {
               </NavLink>
             ))}
           </nav>
-        ) : null}
-
-        {searchNotice ? (
-          <p className="mt-3 font-sans text-sm text-neutral-500">{t("shell.searchLater")}</p>
         ) : null}
 
         <Outlet />

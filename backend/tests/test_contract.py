@@ -800,7 +800,10 @@ def test_avatar_preset_upload_and_reply_preview_cap(tmp_path, monkeypatch):
         board = client.get("/api/v1/posts?category=forum")
         card = board.json()["items"][0]
         assert card["reply_count"] == 5
-        assert len(card["reply_preview"]) == 4
+        assert [item["body"] for item in card["reply_preview"]] == [
+            "Floor 4 is open.",
+            "Floor 5 is open.",
+        ]
         assert card["author"]["avatar"].startswith("/uploads/avatars/")
         assert card["images"] == []
     app.state.engine.dispose()
@@ -1613,6 +1616,185 @@ def test_forum_feeds_rank_by_likes_or_time(tmp_path, monkeypatch):
         mixed = client.get("/api/v1/posts?category=news&feed=recommended")
         assert mixed.status_code == 422
         assert any(field["field"] == "feed" for field in mixed.json()["error"]["fields"])
+    app.state.engine.dispose()
+
+
+def test_forum_keyword_reorders_for_that_request(tmp_path, monkeypatch):
+    app = _make_app(tmp_path, monkeypatch, admin_email="ada.min@basischina.com")
+    with TestClient(app) as client:
+        registered = _register(client, "ada.min@basischina.com", "desk-key-99", "Ada Min")
+        assert registered.status_code == 201
+        specs = [
+            ("Alpha notes", "nothing special"),
+            ("Pinned plain", "still plain"),
+            ("Also plain", "still plain"),
+        ]
+        created = []
+        for title, body in specs:
+            post = client.post(
+                "/api/v1/posts",
+                json={"title": title, "body": body, "category": "forum"},
+            )
+            assert post.status_code == 201, post.text
+            created.append(post.json()["id"])
+        opened = datetime(2026, 10, 1, tzinfo=timezone.utc)
+        with Session(app.state.engine) as db:
+            for index, post_id in enumerate(created):
+                db.get(Post, post_id).created_at = opened + timedelta(seconds=index)
+            db.commit()
+        pinned = client.post(f"/api/v1/posts/{created[1]}/pin", json={"pinned": True})
+        assert pinned.status_code == 200, pinned.text
+
+        plain = client.get("/api/v1/posts", params={"category": "forum", "feed": "all"})
+        assert [item["id"] for item in plain.json()["items"]] == [created[1], created[2], created[0]]
+
+        ranked = client.get("/api/v1/posts", params={"category": "forum", "feed": "all", "q": "ALPHA"})
+        assert ranked.status_code == 200, ranked.text
+        assert ranked.json()["total"] == 3
+        assert [item["id"] for item in ranked.json()["items"]] == [created[0], created[1], created[2]]
+
+        by_body = client.get("/api/v1/posts", params={"category": "forum", "feed": "all", "q": "special"})
+        assert by_body.json()["items"][0]["id"] == created[0]
+
+        guest = TestClient(app)
+        untouched = guest.get("/api/v1/posts", params={"category": "forum", "feed": "all"})
+        assert [item["id"] for item in untouched.json()["items"]] == [created[1], created[2], created[0]]
+
+        blank = client.get("/api/v1/posts", params={"category": "forum", "feed": "all", "q": "   "})
+        assert [item["id"] for item in blank.json()["items"]] == [created[1], created[2], created[0]]
+
+        literal = client.post(
+            "/api/v1/posts",
+            json={"title": "100% sure", "body": "yes", "category": "forum"},
+        )
+        decoy = client.post(
+            "/api/v1/posts",
+            json={"title": "1000 sure", "body": "no", "category": "forum"},
+        )
+        assert literal.status_code == 201 and decoy.status_code == 201
+        found = client.get("/api/v1/posts", params={"category": "forum", "feed": "all", "q": "100%"})
+        found_ids = [item["id"] for item in found.json()["items"]]
+        assert found_ids[0] == literal.json()["id"]
+        assert decoy.json()["id"] in found_ids[1:]
+
+        too_long = client.get("/api/v1/posts", params={"category": "forum", "q": "a" * 81})
+        assert too_long.status_code == 422
+        assert any(field["field"] == "q" for field in too_long.json()["error"]["fields"])
+
+        wrong = client.get("/api/v1/posts", params={"category": "news", "q": "alpha"})
+        assert wrong.status_code == 422
+        assert any(field["field"] == "q" for field in wrong.json()["error"]["fields"])
+
+        crowd = []
+        for index in range(11):
+            post = client.post(
+                "/api/v1/posts",
+                json={"title": f"Crowd {index}", "body": "ordinary", "category": "forum"},
+            )
+            assert post.status_code == 201, post.text
+            crowd.append(post.json()["id"])
+        with Session(app.state.engine) as db:
+            db.get(Post, crowd[0]).body = "ordinary zeppelin"
+            base = datetime(2026, 11, 1, tzinfo=timezone.utc)
+            for index, post_id in enumerate(crowd):
+                db.get(Post, post_id).created_at = base + timedelta(seconds=index)
+            db.commit()
+
+        before = client.get("/api/v1/posts", params={"category": "forum", "feed": "recommended"})
+        assert crowd[0] not in {item["id"] for item in before.json()["items"]}
+        after = client.get("/api/v1/posts", params={"category": "forum", "feed": "recommended", "q": "zeppelin"})
+        assert after.json()["total"] == 10
+        assert after.json()["items"][0]["id"] == crowd[0]
+    app.state.engine.dispose()
+
+
+def test_author_withdraws_own_comment(tmp_path, monkeypatch):
+    app = _make_app(tmp_path, monkeypatch)
+    with TestClient(app) as author, TestClient(app) as other:
+        registered = _register(author, "jordan.hale@basischina.com", "east-hall-8", "Jordan Hale")
+        assert registered.status_code == 201
+        post = author.post(
+            "/api/v1/posts",
+            json={"title": "Laundry chat", "body": "Who still has quarters?", "category": "forum"},
+        )
+        assert post.status_code == 201, post.text
+        post_id = post.json()["id"]
+        first = author.post(f"/api/v1/posts/{post_id}/comments", json={"body": "I have a roll."})
+        second = author.post(f"/api/v1/posts/{post_id}/comments", json={"body": "Come by 312."})
+        assert first.status_code == 201 and second.status_code == 201
+        comment_id = first.json()["id"]
+
+        guest = TestClient(app)
+        unauth = guest.delete(f"/api/v1/posts/{post_id}/comments/{comment_id}")
+        assert unauth.status_code == 401
+
+        stranger = _register(other, "priya.nair@basischina.com", "west-hall-8", "Priya Nair")
+        assert stranger.status_code == 201
+        denied = other.delete(f"/api/v1/posts/{post_id}/comments/{comment_id}")
+        assert denied.status_code == 403
+        still = guest.get(f"/api/v1/posts/{post_id}/comments")
+        assert still.json()["total"] == 2
+
+        withdrawn = author.delete(f"/api/v1/posts/{post_id}/comments/{comment_id}")
+        assert withdrawn.status_code == 204, withdrawn.text
+        assert withdrawn.content == b""
+        left = guest.get(f"/api/v1/posts/{post_id}/comments")
+        assert left.json()["total"] == 1
+        assert left.json()["items"][0]["body"] == "Come by 312."
+        card = guest.get("/api/v1/posts", params={"category": "forum"}).json()["items"][0]
+        assert card["reply_count"] == 1
+        assert [item["body"] for item in card["reply_preview"]] == ["Come by 312."]
+
+        missing = author.delete(f"/api/v1/posts/{post_id}/comments/{comment_id}")
+        assert missing.status_code == 404
+        patched = author.patch(f"/api/v1/posts/{post_id}/comments/{second.json()['id']}", json={"body": "no"})
+        assert patched.status_code == 405
+    app.state.engine.dispose()
+
+
+def test_admin_deletes_another_users_comment(tmp_path, monkeypatch):
+    app = _make_app(tmp_path, monkeypatch, admin_email="ada.min@basischina.com")
+    with TestClient(app) as client:
+        student = _register(client, "jordan.hale@basischina.com", "east-hall-8", "Jordan Hale")
+        assert student.status_code == 201
+        created = client.post(
+            "/api/v1/posts",
+            json={"title": "Who still has the dorm key", "body": "It was on the oak table.", "category": "forum"},
+        )
+        assert created.status_code == 201, created.text
+        post_id = created.json()["id"]
+        replied = client.post(
+            f"/api/v1/posts/{post_id}/comments",
+            json={"body": "I saw it after dinner."},
+        )
+        assert replied.status_code == 201, replied.text
+        comment_id = replied.json()["id"]
+
+        other = _register(client, "priya.nair@basischina.com", "east-hall-9", "Priya Nair")
+        assert other.status_code == 201
+        denied = client.delete(f"/api/v1/posts/{post_id}/comments/{comment_id}")
+        assert denied.status_code == 403
+        assert client.get(f"/api/v1/posts/{post_id}/comments").json()["total"] == 1
+
+        admin = _register(client, "ada.min@basischina.com", "desk-key-99", "Ada Min")
+        assert admin.status_code == 201
+        assert "super_admin" in admin.json()["roles"]
+        removed = client.delete(f"/api/v1/posts/{post_id}/comments/{comment_id}")
+        assert removed.status_code == 204, removed.text
+        assert client.get(f"/api/v1/posts/{post_id}").status_code == 200
+        assert client.get(f"/api/v1/posts/{post_id}/comments").json()["total"] == 0
+        card = client.get("/api/v1/posts", params={"category": "forum"}).json()["items"][0]
+        assert card["reply_count"] == 0
+
+        client.cookies.clear()
+        logged_in = client.post(
+            "/api/v1/auth/login",
+            json={"email": "jordan.hale@basischina.com", "password": "east-hall-8"},
+        )
+        assert logged_in.status_code == 200
+        notices = client.get("/api/v1/me/notices")
+        assert notices.status_code == 200
+        assert any("Who still has the dorm key" in item["body"] for item in notices.json()["items"])
     app.state.engine.dispose()
 
 

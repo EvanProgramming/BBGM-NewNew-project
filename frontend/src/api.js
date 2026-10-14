@@ -93,13 +93,14 @@ export const api = {
   sendEmailCode: (body) => request("/auth/email-codes", { method: "POST", body: JSON.stringify(body) }),
   resetPassword: (body) => request("/auth/password-reset", { method: "POST", body: JSON.stringify(body) }),
   logout: () => request("/auth/logout", { method: "POST" }),
-  listPosts: ({ category, feed, page = 1, pageSize = 20 } = {}) => {
+  listPosts: ({ category, feed, page = 1, pageSize = 20, q } = {}) => {
     const query = new URLSearchParams({
       page: String(page),
       page_size: String(pageSize),
     });
     if (category) query.set("category", category);
     if (feed) query.set("feed", feed);
+    if (q) query.set("q", q);
     return request(`/posts?${query}`);
   },
   getPost: (id) => request(`/posts/${encodeURIComponent(id)}`),
@@ -134,6 +135,11 @@ export const api = {
       method: "POST",
       body: JSON.stringify(body),
     }),
+  deleteComment: (postId, commentId) =>
+    request(
+      `/posts/${encodeURIComponent(postId)}/comments/${encodeURIComponent(commentId)}`,
+      { method: "DELETE" },
+    ),
   notices: () => request("/me/notices"),
   listDrafts: ({ page = 1, pageSize = 20 } = {}) => {
     const query = new URLSearchParams({

@@ -289,6 +289,15 @@ def create_comment(
     return comment
 
 
+def delete_comment(db: Session, comment: Comment) -> None:
+    try:
+        db.execute(delete(Comment).where(Comment.parent_id == comment.id))
+        db.delete(comment)
+        db.flush()
+    except SQLAlchemyError as exc:
+        raise StorageError() from exc
+
+
 def count_likes(db: Session, post_id: str) -> int:
     try:
         return db.scalar(select(func.count()).select_from(PostLike).where(PostLike.post_id == post_id)) or 0
