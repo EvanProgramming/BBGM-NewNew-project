@@ -94,6 +94,33 @@ export default function CjWeek({ portal = "student" }) {
   const weekEnd = dateForDay(weekStart, 4);
   const homework = (data?.entries || []).filter((entry) => entry.hw && selection.includes(entry.subject_id));
 
+  const dayWeights = useMemo(() => {
+    const totals = Array(5).fill(0);
+    for (const { subject } of rows) {
+      if (!subject) continue;
+      for (let dayIndex = 0; dayIndex < 5; dayIndex += 1) {
+        const entry = (data?.entries || []).find(
+          (item) => item.day_index === dayIndex && item.subject_id === subject.id,
+        );
+        totals[dayIndex] +=
+          (subject.short_name || "").length +
+          (entry?.ic || "").length +
+          (entry?.hw || "").length +
+          (entry?.announcement || "").length;
+      }
+    }
+    const sum = totals.reduce((total, value) => total + value, 0);
+    if (!sum) return [1, 1, 1, 1, 1];
+    const average = sum / 5;
+    return totals.map((total) => Math.max(0.8, Math.min(1.5, total / average)));
+  }, [data, rows]);
+
+  const weekGridStyle = {
+    gridTemplateColumns: `66px ${dayWeights
+      .map((weight) => `minmax(168px, ${weight.toFixed(2)}fr)`)
+      .join(" ")}`,
+  };
+
   return (
     <section className="mt-5">
       <CjPortalBadge portal={portal} />
@@ -129,7 +156,7 @@ export default function CjWeek({ portal = "student" }) {
       {error ? <p className="mt-4 border border-red-700 p-3 font-sans text-sm text-red-700">{error}</p> : null}
 
       <div className="mt-4 overflow-x-auto border border-black bg-neutral-200">
-        <div className="grid min-w-[920px] grid-cols-[66px_repeat(5,minmax(168px,1fr))] gap-px">
+        <div className="grid min-w-[920px] gap-px" style={weekGridStyle}>
           <div className="bg-white" />
           {WEEKDAY_SHORT.map((day, index) => {
             const date = dateForDay(weekStart, index);
@@ -176,27 +203,27 @@ function WeekRow({ period, subject, entries, weekStart, loading }) {
   const useCourseColor = Boolean(subject) && !FIXED_PERIODS.has(period);
   return (
     <>
-      <div className="flex h-12 flex-col items-center justify-center overflow-hidden bg-white px-1 font-sans">
+      <div className="flex min-h-12 flex-col items-center justify-center bg-white px-1 py-1 font-sans">
         <b className="text-xs">P{period}</b>
         <span className="mt-0.5 text-[8px] text-neutral-500">{periodTimeLabel(period)}</span>
       </div>
       {WEEKDAY_SHORT.map((day, dayIndex) => {
         const date = dateForDay(weekStart, dayIndex);
         const entry = subject ? entries.find((item) => item.day_index === dayIndex && item.subject_id === subject.id) : null;
-        if (loading) return <div key={day} className="h-12 animate-pulse bg-white" />;
-        if (!subject) return <div key={day} className="h-12 bg-neutral-50" />;
+        if (loading) return <div key={day} className="min-h-12 animate-pulse bg-white" />;
+        if (!subject) return <div key={day} className="min-h-12 bg-neutral-50" />;
         const query = new URLSearchParams({ date: isoDate(date), period: String(period), subject: subject.id });
         return (
           <Link
             key={day}
             to={`/cj/student/course?${query}`}
-            className="h-12 overflow-hidden bg-white px-2 py-1 text-inherit no-underline"
+            className="min-h-12 bg-white px-2 py-1.5 text-inherit no-underline"
             style={useCourseColor ? { backgroundColor: colorTint(accent), boxShadow: `inset 0 3px 0 ${accent}` } : undefined}
           >
-            <p className="truncate font-sans text-[11px] font-semibold">{subject.short_name}</p>
-            {entry?.ic ? <p className="truncate font-sans text-[9px] text-neutral-600"><b style={{ color: accent }}>IC</b> {entry.ic}</p> : null}
-            {entry?.hw ? <p className="truncate font-sans text-[9px] text-neutral-600"><b style={{ color: accent }}>HW</b> {entry.hw}</p> : null}
-            {entry?.announcement ? <p className="truncate font-sans text-[9px] text-neutral-600"><b style={{ color: accent }}>A</b> {entry.announcement}</p> : null}
+            <p className="font-sans text-[11px] font-semibold leading-4 [overflow-wrap:anywhere]">{subject.short_name}</p>
+            {entry?.ic ? <p className="font-sans text-[9px] leading-3.5 text-neutral-600 [overflow-wrap:anywhere]"><b style={{ color: accent }}>IC</b> {entry.ic}</p> : null}
+            {entry?.hw ? <p className="font-sans text-[9px] leading-3.5 text-neutral-600 [overflow-wrap:anywhere]"><b style={{ color: accent }}>HW</b> {entry.hw}</p> : null}
+            {entry?.announcement ? <p className="font-sans text-[9px] leading-3.5 text-neutral-600 [overflow-wrap:anywhere]"><b style={{ color: accent }}>A</b> {entry.announcement}</p> : null}
           </Link>
         );
       })}
