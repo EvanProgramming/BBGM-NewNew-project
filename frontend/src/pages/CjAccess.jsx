@@ -4,11 +4,24 @@ import { useAuth } from "../auth";
 import { hasRole } from "../format";
 import { hasSeenCjHello, markCjHelloSeen } from "../cjHello";
 import { useI18n } from "../i18n";
+import { SectionRule } from "../components/ui";
+
+export const CJ_PAUSED = false;
+
+export function CjPaused() {
+  const { t } = useI18n();
+  return (
+    <div className="mt-8">
+      <SectionRule>{t("nav.cj")}</SectionRule>
+      <p className="font-serif text-3xl leading-snug">{t("cj.paused")}</p>
+    </div>
+  );
+}
 
 const CJ_HOME = [
   ["super_admin", "/cj/admin"],
-  ["teacher", "/cj/teacher"],
   ["student", "/cj/student"],
+  ["teacher", "/cj/student"],
 ];
 
 function cjHome(user) {

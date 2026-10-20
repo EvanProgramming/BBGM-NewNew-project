@@ -258,16 +258,40 @@ export const api = {
     }),
   deleteCjSubject: (subjectId) =>
     request(`/cj/subjects/${encodeURIComponent(subjectId)}`, { method: "DELETE" }),
-  listCjTeachers: () => request("/cj/teachers"),
-  assignCjTeacherSubjects: (teacherId, subjectIds) =>
-    request(`/cj/teachers/${encodeURIComponent(teacherId)}`, {
-      method: "PUT",
-      body: JSON.stringify({ subject_ids: subjectIds }),
-    }),
+  cjSyncStatus: () => request("/cj/sync"),
+  syncCj: () => request("/cj/sync", { method: "POST" }),
   likePost: (postId) => request(`/posts/${encodeURIComponent(postId)}/likes`, { method: "POST" }),
   unlikePost: (postId) => request(`/posts/${encodeURIComponent(postId)}/likes`, { method: "DELETE" }),
   forumActivity: () => request("/me/forum-activity"),
   readForumActivity: () => request("/me/forum-activity/read", { method: "POST" }),
+  throwBottle: (body) => request("/bottles", { method: "POST", body: JSON.stringify({ body }) }),
+  pickBottle: () => request("/bottles/pick", { method: "POST" }),
+  myBottles: () => request("/bottles/mine"),
+  bottleReports: ({ page = 1, pageSize = 20 } = {}) => {
+    const query = new URLSearchParams({
+      page: String(page),
+      page_size: String(pageSize),
+    });
+    return request(`/bottles/reports?${query}`);
+  },
+  getBottlePick: (pickId) => request(`/bottles/picks/${encodeURIComponent(pickId)}`),
+  replyBottle: (pickId, body) =>
+    request(`/bottles/picks/${encodeURIComponent(pickId)}/messages`, {
+      method: "POST",
+      body: JSON.stringify({ body }),
+    }),
+  readBottlePick: (pickId) =>
+    request(`/bottles/picks/${encodeURIComponent(pickId)}/read`, { method: "POST" }),
+  reportBottlePick: (pickId) =>
+    request(`/bottles/picks/${encodeURIComponent(pickId)}/report`, { method: "POST" }),
+  deleteBottle: (bottleId) =>
+    request(`/bottles/${encodeURIComponent(bottleId)}`, { method: "DELETE" }),
+  deleteBottleMessage: (pickId, messageId) =>
+    request(
+      `/bottles/picks/${encodeURIComponent(pickId)}/messages/${encodeURIComponent(messageId)}`,
+      { method: "DELETE" },
+    ),
+  bottleActivity: () => request("/me/bottle-activity"),
 };
 
 export function fieldMessage(error, field) {

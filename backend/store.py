@@ -10,6 +10,10 @@ from datetime import timedelta, timezone
 
 from models import (
     AuditEvent,
+    Bottle,
+    BottleMessage,
+    BottlePick,
+    BottleReport,
     Comment,
     EmailCode,
     ForumActivitySeen,
@@ -207,6 +211,7 @@ def delete_user_account(core: Session, content: Session, user: User) -> list[str
         content.execute(delete(PostLike).where(PostLike.user_id == user_id))
         content.execute(delete(AuditEvent).where(AuditEvent.actor_id == user_id))
         content.execute(delete(ForumActivitySeen).where(ForumActivitySeen.user_id == user_id))
+        delete_user_bottles(content, user_id)
         core.execute(delete(CJTeacherSubject).where(CJTeacherSubject.user_id == user_id))
         core.execute(delete(SessionRecord).where(SessionRecord.user_id == user_id))
         core.delete(user)
@@ -215,6 +220,34 @@ def delete_user_account(core: Session, content: Session, user: User) -> list[str
     except SQLAlchemyError as exc:
         raise StorageError() from exc
     return post_ids
+
+
+def delete_bottle_graph(db: Session, bottle: Bottle) -> None:
+    pick_ids = list(db.scalars(select(BottlePick.id).where(BottlePick.bottle_id == bottle.id)).all())
+    if pick_ids:
+        db.execute(delete(BottleReport).where(BottleReport.pick_id.in_(pick_ids)))
+        db.execute(delete(BottleMessage).where(BottleMessage.pick_id.in_(pick_ids)))
+        db.execute(delete(BottlePick).where(BottlePick.id.in_(pick_ids)))
+    db.delete(bottle)
+    db.flush()
+
+
+def delete_user_bottles(db: Session, user_id: str) -> None:
+    bottle_ids = list(db.scalars(select(Bottle.id).where(Bottle.author_id == user_id)).all())
+    pick_ids = set(db.scalars(select(BottlePick.id).where(BottlePick.picker_id == user_id)).all())
+    if bottle_ids:
+        pick_ids.update(
+            db.scalars(select(BottlePick.id).where(BottlePick.bottle_id.in_(bottle_ids))).all()
+        )
+    if pick_ids:
+        db.execute(delete(BottleReport).where(BottleReport.pick_id.in_(pick_ids)))
+        db.execute(delete(BottleMessage).where(BottleMessage.pick_id.in_(pick_ids)))
+        db.execute(delete(BottlePick).where(BottlePick.id.in_(pick_ids)))
+    db.execute(delete(BottleReport).where(BottleReport.reporter_id == user_id))
+    db.execute(delete(BottleMessage).where(BottleMessage.author_id == user_id))
+    if bottle_ids:
+        db.execute(delete(Bottle).where(Bottle.id.in_(bottle_ids)))
+    db.flush()
 
 
 # ---------------------------------------------------------------------------

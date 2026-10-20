@@ -1,6 +1,6 @@
 # UI 蓝图：Elegram 印刷版
 
-选定 2.3A **提案 1** 的版式（报头、头条、栏目）。产品名 **Elegram**。由 Tori Zhao、Ben Lu、Leo Gao、Dewey Peng 所有。Jason 和他的社团参与 BBGM News。字段只绑定 `docs/schema.md`；没有封面图——图框是 CSS 占位，不是数据。报头没有搜索框。Forum 列表可用 `q` 按关键词重排。已发布帖可以有 `pinned`。
+选定 2.3A **提案 1** 的版式（报头、头条、栏目）。产品名 **Elegram**。创始人是 Tori Zhao、Jason Fang。网站由 Leo Gao、Ben Lyu、Dewey Peng、Tori Zhao 搭建。校报由 Media Club 供稿。字段只绑定 `docs/schema.md`；没有封面图——图框是 CSS 占位，不是数据。报头没有搜索框。Forum 列表可用 `q` 按关键词重排。已发布帖可以有 `pinned`。
 
 ---
 
@@ -22,14 +22,16 @@
 | `/forum/latest` | Forum 最新 | 公开 | `feed=latest`。按时间前 10 |
 | `/forum/all` | Forum 所有 | 公开 | `feed=all`。按时间分页 |
 | `/forum/mine` | Forum 我的 | 需登录 | `feed=mine`。只列当前用户已发布的 Forum 帖。未登录去 `/sign-in?next=/forum/mine`。作者可在卡片和详情删除自己的帖 |
-| `/cj` | CJ 角色入口 | 需登录 | 默认入口按 `super_admin`、`teacher`、`student` 取 `roles` 里靠前的一个。已经打开某个入口时，只要 `roles` 含该入口要求的身份就留下 |
-| `/cj/student` | 学生端月历 | 需 `student` | 每一行整周链到 `/cj/student/week?start=`；Period 选择存在浏览器本地 |
-| `/cj/student/week` | 学生端周视图 | 需 `student` | `GET /api/v1/cj?week_start=`，周一至周五五列同时展示 Period 1–8，并单列考试安排 |
-| `/cj/student/day` | 学生端旧单日页 | 需 `student` | 保留旧链接兼容，不作为月历主入口 |
-| `/cj/teacher` | 老师端 | 需 `teacher` | 只读取和写入超级管理员分配给该老师的唯一学科，包括该学科 CJ 与考试；不显示其他学科。每日 CJ 可上传作业照片，`POST /api/v1/cj/recognize` 后把 IC / HW / A 写入所选日期，并标出裁切补全 |
-| `/cj/admin` | CJ 完整管理端 | 仅 `super_admin` | 管理全部 CJ、考试与老师学科分配。不再使用共享口令 |
+| `/bottles` | 漂流瓶 | 需登录 | `GET /api/v1/bottles/mine`。未登录去 `/sign-in?next=/bottles`。扔、捞、我扔的、我捞的。`admin` / `super_admin` 另见被举报 |
+| `/play` | 下棋 | 需登录 | 先选五子棋或国际象棋，再选人机或房间码。未登录去 `/sign-in?next=/play`。棋盘在报头下，不嵌进帖子列表 |
+| `/bottles/picks/:pickId` | 漂流瓶对话 | 需登录 | `GET /api/v1/bottles/picks/{pick_id}`。同学之间不显示名字和头像。打开时 `POST .../read` |
+| `/cj` | 按角色进入 | 需登录 | `super_admin` 去 `/cj/admin`；`student` 或仅 `teacher` 去学生端只读周视图 |
+| `/cj/student` | 学生端月历 | 需 `student` 或 `teacher` | 每一行整周链到 `/cj/student/week?start=`；Period 选择存在浏览器本地 |
+| `/cj/student/week` | 学生端周视图 | 需 `student` 或 `teacher` | `GET /api/v1/cj?week_start=`。课表仍是原来的学科目录，选择存在浏览器本地。同步来的 IC / HW / A 显示在学生选中的对应学科上 |
+| `/cj/student/day` | 学生端旧单日页 | 需 `student` 或 `teacher` | 保留旧链接兼容，不作为月历主入口 |
+| `/cj/admin` | CJ 完整管理端 | 仅 `super_admin` | 管理全部 CJ 与考试。顶部「提取课程信息」调用 `POST /api/v1/cj/sync`。未按按钮时服务端每小时也会提取一次。打开页面时 `GET /api/v1/cj/sync` 显示上次结果。手改会在下一次成功提取时被窗口内的新内容覆盖。不再分配老师学科 |
 | `/cj/admin/student-preview` | 学生端只读预览 | 仅 `super_admin` | 与学生周视图读取同一份 CJ，供管理端在独立标签页验证保存结果；不放宽学生端路由权限 |
-| `/cj/day` `/cj/week` | 旧路径 | 需 `student` | `/cj/week` 转到学生端周视图；`/cj/day` 保留单日兼容页 |
+| `/cj/day` `/cj/week` | 旧路径 | 需 `student` 或 `teacher` | `/cj/week` 转到学生端周视图；`/cj/day` 保留单日兼容页。`/cj/teacher` 转到 `/cj` |
 | `/opinion` | 栏目占位 | 公开 | **不请求** `category=opinion`（枚举外会 422）。固定空态。 |
 | `/community` `/submit` | 旧路径 | — | 重定向到 `/forum` |
 | `/dorm-life` `/events` `/photo` | 旧路径 | — | 重定向到 `/` |
@@ -43,7 +45,7 @@
 | `/sign-in` | 登录 | 访客 | `POST /api/v1/auth/login` |
 | `/register` | 注册 | 访客 | `POST /api/v1/auth/email-codes`（`purpose=register`）后 `POST /api/v1/auth/register` |
 | `/reset-password` | 找回密码 | 访客 | `POST /api/v1/auth/email-codes`（`purpose=reset`）后 `POST /api/v1/auth/password-reset` |
-| `/about` | 静态稿。写明由 Tori Zhao、Ben Lu、Leo Gao、Dewey Peng 所有。Jason 和他的社团参与 BBGM News | 公开 | 无 API |
+| `/about` | 静态稿。写明创始人 Tori Zhao、Jason Fang；搭建者 Leo Gao、Ben Lyu、Dewey Peng、Tori Zhao；校报由 Media Club 供稿 | 公开 | 无 API |
 | `/contact` | 静态稿。Write to BBGM Vibe Coding Club. | 公开 | 无 API |
 | `/terms` | 用户协议 | 公开 | 无 API。中英跟 System 菜单里的总开关走，本页没有单独的语言按钮。直接打开此地址是整页。站内顶栏与注册勾选不跳到本页，改为当前页浮层 |
 
@@ -52,12 +54,12 @@
 - 顶栏一行，从左到右：`SYSTEM`、登录后的 `SETTINGS`、登录后的 `MY POSTS`、`NOTICES`。`SYSTEM` 点开菜单：`ABOUT`、`TERMS`（当前页浮层，不切路由）、`CONTACT`，以及一项中英切换（当前英文时写「中文」，当前中文时写「English」）。点一下切换并收起菜单。选择记在浏览器本地 `elegram_lang`，默认英文，不进接口。字标 Elegram 不翻译。Forum 帖子的标题、正文、摘要和评论保持原文。News 稿件正文和已保存的 CJ 文字也按库存原文显示。`SETTINGS` 点开菜单：`AVATAR`（`/me/avatar`）、`PASSWORD`（`/me/password`）；`roles` 含 `super_admin` 再加 `USERS`（`/admin/users`）。`MY POSTS` 直接去 `/me/posts`。`NOTICES` 直接去 `/system`（通知页，顶栏不叫 System）。菜单点外面、按 Esc 或选中一项后收起。子项不常驻顶栏。`TERMS` 浮层可滚动，点遮罩或关闭即收起，仍停在打开前的页面。
 - 顶栏右侧：本地日期 `Today: {formatted local date}`（不是 schema 字段）。`401` = 访客，日期前显示 `SIGN IN`（去 `/sign-in`），不显示 Settings 与 My Posts。`200` = 已登录，日期前显示头像（`avatar`）、`display_name`、`SIGN OUT`。启动时 `GET /api/v1/me`。登录后同一套 live refresh（约 4 秒）再拉 `/me`，超管改 `roles` / `muted` / 删号后顶栏与导航跟着变，不必整页刷新。顶栏不放 `DRAFTS`。
 - 列表同步：首页 / Forum / 帖详情已 live refresh。`/admin/users`、`/news/drafts` 列表、`/system`、`/me/posts` 同样轮询，超管或其他人刚做的改动会进当前页。打开中的草稿编辑框不自动覆盖，以免冲掉未保存正文。
-- 报头：无搜索框。中：斜体衬线字标 `Elegram` 链回 `/`。右：静态「OWNED BY / Vibe Coding Club」。字标仍在版心居中。
+- 报头：无搜索框。中：斜体衬线字标 `Elegram` 链回 `/`。右：静态「FOUNDERS / Tori Zhao, Jason Fang」。字标仍在版心居中。
 - 标语静态：`YOUR STORIES. YOUR VOICE. YOUR PAGE.`
-- 导航：`NEWS`（`/`）`FORUM` `CJ` `OPINION`。`CJ` 与 `FORUM` 同一行，链到 `/cj`。`roles` 含 `editor` 或 `super_admin` 时，在 NEWS 之后另见 `DRAFT`（`/news/submit`）。`DESIGN`（`/news/design`）只在 `roles` 含 `super_admin` 时出现。超级管理员从 Design 进入审核队列或直接发布。当前路由下划黑线。无 `SUBMIT`，无单独的 News 列表项。分板块草稿页仍是 `/news/drafts`，不放在主导航。旧 `/news` 重定向至首页。Forum 发帖在栏目页内。已登录时约每 4 秒 `GET /api/v1/me/forum-activity`（页签隐藏暂停）。`unread` 为 `1` 时，`FORUM` 文字旁有一个红底白字的 `1`。未登录不请求、不显示。请求失败不盖错误条，保留上一次的红点。
-- CJ 欢迎屏：`/cj` 仍只按角色跳到学生、老师或管理页。跳转之后，若这次登录还没看过欢迎屏，内容区左上角显示大号衬线 “Welcome, {display_name}”（中文 “欢迎，{display_name}”），约 1.8 秒淡入，淡入结束后再停一会儿，大约 3.2 秒后才渲染课表。标记在 `localStorage`，键带用户 `id`。重新登录或退出时清除。淡入结束前离开 CJ 不写入标记。已在 CJ 内换日期或课程不再播放。
+- 导航：`NEWS`（`/`）`FORUM` `BOTTLES` `CJ` `OPINION`。`BOTTLES` 在 `FORUM` 与 `CJ` 之间，链到 `/bottles`。`CJ` 与 `FORUM` 同一行，链到 `/cj`。`roles` 含 `editor` 或 `super_admin` 时，在 NEWS 之后另见 `DRAFT`（`/news/submit`）。`DESIGN`（`/news/design`）只在 `roles` 含 `super_admin` 时出现。超级管理员从 Design 进入审核队列或直接发布。当前路由下划黑线。无 `SUBMIT`，无单独的 News 列表项。分板块草稿页仍是 `/news/drafts`，不放在主导航。旧 `/news` 重定向至首页。Forum 发帖在栏目页内。已登录时约每 4 秒 `GET /api/v1/me/forum-activity` 与 `GET /api/v1/me/bottle-activity`（页签隐藏暂停）。`unread` 为 `1` 时，对应的 `FORUM` 或 `BOTTLES` 文字旁有一个红底白字的 `1`。未登录不请求、不显示。请求失败不盖错误条，保留上一次的红点。漂流瓶红点只在打开那条对话并标成已读后消失；别处还有未读时仍是 `1`。
+- CJ 欢迎屏：`/cj` 按角色跳到学生或管理页。只有老师身份的账号进入学生只读页。跳转之后，若这次登录还没看过欢迎屏，内容区左上角显示大号衬线 “Welcome, {display_name}”（中文 “欢迎，{display_name}”），约 1.8 秒淡入，淡入结束后再停一会儿，大约 3.2 秒后才渲染课表。标记在 `localStorage`，键带用户 `id`。重新登录或退出时清除。淡入结束前离开 CJ 不写入标记。已在 CJ 内换日期或课程不再播放。
 - 会等待接口的按钮：请求从发出到返回期间，按钮文字旁显示转圈，并且不可再点。页面初次加载仍用原来的“正在读取”文案，不盖整页。
-- 页脚声明（非 schema）：`Owned by Tori Zhao, Ben Lu, Leo Gao, and Dewey Peng.`
+- 页脚声明（非 schema）：创始人 Tori Zhao、Jason Fang。网站由 Leo Gao、Ben Lyu、Dewey Peng、Tori Zhao 搭建。校报由 Media Club 供稿。
 
 **栏目枚举 → 导航文案（展示层，不是新字段）**
 
@@ -142,8 +144,23 @@
 | 空 | `items.length === 0`：图框保留，“No stories in {栏目名} yet.” 不链独立发帖页。 |
 | 栏目 | Forum 主导航下：推荐、最新、所有、我的。当前项字色 `#1A4FBF` 并带下划线。推荐与最新不显示 Older stories。我的需要登录，卡片上作者可删除该帖，确认后该卡消失。`admin` 与 `super_admin` 在推荐、最新、所有里也能删除别人的帖。`unread` 为 `1` 且当前不在 `/forum/mine` 时，「我的」文字旁有一个红底白字的 `1`，与主导航 `FORUM` 同时出现。进入 `/forum/mine` 后 `POST /api/v1/me/forum-activity/read`，两处红点消失。人还停在「我的」时，新的赞或评论随这次刷新标成已读，红点不留在当前这一栏。 |
 | 搜索 | 栏目标题下一条下划线关键词框。回车提交。去掉空白后的词写入 `localStorage`：登录用户键 `elegram_forum_q:{id}`，访客键 `elegram_forum_q:guest`。随后该读者的推荐、最新、所有、我的都带同一个 `q`。命中帖在前，未命中的仍在。清除后删掉键，顺序回到该栏默认。换账号用各自的键，不改其他用户看到的顺序。 |
+| 下棋入口 | 只在 Forum。列表栏仍 `max-w-[42rem]` 居中。右侧空白放一个国际象棋棋子标识，下面一行 `click here to play chess`，链到 `/play`。窄到右侧放不下时，标识改到栏目标题下，不盖住帖子。News 不放。 |
 | 停留 | 约每 4 秒再请求当前栏目 `page=1`（页签隐藏暂停），并带上该读者当前的 `q`。最新与所有：在该顺序下，新帖出现在它该在的位置。推荐：0 赞且 0 评论且未命中关键词的新帖不插到第一位。所有已点过的 Older 页保留。Forum 卡上的 `reply_count` / `like_count` / `liked` / `reply_preview` 随这次响应更新。不转圈；后台失败不盖错误条。首次加载失败后若拉到数据则清错误。 |
 | 错误 | 栏目名下 `ErrorBanner` ← `error.message`。`opinion` 不发请求，直接空态句。 |
+
+### 3.2b 漂流瓶 `/bottles`
+
+栏宽 `max-w-[42rem]`，居中。未登录去 `/sign-in?next=/bottles`。
+
+| 状态 | 表现 |
+| --- | --- |
+| 扔 | 正文框和「扔一个」。`POST /api/v1/bottles`。成功后清空正文并刷新「我扔的」。`422` 写在框下。当日第 4 枚用 `ErrorBanner` ← `error.message`。 |
+| 捞 | 「捞一个」。`POST /api/v1/bottles/pick`。`pick` 有 `id` 时去 `/bottles/picks/{id}`。`pick` 为 `null` 时留在本页，写明海里现在没有新瓶子。 |
+| 我扔的 / 我捞的 | `GET /api/v1/bottles/mine` 的 `thrown` 与 `picked`。每行用 `excerpt`、`created_at`、`reply_count`、`unread`。有 `pick_id` 的行链到对话。还没有人捞到的瓶子没有对话链，作者可删除。停留时约每 4 秒再请求。 |
+| 被举报 | 仅 `roles` 含 `admin` 或 `super_admin`。`GET /api/v1/bottles/reports`。行链到该 `pick_id`。 |
+| 对话 | 瓶子正文和 `messages[]`。同学之间用「我」和「有人」，不显示 `display_name` 或头像。打开时 `POST .../read`。回复框 `POST .../messages`。自己的回复可撤回。管理员看到 `thrower` 与 `picker` 的 `display_name` 和 `email`，并可删除瓶子或回复。任一方可举报。输入框内容不因刷新丢失。 |
+| 空 | 我扔的、我捞的、被举报各自有空态句。 |
+| 错误 | `ErrorBanner` ← `error.message`。`401` 去登录。对话 `404` 写明找不到。 |
 
 ### 3.3 详情 `/posts/:postId`
 
@@ -271,9 +288,9 @@
     - 字标 `Elegram` 链 `/`
     - 静态 Community hosted
   - `<Tagline>` 静态
-  - `<SectionNav>` NEWS（`/`）/ DRAFT（`editor` 或 `super_admin`，`/news/submit`）/ DESIGN（仅 `super_admin`，`/news/design`）/ FORUM / CJ（`/cj`）/ OPINION
+  - `<SectionNav>` NEWS（`/`）/ DRAFT（`editor` 或 `super_admin`，`/news/submit`）/ DESIGN（仅 `super_admin`，`/news/design`）/ FORUM / BOTTLES（`/bottles`）/ CJ（`/cj`）/ OPINION
   - `<Outlet>` 下列页面之一
-  - `<Disclaimer>` Owned by Tori Zhao, Ben Lu, Leo Gao, and Dewey Peng.
+  - `<Disclaimer>` 创始人 Tori Zhao、Jason Fang。网站由 Leo Gao、Ben Lyu、Dewey Peng、Tori Zhao 搭建。校报由 Media Club 供稿。
 
 - `<Page: Home>`
   - `<ErrorBanner>` ← `error.code` `error.message`（仅列表失败）
@@ -378,7 +395,18 @@
 | 点故事 | — | 去 `/posts/{id}` | — |
 | 点 NEWS | `GET /api/v1/posts?page=1&page_size=20` | 报头槽位 | `ErrorBanner` ← `error.message` |
 | 点 DRAFTS | `GET /api/v1/news/drafts` | 草稿页；仅 `roles` 含 `editor` 或 `super_admin` 时看见导航项 | 403 回 `/` |
-| 点 FORUM | `GET /api/v1/posts?category=forum` | 卡片列表 | 栏目下错误条 |
+| 点 FORUM | `GET /api/v1/posts?category=forum` | 卡片列表。右侧或标题下有国际象棋标识 | 栏目下错误条 |
+| 点下棋 | — | 去 `/play`。未登录则先登录 | — |
+| 五子棋 / 国际象棋人机 | `POST /api/v1/games/gomoku/play` 或 `POST /api/v1/games/chess/play` | 棋盘走出引擎的应着 | 401 去登录；`status=error` 停在原局面 |
+| 创建或加入房间 | `POST /api/v1/games/{gomoku\|chess}/rooms` 然后 `WS .../ws` | 双方看到同一盘。座位显示 `display_name` | 房间不存在或已满时页内说明 |
+| 点 BOTTLES | `GET /api/v1/bottles/mine` | 扔、捞、我扔的、我捞的 | 401 去 `/sign-in?next=/bottles` |
+| 扔一个 | `POST /api/v1/bottles` | 出现在我扔的 | 422 框下；当日第 4 枚错误条 |
+| 捞一个 | `POST /api/v1/bottles/pick` | 有瓶子则进对话；没有则停在本页 | 当日第 6 次错误条 |
+| 打开漂流瓶对话 | `GET /api/v1/bottles/picks/{id}` 然后 `POST .../read` | 正文和回复；红点在没有别的未读后消失 | 403 错误条；404 找不到 |
+| 回复漂流瓶 | `POST .../messages` | 追加一条 | 401 去登录；422 框下 |
+| 举报漂流瓶 | `POST .../report` | 管理员的被举报里出现 | 不是参与者则 403 |
+| 撤回自己的瓶子或回复 | `DELETE /api/v1/bottles/{id}` 或 `DELETE .../messages/{id}` | 该条消失 | 403 错误条 |
+| 管理员删别人的瓶子或回复 | 同上 | 消失；作者 System 多一条 | 学生删别人的则 403 |
 | 打开详情 | `GET /api/v1/posts/{post_id}` | 绑 `PostDetail` | `404` 文案；`503` 错误条 |
 | Forum 详情 | `GET /api/v1/posts/{id}/comments` | 帖子下的评论 | `422` 不在校报页出现 |
 | 评论 | `POST .../comments` | 追加一条评论，不带 `parent_id` | 401 去登录；422 字段下 |

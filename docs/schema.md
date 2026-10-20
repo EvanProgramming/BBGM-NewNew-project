@@ -2,7 +2,7 @@
 
 依据：`docs/PRD.md` Must Have 与 Entity Flow。本文件同时约束前端 Mock 与后端实现。不包含业务代码。
 
-第一版 **无公开审计查询接口**（M10 仅服务端落库）。作者不能改自己的帖或评论。作者可以删除自己已发布的 Forum 帖，也可以撤回自己的评论；不能删除他人的帖或评论，也不能删除 News。`admin` 与 `super_admin` 可删除任意帖和任意评论；删除他人的帖或评论时给作者一条 System 通知。仅 `super_admin` 可禁言或删除用户。包含 Forum 评论、角色、News 分板块草稿与独立 News 投稿。新评论直接挂在帖子上，不新增楼层或楼中楼。
+第一版 **无公开审计查询接口**（M10 仅服务端落库）。作者不能改自己的帖或评论。作者可以删除自己已发布的 Forum 帖，也可以撤回自己的评论；不能删除他人的帖或评论，也不能删除 News。`admin` 与 `super_admin` 可删除任意帖和任意评论；删除他人的帖或评论时给作者一条 System 通知。仅 `super_admin` 可禁言或删除用户。包含 Forum 评论、角色、News 分板块草稿与独立 News 投稿。新评论直接挂在帖子上，不新增楼层或楼中楼。漂流瓶是另一组接口，不是 `posts.category`。同学之间的漂流瓶响应不返回 `author_id`、`picker_id`、展示名、头像或邮箱。
 
 ---
 
@@ -43,7 +43,7 @@ Content-Type: application/json
 }
 ```
 
-公开读接口（栏目列表、详情、首页列表、Forum 评论列表）**不**要求鉴权。
+公开读接口（栏目列表、详情、首页列表、Forum 评论列表）**不**要求鉴权。漂流瓶和下棋全部接口要求鉴权。
 
 ### 通用错误包络
 
@@ -66,12 +66,14 @@ Content-Type: application/json
 | 400 | `bad_request` | 分页参数非法等无法归到字段校验的请求错误 |
 | 401 | `unauthenticated` | 无会话或会话无效 |
 | 401 | `invalid_credentials` | 登录邮箱或密码不对（不区分「用户不存在」与「密码错误」） |
-| 403 | `forbidden` | 已登录但无权（直接发 News、非编辑写草稿、非超级管理员改角色 / 禁言 / 删用户 / 同意板块、既不是该 Forum 帖作者也不是 `admin` / `super_admin` 时删帖） |
-| 403 | `account_muted` | 已登录但被禁言，仍调用发帖、跟帖、点赞、创建或提交草稿 |
-| 404 | `not_found` | 帖子、评论父楼或用户不存在 |
+| 403 | `forbidden` | 已登录但无权（直接发 News、非编辑写草稿、非超级管理员改角色 / 禁言 / 删用户 / 同意板块、既不是该 Forum 帖作者也不是 `admin` / `super_admin` 时删帖、当日漂流瓶次数用尽、打开不属于自己且自己不是管理员的漂流瓶对话） |
+| 403 | `account_muted` | 已登录但被禁言，仍调用发帖、跟帖、点赞、创建或提交草稿、扔瓶子、捞瓶子或回复漂流瓶 |
+| 404 | `not_found` | 帖子、评论父楼、用户、漂流瓶或漂流瓶对话不存在 |
 | 409 | `email_taken` | 注册邮箱已被占用 |
+| 409 | `sync_in_progress` | CJ 同步已经在进行，本次不开始第二次 |
 | 422 | `validation_error` | 缺必填、超长、非法栏目、非法配图、非校内邮箱后缀、验证码无效或过期、注册时 `accept_terms` 不是 `true` |
 | 503 | `storage_unavailable` | 存储写入失败，或作业照片识别调用失败；不得返回成功或半截资源 |
+| 503 | `service_unavailable` | CJ 课表同步未配置密钥，或课表接口 / DeepSeek 调用失败；不改已有 CJ 行 |
 
 成功响应不包 `{ "data": ... }` 中间层：对象或列表字段直接放在 JSON 根上。
 
@@ -880,7 +882,7 @@ News 文章仍使用 `Post(category="news")`，每篇文章只有一个内容板
 #### `DELETE /api/v1/admin/users/{user_id}`
 
 - **鉴权：** 是（须 `super_admin`）
-- **职责：** 删除该用户及其会话、帖子、评论、点赞与草稿。不写 System 通知。
+- **职责：** 删除该用户及其会话、帖子、评论、点赞、草稿、漂流瓶、捞取与回复。不写 System 通知。
 
 **Response**
 
@@ -917,10 +919,11 @@ News 文章仍使用 `Post(category="news")`，每篇文章只有一个内容板
 
 与 Forum 平级的课表，不是帖子栏目。`category` 枚举不含 `cj`。全部接口使用 `scoop_session` 登录会话，不再使用共享 CJ 口令。
 
-- `student`：读取全部学科、CJ 与考试，用于组成自己的 Period 1–8；不能写。
-- `teacher`：只读取和更新 `CJTeacherSubject` 分配给自己的唯一学科，包括该学科的 CJ 与考试。
-- `super_admin`：读取和修改全部 CJ、考试与老师学科分配。
+- `student` 与 `teacher`：读取全部学科、CJ 与考试，用于组成自己的 Period 1–8；不能写。
+- `super_admin`：读取和修改全部 CJ 与考试，并可从课表接口提取。
 - `editor` / 普通 `admin`：无 CJ 接口权限。
+
+配置了 `CJ_JOURNAL_BASE_URL` 后，学生端仍用原来的学科目录选课，不再灌入示例作业。提取窗口是上海时区本周一到下周五。课表课程按名称对上目录里的学科（11Ac 与 11Mc 分开），IC / HW / AN 写到该学科上，不新建学科，也不改学科的节次和班级。对不上的课程跳过。DeepSeek 只清洗和补全非空文字，不把文字从一个字段搬到另一个字段。模型或课表接口失败时不改已有 CJ 行。窗口内某天变空，则清空该天已有条目的 IC / HW / 通知。窗口外的记录不动。
 
 学科目录由服务端准备。学生把学科放进 Period 1–8 的选择只留在浏览器，不写入本接口。
 
@@ -991,14 +994,51 @@ News 文章仍使用 `Post(category="news")`，每篇文章只有一个内容板
 
 - `200` `{ "id", "updated_at" }`
 - `401` `unauthenticated`
-- `403` `forbidden`（学生、普通管理角色，或老师写未分配学科）
+- `403` `forbidden`（学生、老师、普通管理角色）
 - `404` `not_found`（学科不存在）
 - `422` `validation_error`
 - `503` `storage_unavailable`
 
+#### `GET /api/v1/cj/sync`
+
+仅 `super_admin`。返回最近一次提取结果。还没有提取过时 `status` 为 `idle`，`synced_at`、`from`、`to` 为 `null`。
+
+**Response**
+
+- `200`
+
+```json
+{
+  "synced_at": "2026-10-15T05:00:00Z",
+  "from": "2026-10-12",
+  "to": "2026-10-23",
+  "courses": 12,
+  "entries": 40,
+  "status": "ok",
+  "message": ""
+}
+```
+
+`status`：`idle` | `ok` | `error`。失败时 `message` 是给管理端看的短句，`courses` 与 `entries` 为 `0`。
+
+- `401` `unauthenticated`
+- `403` `forbidden`
+
+#### `POST /api/v1/cj/sync`
+
+仅 `super_admin`。立刻按同一窗口提取：请求 `GET {CJ_JOURNAL_BASE_URL}/public/journal?from=&to=`，头 `Authorization: Bearer <CJ_JOURNAL_API_KEY>`。非空 IC / HW / AN 交给 DeepSeek 清洗后，按课程名称写入已有学科的 `cj_entries`。对不上目录的课程不写入。进程在配置了课表地址后也会自行调用这一次，之后每 60 分钟一次。已有一次在跑时返回 `409`。
+
+**Response**
+
+- `200` 与 `GET /api/v1/cj/sync` 相同，`status` 为 `ok`
+- `401` `unauthenticated`
+- `403` `forbidden`
+- `409` `sync_in_progress`
+- `503` `service_unavailable`（缺 `CJ_JOURNAL_API_KEY` 或 `DEEPSEEK_API_KEY`，或课表 / DeepSeek 失败）。不改已有 CJ 行。这次失败仍记入 `GET /api/v1/cj/sync`。
+
 #### `POST /api/v1/cj/recognize`
 
-老师或 `super_admin` 上传一张作业照片。服务端把图和学科目录交给百炼 `qwen3-vl-flash`，按返回的学科写入该周该日的 CJ。已有条目时，只覆盖模型给出的非空 IC / HW / A。
+仅 `super_admin` 上传一张作业照片。服务端把图和学科目录交给百炼 `qwen3-vl-flash`，按返回的学科写入该周该日的 CJ。已有条目时，只覆盖模型给出的非空 IC / HW / A。
 
 **Request** `multipart/form-data`
 
@@ -1029,7 +1069,7 @@ News 文章仍使用 `Post(category="news")`，每篇文章只有一个内容板
 `transcribed` 是照片里看得见的文字。`inferred` 只放裁切后补上的部分。
 
 - `401` `unauthenticated`
-- `403` `forbidden`
+- `403` `forbidden`（学生、老师、普通管理角色）
 - `422` `validation_error`（图片、日期，或对不上学科）
 - `503` `service_unavailable`（未配置 `DASHSCOPE_API_KEY`，或百炼没有返回可用结果）
 
@@ -1042,7 +1082,7 @@ News 文章仍使用 `Post(category="news")`，每篇文章只有一个内容板
 | `id` | string | 否 | 空则新建；有则覆盖该条 |
 | `week_start` | string | 是 | `YYYY-MM-DD` |
 | `day_index` | integer | 是 | 0–4 |
-| `subject_id` | string | 是 | 已有学科；老师只能选分配给自己的学科 |
+| `subject_id` | string | 是 | 已有学科 |
 | `title` | string | 是 | 去空白后 1–800 |
 | `time` | string | 是 | `HH:MM` |
 | `location` | string | 否 | ≤800 |
@@ -1052,24 +1092,256 @@ News 文章仍使用 `Post(category="news")`，每篇文章只有一个内容板
 
 - `200` `{ "id", "updated_at" }`
 - `401` `unauthenticated`
-- `403` `forbidden`（学生、普通管理角色，或老师写入未分配学科）
+- `403` `forbidden`（学生、老师、普通管理角色）
 - `404` `not_found`（学科不存在）
 - `422` `validation_error`
 - `503` `storage_unavailable`
 
-#### `GET /api/v1/cj/teachers`
+### 1.8 Bottles
 
-仅 `super_admin`。返回所有 `teacher` 账号以及每人的 `subject_ids`，供完整管理端配置。
+与 Forum 平级，不是帖子栏目。`category` 枚举不含瓶子。全部接口要求 `scoop_session`。同学之间的成功响应不出现 `author_id`、`picker_id`、`display_name`、`avatar`、`email`。`admin` 与 `super_admin` 读取单条对话时另含双方身份。正文去掉首尾空白后为 1–500 字。每个 UTC 日（北京时间每天 08:00 重置）每人最多扔 3 枚、捞 5 枚。次数用尽为 `403` `forbidden`，不落库。海里没有可捞的瓶子时 `200` 且 `pick` 为 `null`，不计入捞取次数。
 
-#### `PUT /api/v1/cj/teachers/{teacher_id}`
+`Bottle`
 
-仅 `super_admin`。Body 为 `{ "subject_ids": ["ap-calculus"] }`，整体替换该老师唯一可读写的 CJ 学科；数组允许为空，但最多一个元素。
+| 字段 | 类型 | 说明 |
+| --- | --- | --- |
+| `id` | string | UUID |
+| `body` | string | 瓶子正文。列表里用 `excerpt`：正文前 120 字 |
+| `created_at` | string | UTC ISO Z |
 
-- `200` `{ "id", "email", "display_name", "subject_ids" }`
+`BottleMineItem`
+
+| 字段 | 类型 | 说明 |
+| --- | --- | --- |
+| `bottle_id` | string | |
+| `pick_id` | string \| null | 还没有人捞到时为 `null` |
+| `excerpt` | string | 正文前 120 字 |
+| `created_at` | string | 有对话时用捞取时间，否则用扔出时间 |
+| `reply_count` | integer | 该对话的回复条数。还没有对话时为 `0` |
+| `unread` | integer | `0` 或 `1` |
+
+`BottleMessage`
+
+| 字段 | 类型 | 说明 |
+| --- | --- | --- |
+| `id` | string | |
+| `body` | string | |
+| `created_at` | string | |
+| `mine` | boolean | 当前用户写的 |
+| `from` | string | `thrower` 或 `picker`。不是展示名 |
+
+`BottleThread`
+
+| 字段 | 类型 | 说明 |
+| --- | --- | --- |
+| `id` | string | 捞取 id |
+| `bottle_id` | string | |
+| `bottle_body` | string | |
+| `bottle_created_at` | string | |
+| `created_at` | string | 捞取时间 |
+| `messages` | BottleMessage[] | 按 `created_at` 从早到晚 |
+| `role` | string | 当前用户是 `thrower`、`picker` 或 `moderator` |
+| `unread` | integer | `0` 或 `1` |
+| `thrower` | object | 仅 `admin` / `super_admin`：`id` `display_name` `email` |
+| `picker` | object | 同上 |
+
+`BottleActivity`：`{ "unread": 0 | 1 }`。任一对话有对方在自己已读时间之后写的回复，则为 `1`。不会变成 `2`。
+
+#### `POST /api/v1/bottles`
+
+- **鉴权：** 是。被禁言则 `403` `account_muted`
+- **职责：** 扔出一枚瓶子。当日已有 3 枚则 `403` `forbidden`。
+
+**Request body：** `{ "body": string }`
+
+**Response**
+
+- `201` `{ "id", "body", "created_at" }`
+- `401` `unauthenticated`
+- `403` `account_muted` 或 `forbidden`
+- `422` `validation_error`（`body` 去掉空白后不是 1–500 字）
+- `503` `storage_unavailable`
+
+#### `POST /api/v1/bottles/pick`
+
+- **鉴权：** 是。被禁言则 `403` `account_muted`
+- **职责：** 随机捞一枚不是自己写的、自己还没捞过的瓶子，并建立私信。没有可捞的则 `pick` 为 `null`。当日已捞 5 次则 `403` `forbidden`。
+
+**Request：** 无 body。
+
+**Response**
+
+- `200` `{ "pick": BottleThread | null }`
+- `401` `unauthenticated`
+- `403` `account_muted` 或 `forbidden`
+- `503` `storage_unavailable`
+
+#### `GET /api/v1/bottles/mine`
+
+- **鉴权：** 是。禁言仍可读取
+- **职责：** 当前用户扔出的瓶子，以及别人捞起后形成的对话；另有自己捞到的对话。不含对方身份。
+
+**Response**
+
+- `200` `{ "thrown": BottleMineItem[], "picked": BottleMineItem[] }`
+- `401` `unauthenticated`
+- `503` `storage_unavailable`
+
+#### `GET /api/v1/bottles/picks/{pick_id}`
+
+- **鉴权：** 是。须为该对话的扔瓶人、捞瓶人，或 `admin` / `super_admin`
+- **职责：** 读取这一条私信。学生响应没有 `thrower` / `picker`。
+
+**Response**
+
+- `200` + `BottleThread`
+- `400` `bad_request`
 - `401` `unauthenticated`
 - `403` `forbidden`
-- `404` `not_found`（账号不存在或不是老师）
-- `422` `validation_error`（学科不存在或格式错误）
+- `404` `not_found`
+- `503` `storage_unavailable`
+
+#### `POST /api/v1/bottles/picks/{pick_id}/messages`
+
+- **鉴权：** 是。被禁言则 `403` `account_muted`。须为参与者
+- **职责：** 在该私信里回复。管理员若不是参与者则 `403`。
+
+**Request body：** `{ "body": string }`
+
+**Response**
+
+- `201` + `BottleMessage`
+- `400` `bad_request`
+- `401` `unauthenticated`
+- `403` `account_muted` 或 `forbidden`
+- `404` `not_found`
+- `422` `validation_error`
+- `503` `storage_unavailable`
+
+#### `POST /api/v1/bottles/picks/{pick_id}/read`
+
+- **鉴权：** 是。禁言仍可调用
+- **职责：** 把当前用户在这条对话上的已读时间写成现在。不是参与者的管理员调用时不改双方已读时间，仍返回 `204`。
+
+**Request：** 无 body。
+
+**Response**
+
+- `204` 无 body
+- `400` `bad_request`
+- `401` `unauthenticated`
+- `403` `forbidden`
+- `404` `not_found`
+- `503` `storage_unavailable`
+
+#### `GET /api/v1/me/bottle-activity`
+
+- **鉴权：** 是
+- **职责：** 当前用户有没有未读的漂流瓶回复。值只有 `0` 或 `1`。
+
+**Response**
+
+- `200` + `BottleActivity`
+- `401` `unauthenticated`
+- `503` `storage_unavailable`
+
+#### `POST /api/v1/bottles/picks/{pick_id}/report`
+
+- **鉴权：** 是。须为参与者。禁言仍可举报
+- **职责：** 举报这条对话。同一人重复举报仍是 `204`，不新增第二行。
+
+**Request：** 无 body。
+
+**Response**
+
+- `204` 无 body
+- `400` `bad_request`
+- `401` `unauthenticated`
+- `403` `forbidden`
+- `404` `not_found`
+- `503` `storage_unavailable`
+
+#### `GET /api/v1/bottles/reports`
+
+- **鉴权：** 是（须 `admin` 或 `super_admin`）
+- **职责：** 分页列出举报。学生 `403`。
+
+**Query：** `page`、`page_size`。按 `created_at` 降序。
+
+**Response**
+
+- `200` `{ "items": [{ "id", "pick_id", "bottle_id", "excerpt", "created_at" }], "page", "page_size", "total" }`
+- `400` `bad_request`
+- `401` `unauthenticated`
+- `403` `forbidden`
+- `503` `storage_unavailable`
+
+#### `DELETE /api/v1/bottles/{bottle_id}`
+
+- **鉴权：** 是。作者，或 `admin` / `super_admin`。禁言的作者仍可删除自己的瓶子
+- **职责：** 删除瓶子及其捞取、回复与举报。作者删除不写通知。管理员删除他人的瓶子时给作者一条 System 通知：`Your drift bottle was removed.`
+
+**Response**
+
+- `204` 无 body
+- `400` `bad_request`
+- `401` `unauthenticated`
+- `403` `forbidden`
+- `404` `not_found`
+- `503` `storage_unavailable`
+
+#### `DELETE /api/v1/bottles/picks/{pick_id}/messages/{message_id}`
+
+- **鉴权：** 是。该条作者，或 `admin` / `super_admin`
+- **职责：** 删除一条回复。作者撤回不写通知。管理员删除他人的回复时给作者一条 System 通知：`Your reply in a drift bottle was removed.`
+
+**Response**
+
+- `204` 无 body
+- `400` `bad_request`
+- `401` `unauthenticated`
+- `403` `forbidden`
+- `404` `not_found`
+- `503` `storage_unavailable`
+
+### 1.9 Games
+
+Forum 右侧入口进入 `/play`。不是帖子栏目。全部 HTTP 与 WebSocket 要求 `scoop_session`。房间只在当前进程内存中，重启后房间码失效，不写入内容库。座位上的名字是加入当时的 `display_name`。被禁言仍可调用。
+
+人机正文不合法时 HTTP 仍是 `200`，JSON 里 `status` 为 `error`，`error_message` 说明原因，局面不前进。未登录是 `401`。引擎或 Rapfi 不可用时人机 `200` 且 `status` 为 `error`，不返回半步新局面。
+
+难度：`beginner` | `easy` | `normal` | `hard`。
+
+#### `POST /api/v1/games/gomoku/play`
+
+**Request：** `{ "moves": [{ "row", "col", "player": "black"|"white" }], "difficulty", "side": "black"|"white" }`。`row` 与 `col` 为 0–14。
+
+**Response `200`：** `{ "status", "error_message", "moves", "turn", "user_move", "engine_move", "game_over", "result" }`。`result` 为 `black` | `white` | `draw` | `""`。
+
+- `401` `unauthenticated`
+- `503` `storage_unavailable`
+
+#### `POST /api/v1/games/chess/play`
+
+**Request：** `{ "fen", "uci", "difficulty", "side": "white"|"black" }`。`fen` 空则用初始局面。`uci` 空则只问引擎走下一步。
+
+**Response `200`：** `{ "status", "error_message", "fen", "turn", "legal_uci", "user_san", "user_uci", "engine_san", "engine_uci", "from_square", "to_square", "eval", "game_over", "result" }`。
+
+- `401` `unauthenticated`
+- `503` `storage_unavailable`
+
+外部地址由环境变量 `CHESS_API_URL` 决定，缺省 `https://chess-api.com/v1`。不另加密钥。
+
+#### 房间
+
+五子棋前缀 `/api/v1/games/gomoku/rooms`。国际象棋前缀 `/api/v1/games/chess/rooms`。
+
+- `POST` 创建。Body `{ "seat", "clock" }`。`seat` 五子棋与国际象棋均为 `black` | `white`。`clock` 缺省 `true`，每步 60 秒；`false` 则不限时。
+- `POST /{code}/join` Body `{ "token" }`。空 `token` 坐到空位。房间满则 `status` 为 `error`。
+- `GET /{code}?token=` 读取。无此房间时 `status` 为 `error`。
+- `WS /{code}/ws?token=`。未登录或 token 对不上则关闭。消息 `{ "type": "move", ... }`、`resign`、`restart`。五子棋走子带 `row` `col`。国际象棋走子带 `uci`。状态广播含 `black_name` 与 `white_name`。
+
+成功时 HTTP 体为 `{ "status": "success", "error_message": "", "code", "seat", "token", ...局面字段, "black_name", "white_name" }`。失败时 HTTP 仍是 `200`，`status` 为 `error`。未登录是 `401`。
 
 ---
 

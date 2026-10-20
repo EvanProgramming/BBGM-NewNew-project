@@ -8,8 +8,8 @@ import { useI18n } from "../i18n";
 
 export default function CjAdmin({ portal = "admin" }) {
   const { t } = useI18n();
-  const teacherMode = portal === "teacher";
   const [weekStart, setWeekStart] = useState(mondayIso);
+  const [syncStatus, setSyncStatus] = useState(null);
   const [data, setData] = useState(null);
   const [tab, setTab] = useState("cj");
   const [dayIndex, setDayIndex] = useState(0);
@@ -59,6 +59,18 @@ export default function CjAdmin({ portal = "admin" }) {
   useEffect(() => {
     loadWeek();
   }, [loadWeek]);
+
+  useEffect(() => {
+    let cancelled = false;
+    api.cjSyncStatus()
+      .then((status) => {
+        if (!cancelled) setSyncStatus(status);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const currentEntry = useMemo(
     () => (data?.entries || []).find((entry) => entry.day_index === dayIndex && entry.subject_id === subjectId),
@@ -196,6 +208,26 @@ export default function CjAdmin({ portal = "admin" }) {
     }
   }
 
+  async function handleSync() {
+    setBusyKey("sync");
+    setNotice("");
+    try {
+      const status = await api.syncCj();
+      setSyncStatus(status);
+      setNotice(t("cj.syncDone"));
+      await loadWeek();
+    } catch (syncError) {
+      setNotice(syncError instanceof Error ? syncError.message : t("cj.syncFailed"));
+      try {
+        setSyncStatus(await api.cjSyncStatus());
+      } catch {
+        // The button already shows the request error.
+      }
+    } finally {
+      setBusyKey("");
+    }
+  }
+
   function resetExamForm() {
     setExamId("");
     setExamTitle("");
@@ -218,20 +250,28 @@ export default function CjAdmin({ portal = "admin" }) {
   return (
     <section className="mt-8">
       <CjPortalBadge portal={portal} />
-      <p className="font-sans text-[11px] uppercase tracking-[0.16em] text-[#1A4FBF]">{teacherMode ? "Teacher workspace" : "Administration"}</p>
-      <h1 className="mt-2 font-serif text-4xl">CJ content</h1>
-      <p className="mt-2 font-sans text-sm text-neutral-600">
-        {teacherMode ? "Update CJ, exams, and courses across the complete school catalog." : "Update all CJ entries, exams, and courses."}
-      </p>
+      <p className="font-sans text-[11px] uppercase tracking-[0.16em] text-[#1A4FBF]">{t("cj.adminKicker")}</p>
+      <h1 className="mt-2 font-serif text-4xl">{t("cj.adminTitle")}</h1>
+      <p className="mt-2 font-sans text-sm text-neutral-600">{t("cj.adminLead")}</p>
+      <div className="mt-4 flex flex-wrap items-center gap-3">
+        <button
+          type="button"
+          onClick={handleSync}
+          disabled={saving}
+          className="inline-flex items-center gap-2 bg-black px-5 py-2 font-sans text-[11px] uppercase tracking-[0.16em] text-white disabled:opacity-40"
+        >
+          {busyKey === "sync" ? <ButtonSpinner /> : null}
+          {busyKey === "sync" ? t("cj.syncing") : t("cj.sync")}
+        </button>
+        <p className="font-sans text-sm text-neutral-600">{syncSummary(syncStatus, t)}</p>
+      </div>
       <p className="mt-3 flex flex-wrap gap-4 font-sans text-sm">
         <Link to="/" className="text-[#1A4FBF]">
           {t("link.frontPage")}
         </Link>
-        {!teacherMode ? (
-          <Link to={`/cj/admin/student-preview?date=${weekStart}`} className="text-[#1A4FBF]">
-            {t("cj.studentPreview")}
-          </Link>
-        ) : null}
+        <Link to={`/cj/admin/student-preview?date=${weekStart}`} className="text-[#1A4FBF]">
+          {t("cj.studentPreview")}
+        </Link>
       </p>
 
       {notice ? <p className="mt-3 font-sans text-sm">{notice}</p> : null}
@@ -417,7 +457,7 @@ export default function CjAdmin({ portal = "admin" }) {
                     <span className="block">{subject.name}</span>
                     <span className="text-xs text-neutral-500">G{subject.grade} · {subject.class_section} · P{subject.default_period}</span>
                   </div>
-                  {!teacherMode && subject.is_custom ? (
+                  {subject.is_custom ? (
                     <button type="button" disabled={saving} onClick={() => handleCourseDelete(subject)} className="inline-flex items-center gap-1 border border-red-700 px-2 py-1 text-[10px] uppercase tracking-[0.12em] text-red-700 disabled:opacity-40">
                       {busyKey === `course-delete:${subject.id}` ? <ButtonSpinner /> : null}
                       Delete
@@ -433,6 +473,13 @@ export default function CjAdmin({ portal = "admin" }) {
       )}
     </section>
   );
+}
+
+function syncSummary(status, t) {
+  if (!status || status.status === "idle" || !status.synced_at) return t("cj.syncIdle");
+  const time = new Date(status.synced_at).toLocaleString();
+  if (status.status === "error") return t("cj.syncError", { time, message: status.message });
+  return t("cj.syncOk", { time, courses: status.courses, entries: status.entries });
 }
 
 function examDisplayTitle(exam, subjectMap, unassignedLabel) {

@@ -72,7 +72,7 @@ Must 服务主故事 P1-US1（Forum 发帖被看见）以及角色、跟帖、Ne
 | M23 | 找回密码 | 登录页可走忘记密码。校内邮箱收验证码后设新密码，再用登录接口进站。非 `@basischina.com` 当场拒绝，不发信。 |
 | M24 | 登录后改密码 | 顶栏账号旁可改密码：校验当前密码后设新密码，无需再发验证码。 |
 | M2 | 鉴权与权限 | 未登录可读已发布内容与 Forum 评论；仅登录用户可发帖 / 跟帖；直接发 News 被拒绝。用户不能修改自己的帖或评论。作者可删除自己的 Forum 帖（M21），可撤回自己的评论（M12）。被禁言者仍可登录阅读，也可以撤回自己已发的评论。 |
-| M3 | 多页面 | 至少：News（`/` 报头版式，不再单列 News 列表页）、Forum、CJ（月历、学生端五日周视图、管理端按周）、帖子详情（Forum 含评论）、登录/注册/找回密码、登录后改密码、用户协议、我的帖子、News 草稿、System 通知、超级管理员用户列表。Forum 发帖在栏目页内，无独立 Submit 页。 |
+| M3 | 多页面 | 至少：News（`/` 报头版式，不再单列 News 列表页）、Forum、漂流瓶（`/bottles`）、CJ（月历、学生端五日周视图、管理端按周）、帖子详情（Forum 含评论）、漂流瓶对话、登录/注册/找回密码、登录后改密码、用户协议、我的帖子、News 草稿、System 通知、超级管理员用户列表。Forum 发帖在栏目页内，无独立 Submit 页。 |
 | M4 | 发帖 | Forum：标题、正文必填，发布后 `published`，作者绑定当前用户，可附带最多 4 张图。News 不经此接口公开。 |
 | M6 | 按栏目阅读 | 栏目页只列出该栏目已发布帖。News 详情只展示已同意板块。 |
 | M7 | News 露出 | `/` 的报头版式展示近期已发布 **News**，不含 Forum，不含尚无已同意板块的草稿。导航第一项是 News，没有单独的 News 列表页。 |
@@ -80,7 +80,7 @@ Must 服务主故事 P1-US1（Forum 发帖被看见）以及角色、跟帖、Ne
 | M9 | 关键错误处理 | 密码错误、未登录发帖/跟帖、缺必填、非法栏目、非法配图、无权限、存储失败：均返回明确失败，不创建半截已发布帖或评论。 |
 | M10 | 写操作留痕 | Forum 发帖或创建 News 草稿成功时记录 `author_id`、`created_at`；服务端另写一条审计记录（谁、何时、创建了哪篇帖）。 |
 | M11 | Forum | 与 News、CJ 平级的单一讨论区，不是用户自建多吧。打开 `/forum` 是推荐：分数 `0.6 × 赞 + 0.4 × 评论`，取前 10，分数相同则较新的在前。`/forum/latest` 是最新：按时间取前 10。`/forum/all` 是所有：按时间列出全部，可翻页。 |
-| M26 | CJ | 与 Forum 平级的课表栏，必须登录并按角色进入三个独立入口。学生端从月历按整周进入周一至周五五列只读视图，Period 1–8 自选学科只存在浏览器本地；每位老师由超级管理员分配一个 CJ 学科，只能读取和更新该学科的 CJ 与考试；`super_admin` 管理端可读取和修改全部 CJ、考试以及老师学科分配。考试必须选择学科，学生端自动显示学科前缀。`editor` 与普通 `admin` 不自动获得 CJ 权限。老师或超级管理员可上传作业照片；百炼 `qwen3-vl-flash` 认出学科并写入当天的 IC / HW / A。裁切处补上的文字单独返回，不冒充照片原文。 |
+| M26 | CJ | 与 Forum 平级的课表栏，必须登录。学生与老师只读：学生端从月历按整周进入周一至周五五列视图，Period 1–8 自选学科只存在浏览器本地；只有 `teacher` 的账号进入同一只读视图。`super_admin` 管理端可读取和修改全部 CJ 与考试，并用「提取课程信息」从课表接口拉取。配置了课表地址后，进程启动后很快拉取一次，之后每小时一次，窗口是上海时区本周一到下周五。学生端继续用原来的学科目录自选课。IC / HW / AN 保持源字段，DeepSeek 只做清洗和补全，再按课程名称写到目录里对应的学科上，不另建一套课。未配置密钥时提取失败，已有内容保留。手改会被下一次成功提取覆盖掉该窗口内的 IC / HW / 通知。考试必须选择学科，学生端自动显示学科前缀。`editor` 与普通 `admin` 不自动获得 CJ 权限。仅 `super_admin` 可上传作业照片；百炼 `qwen3-vl-flash` 认出学科并写入当天的 IC / HW / A。裁切处补上的文字单独返回，不冒充照片原文。老师不再写入，也没有老师学科分配。 |
 | M28 | News 独立投稿 | `editor` 或 `super_admin` 在 Draft 填写标题、正文、图片与类别并保存。`editor` 在 Draft 把原文送审，导航里没有 Design。仅 `super_admin` 在 Design 中选择原文或 API 排版并发布，也可从审核队列批准。公开 Front Page 按 `sport` / `dorm` / `scoop` 筛选，`all` 为汇总。没有稿件的首页槽位保留图框、栏目标题和右侧静态栏。`admin` 与 `super_admin` 可撤回已发布文章：公开页不再返回，原稿回到 Draft。 |
 | M12 | Forum 评论 | 仅 Forum：帖子下的评论。未登录可读；登录可写。不新增楼层，不写楼中楼。校报详情不加评论。评论作者可在详情和列表预览上撤回自己的那一条；撤回后不再公开，`reply_count` 减少。`admin` 与 `super_admin` 可删除别人的评论，并给评论作者一条 System 通知。不能改评论正文。 |
 | M13 | 角色 | `student` / `teacher` / `editor` / `admin` / `super_admin`，可同时拥有多项。`ADMIN_EMAIL` 在注册或登录时加上 `super_admin`，不覆盖已有身份。 |
@@ -95,8 +95,10 @@ Must 服务主故事 P1-US1（Forum 发帖被看见）以及角色、跟帖、Ne
 | M29 | 置顶 | 仅 `super_admin` 可把已发布的 Forum 帖或 News 文章置顶或取消。公开列表里置顶项在前，最近置顶的更靠前。其他人 `403`。未发布的稿不能置顶。 |
 | M30 | Forum 互动提示 | 别人赞了或评论了自己已发布的 Forum 帖后，主导航 FORUM 和 Forum 里的「我的」显示红色数字 1。自己的赞和评论不算，校报帖不算，数字不会变成 2。打开「我的」后红点消失。取消赞后若没有别的未读互动，红点消失。未登录不显示。 |
 | M31 | Forum 关键词 | 报头没有搜索框。Forum 栏目标题下有关键词框。提交后只对该读者重排：标题或正文命中的帖在前，未命中的仍在，组内保持该栏原来的顺序。词按用户记在浏览器本地，不改变其他用户的列表，也不是模型打分。 |
-| M22 | 禁言 | 仅 `super_admin` 可禁言或解除。被禁言者可以登录和阅读，不能发帖、跟帖、点赞、创建或提交草稿。不废除其会话。已发帖仍公开。 |
-| M25 | 删除用户 | 仅 `super_admin` 可删除用户。作废其会话，并删除其帖子、评论、点赞与草稿。不给被删用户发 System 通知。 |
+| M33 | 下棋 | Forum 列表右侧空白处有一个国际象棋标识，链到 `/play`。窄屏时标识改到栏目标题下，不盖住帖子。必须登录。页内先选五子棋或国际象棋，再选人机或房间码联机。五子棋人机用本机 Rapfi。国际象棋人机调用 `CHESS_API_URL`（缺省 `https://chess-api.com/v1`），失败时返回明确错误。房间在进程内存里，重启后消失，不写入帖子库。同一房间码的两名已登录用户对弈，座位显示 `display_name`。先手的走子会到后手，后手不能在别人的回合走子。被禁言的人仍可下棋。不下出帖子、评论或 System 通知。不包含中国象棋、跳棋和比赛。 |
+| M32 | 漂流瓶 | 与 Forum 平级的入口 `/bottles`，不是帖子栏目，不进入 News / Forum。必须登录。正文 1–500 字，无标题、图片或标签。每个 UTC 日最多扔 3 枚、捞 5 枚（北京时间每天 08:00 重置）。捞取从不是自己写的、自己还没捞过的瓶子里随机一枚，并建立只属于扔瓶人与这次捞取的私信。同一枚瓶子可被不同同学各捞一次，对话互不可见。自己的瓶子捞不到，已经捞过的不会再捞到。海里没有可捞的瓶子时成功返回空，不报错。同学之间不返回展示名、头像或邮箱。有人回复后，导航 `BOTTLES` 的未读为 `1`，打开该对话后这一条变为已读；别处还有未读时红点仍是 `1`。作者可删除自己的瓶子或撤回自己的回复，不给自己写通知。`admin` 与 `super_admin` 可删除；删除他人的瓶子或回复时给作者一条 System 通知，正文不写对方是谁。对话任一方可举报。管理员在同一页看到被举报的对话，打开后能看到双方展示名和邮箱。没有下架状态，删除就是删行。随机捞取不是模型打分。 |
+| M22 | 禁言 | 仅 `super_admin` 可禁言或解除。被禁言者可以登录和阅读，不能发帖、跟帖、点赞、扔瓶子、捞瓶子、回复漂流瓶、创建或提交草稿。仍可打开已有漂流瓶对话，并撤回自己写过的瓶子或回复。不废除其会话。已发帖仍公开。 |
+| M25 | 删除用户 | 仅 `super_admin` 可删除用户。作废其会话，并删除其帖子、评论、点赞、草稿、扔出的漂流瓶、捞取与回复。不给被删用户发 System 通知。 |
 
 ### Should Have
 
@@ -123,13 +125,13 @@ Must 服务主故事 P1-US1（Forum 发帖被看见）以及角色、跟帖、Ne
 | ID | 不做 | 原因 |
 | --- | --- | --- |
 | W1 | 教务、选课、成绩、官方通知替换系统 | 与校园发帖无关。 |
-| W2 | 关注图谱、模型打分、付费专栏 | Forum 的推荐只按赞 0.6、评论 0.4 取前 10，不算模型推荐。 |
+| W2 | 关注图谱、模型打分、付费专栏 | Forum 的推荐只按赞 0.6、评论 0.4 取前 10，不算模型推荐。漂流瓶只按数据库随机捞一枚，不按赞、评论或画像排序。 |
 | W3 | 原生 App、直播、活动售票 / 支付 | 非 Web 第一版范围；不接支付合规。 |
-| W4 | 未评估的 AI 写作或审核模型，以及从 Teams 群聊识别并写入 CJ | 作业照片识别仍在 M26。不做 AI 审核，不自动改帖，不给学生或老师直接调用模型，不从 Teams 导入 CJ。 |
+| W4 | 未评估的 AI 写作或审核模型，以及从 Teams 群聊识别并写入 CJ | 作业照片识别仍仅超级管理员可用。CJ 每日内容来自课表接口，DeepSeek 只清洗已分好的 IC / HW / AN，不重新分类。不做 AI 审核，不自动改帖，不给学生或老师直接调用模型，不从 Teams 导入 CJ。 |
 | W5 | 向量库、微服务拆分、指定云厂商 | 未评估，不写入本版承诺。 |
 | W6 | 用户自建吧、校报帖下评论、楼层与楼中楼 | Forum 只有一个吧；评论直接挂在帖子上。 |
 | W7 | 下架状态、完整审核后台 | 管理员删帖见 M21，删别人的评论见 M12。没有 `hidden` 状态。News 审稿只按板块同意或退回。 |
-| W8 | 活动时间地点、Sports、Dorm Life / Events / Photo 栏目 | 本版栏目为 News、Forum 与 CJ；Opinion 为静态空栏。`/sports` 回到首页。 |
+| W8 | 活动时间地点、Sports、Dorm Life / Events / Photo 栏目 | 本版栏目为 News、Forum 与 CJ。漂流瓶和下棋是另外的入口，不是帖子栏目。Opinion 为静态空栏。`/sports` 回到首页。 |
 
 登录、数据库、多页面路由、测试均不在 Won't 中。它们按主故事需要出现在 Must 或工程实践中。
 
@@ -176,6 +178,8 @@ Must 服务主故事 P1-US1（Forum 发帖被看见）以及角色、跟帖、Ne
 35. 给定用户 A 已发布一篇 Forum 帖，当用户 B 点赞或评论，则 A 的 `GET /api/v1/me/forum-activity` 为 `{ "unread": 1 }`。A 自己赞或评论不把 `unread` 变成 `1`。多条互动仍是 `1`。A 调用 `POST /api/v1/me/forum-activity/read` 之后为 `0`；之后再有他人评论则又为 `1`。B 取消那次赞且没有其他未读互动时为 `0`。未登录请求为 `401`。B 自己的帖没有这些互动时为 `0`。
 36. 给定三篇已发布 Forum 帖，当某读者用 `q` 搜索且只有较旧的一篇标题或正文含该词（不区分大小写），则该篇排到该读者列表最前，另外两篇仍在且彼此相对顺序不变，`total` 仍是 3。不带 `q` 的另一请求顺序不变。`q` 与非 `forum` 栏目同时出现，或去掉空白后超过 80 字，则 `422`。推荐与最新仍最多 10 条；原先不在这 10 条里的命中帖可以因此出现。一篇帖有 5 条评论时，列表卡片带最近 2 条，从早到晚。
 37. 给定用户 A 在一篇 Forum 帖下发表了评论，当 A 撤回该评论，则评论列表、`reply_count` 与卡片预览都不再包含它，且不写 System 通知。普通用户 B 删除 A 的评论则 `403`，评论仍在。未登录删除则 `401`。`PATCH` 该评论仍是 `405`。当 `admin` 或 `super_admin` 删除 A 的评论，则评论消失，A 的 System 列表出现一条含该帖标题的通知。
+39. 给定已登录学生打开 Forum，则列表右侧有进入 `/play` 的入口。未登录调用五子棋人机、国际象棋人机或创建房间则 `401`。给定一盘五子棋出现非法落子，则该步被拒绝。给定国际象棋人机，当学生走出合法的一步且外部引擎被替换为固定应着，则返回的局面包含这两步。给定学生 A 创建房间、学生 B 用同一房间码加入，当 A 走出先手，则 B 看到这一步；B 在自己的回合到来前走子则被拒绝，局面不变。
+38. 给定已登录学生 A 扔出一枚漂流瓶，当 A 再捞，则捞不到自己的这一枚。当学生 B 与学生 C 各捞到同一枚，则各自得到一条私信；B 的回复不出现在 C 的对话里，两边的响应都不含展示名、头像或邮箱。当 A 在同一 UTC 日扔掉第 4 枚，则 `403`，不落库。海里没有可捞的瓶子时，捞取成功且 `pick` 为 `null`。未登录扔、捞或打开「我的」则 `401`。被禁言者扔、捞或回复则 `403`，仍可打开已有对话并撤回自己的回复。作者删除自己的瓶子后，相关对话为 `404`，且不写 System 通知。`admin` 或 `super_admin` 删除他人的瓶子或回复后，作者的 System 列表出现一条不写对方是谁的通知。任一方举报后，管理员能打开该对话并看到双方展示名和邮箱；学生打开举报列表则 `403`。超级管理员删除扔瓶人后，该瓶子不再能被捞到。有人回复后，对方的 `GET /api/v1/me/bottle-activity` 为 `{ "unread": 1 }`；打开该对话并标成已读后，若没有别的未读回复，则为 `0`。
 
 ### 4.3 关键非功能（可测、且为本产品需要）
 
@@ -202,7 +206,7 @@ Elegram 应用（Web 页面 + 服务端）
 应用存储（用户、会话或等价凭证、帖子、评论、审计记录）
 ```
 
-发帖主路径无必须第三方产品 API。发验证码走通用 SMTP（环境变量），不绑定某一云厂商。M26 的作业照片识别调用百炼，密钥只在环境变量。学校 SSO 未对接。不从 Teams 导入 CJ。
+发帖主路径无必须第三方产品 API。发验证码走通用 SMTP（环境变量），不绑定某一云厂商。M26 的课表同步调用学校课表接口与 DeepSeek，作业照片识别调用百炼，密钥只在环境变量。学校 SSO 未对接。不从 Teams 导入 CJ。
 
 ### 5.2 核心实体
 
@@ -217,13 +221,17 @@ Elegram 应用（Web 页面 + 服务端）
 | SystemNotice | id, user_id, body, created_at | 删帖时写给作者；只读，无回复 |
 | PostLike | user_id, post_id, created_at | 仅 Forum 主帖；同一用户同一帖唯一；取消则删行 |
 | Comment | id, post_id, author_id, parent_id, body, created_at | 仅 Forum；新评论 `parent_id` 为空。写入不接受楼层或楼中楼 |
-| AuditEvent | id, actor_id, action, post_id, at | Forum 发帖或创建 News 草稿成功时追加；只增不改 |
+| Bottle | id, author_id, body, created_at | 登录用户扔出。不是帖子。作者或管理员删除时，其捞取、回复与举报一并去掉 |
+| BottlePick | id, bottle_id, picker_id, created_at, thrower_read_at, picker_read_at | 一次捞取。同一瓶子同一人唯一。对话只对扔瓶人、捞瓶人和 `admin` / `super_admin` 可见 |
+| BottleMessage | id, pick_id, author_id, body, created_at | 该次捞取下的回复。同学之间的接口不返回 `author_id` |
+| BottleReport | id, pick_id, reporter_id, created_at | 同一人同一对话只记一次。管理员据此打开对话 |
+| AuditEvent | id, actor_id, action, post_id, at | Forum 发帖或创建 News 草稿成功时追加；只增不改。漂流瓶不写这条审计 |
 | Subject | id, name, short_name, color, period, sort_order | CJ 学科目录。学生端不按 `period` 固定排课 |
-| CJTeacherSubject | id, user_id, subject_id | 超级管理员给每位老师分配的唯一 CJ 学科；老师端据此过滤 CJ 与考试的读取和写入 |
+| CJTeacherSubject | id, user_id, subject_id | 旧的老师学科分配。不再用于读写权限，接口不再读写它 |
 | CJEntry | id, week_start, day_index, period, subject_id, ic, hw, announcement, updated_at | 某一周、某一天、某一学科的 IC / HW / A |
 | Exam | id, week_start, day_index, subject_id, title, time, location, note, updated_at | 某一周、某一学科的考试安排；前端用学科目录自动补显示前缀 |
 
-`category` 枚举：`news`、`forum`。无 `category` 的列表只含 `news`。
+`category` 枚举：`news`、`forum`。无 `category` 的列表只含 `news`。漂流瓶不使用 `category`。
 
 `status`：`published` 或 News 草稿的 `draft`。Should 增加 `hidden`。
 
@@ -234,12 +242,19 @@ User 1 ─── * Post
 User 1 ─── * Session
 User 1 ─── * Comment
 User 1 ─── * PostLike
+User 1 ─── * Bottle
+User 1 ─── * BottlePick（作为捞瓶人）
+User 1 ─── * BottleMessage
+User 1 ─── * BottleReport
 User 1 ─── * SystemNotice
 User 1 ─── * AuditEvent（作为 actor）
 Post 1 ─── * NewsBlock
 Post 1 ─── * Comment
 Post 1 ─── * PostLike
 Post 1 ─── * AuditEvent
+Bottle 1 ─── * BottlePick
+BottlePick 1 ─── * BottleMessage
+BottlePick 1 ─── * BottleReport
 Comment（新评论不挂到另一条评论下）
 ```
 
@@ -259,10 +274,17 @@ Comment（新评论不挂到另一条评论下）
 | 我的帖子 | Post where author = 当前用户且 `published` | 无 |
 | System | SystemNotice where user = 当前用户 | 无（删帖时由服务端写入） |
 | 超级管理员改角色 / 禁言 | User 列表 | User.roles（可分配身份的新组合，已有 `super_admin` 保留）或 `muted`。禁言不废除会话 |
-| 超级管理员删用户 | User | 删除 User、Session、其 Post、Comment、PostLike、NewsBlock |
+| 扔漂流瓶 | User（当前会话，未禁言，当日未满 3 枚） | Bottle |
+| 捞漂流瓶 | Bottle（不是自己的，且自己还没捞过） | BottlePick。没有可捞的则不写行 |
+| 回复漂流瓶 | User、BottlePick（须为该对话的扔瓶人或捞瓶人，且未禁言） | BottleMessage |
+| 打开漂流瓶对话 | Bottle、BottlePick、BottleMessage（须为参与者或 `admin` / `super_admin`） | 参与者把自己的已读时间写成现在 |
+| 举报漂流瓶 | BottlePick（须为参与者） | BottleReport。同一人重复举报不新增 |
+| 撤回自己的瓶子或回复 | User、Bottle 或 BottleMessage（须为作者） | 删除该行。删瓶子时一并删除其捞取、回复与举报。不写 System 通知 |
+| 管理员删别人的瓶子或回复 | User（`admin` 或 `super_admin`） | 删除该行，并给作者写一条 SystemNotice |
+| 超级管理员删用户 | User | 删除 User、Session、其 Post、Comment、PostLike、NewsBlock、Bottle、BottlePick、BottleMessage、BottleReport |
 | 删帖 | Post | 先写 SystemNotice 给作者，再删除 Post 及其 Comment、NewsBlock、PostLike、配图与该帖 AuditEvent |
-未登录：只读 `published` Post 与 Forum 评论与赞数。  
-`student`：写 Forum 帖、评论与主帖点赞，并可删除自己的 Forum 帖。  
+未登录：只读 `published` Post 与 Forum 评论与赞数。漂流瓶和下棋必须登录。  
+`student`：写 Forum 帖、评论与主帖点赞，并可删除自己的 Forum 帖。登录后可扔、捞、回复漂流瓶，并可删除自己的瓶子与回复。登录后可下五子棋和国际象棋。  
 `editor`：另写 News 草稿并提交板块；可在 Draft 送审原文，不能使用 Design。  
 `admin`：删除帖子，并可撤回已发布的独立 News 文章。  
 `super_admin`：另改角色、禁言、删除用户、写草稿、同意或退回板块、删除帖子、撤回已发布 News 文章。  

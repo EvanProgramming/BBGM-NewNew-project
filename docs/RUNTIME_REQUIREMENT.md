@@ -78,6 +78,10 @@ uvicorn 工作目录为 `backend/`。systemd（或等价）以非特权用户跑
 | `SMTP_USER` | 否 | 空 | SMTP 用户名。 |
 | `SMTP_PASSWORD` | 否 | 空 | SMTP 密码。只写 `.env`。 |
 | `SMTP_FROM` | 否 | 空 | 发件人地址。缺省则用 `SMTP_USER`。 |
+| `CJ_JOURNAL_BASE_URL` | 否 | 空 | 课表站点原点，例如 `https://myclassroomjournal.com`。有值时进程启动后拉取 `GET /public/journal`，之后每小时一次，并写到本地学科目录里对应的课。留空则不拉取。 |
+| `CJ_JOURNAL_API_KEY` | 拉取时是 | 空 | 课表接口的 Bearer 密钥。只写 `.env`。缺密钥时提取接口 `503`，不改已有 CJ。 |
+| `DEEPSEEK_API_KEY` | 拉取时是 | 空 | DeepSeek 密钥，只清洗已分好的 IC / HW / AN。只写 `.env`。缺密钥时提取接口 `503`。 |
+| `DEEPSEEK_MODEL` | 否 | `deepseek-chat` | DeepSeek 模型名。 |
 
 前端构建期（`frontend/.env`，改完须重新 `npm run build` / `npm run dev`）：
 

@@ -22,6 +22,10 @@ class Settings:
     smtp_password: str
     smtp_from: str
     dashscope_api_key: str
+    cj_journal_base_url: str
+    cj_journal_api_key: str
+    deepseek_api_key: str
+    deepseek_model: str
 
 
 def _load_env_file(path: Path) -> None:
@@ -74,4 +78,8 @@ def load_settings() -> Settings:
         smtp_password=os.environ.get("SMTP_PASSWORD") or "",
         smtp_from=smtp_from,
         dashscope_api_key=(os.environ.get("DASHSCOPE_API_KEY") or "").strip(),
+        cj_journal_base_url=(os.environ.get("CJ_JOURNAL_BASE_URL") or "").strip().rstrip("/"),
+        cj_journal_api_key=(os.environ.get("CJ_JOURNAL_API_KEY") or "").strip(),
+        deepseek_api_key=(os.environ.get("DEEPSEEK_API_KEY") or "").strip(),
+        deepseek_model=(os.environ.get("DEEPSEEK_MODEL") or "deepseek-chat").strip() or "deepseek-chat",
     )

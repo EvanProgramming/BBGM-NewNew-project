@@ -8,6 +8,7 @@ import { EmptyCategory, StoryRow, StoryRowSkeleton } from "../components/StoryRo
 import { ErrorBanner, FrontPageLink, SectionRule } from "../components/ui";
 import { canDeletePosts } from "../format";
 import { useI18n } from "../i18n";
+import { ChessMark } from "../play/marks";
 import { mergeLivePosts, useLiveRefresh } from "../live";
 
 function forumQueryKey(userKey) {
@@ -232,8 +233,21 @@ export default function Category({ category, title, feed }) {
   return (
     <div className="mt-8">
       <FrontPageLink />
+      <div className={isForum ? "relative" : ""}>
       <div className={column}>
       <SectionRule>{heading}</SectionRule>
+      {isForum ? (
+        <Link
+          to="/play"
+          aria-label={t("play.markLabel")}
+          className="mb-6 inline-flex flex-col items-center text-black min-[1120px]:hidden"
+        >
+          <ChessMark className="h-14 w-14" />
+          <span className="mt-1 text-center font-sans text-[12px] font-semibold tracking-[0.02em]">
+            {t("play.markLabel")}
+          </span>
+        </Link>
+      ) : null}
       {isForum ? (
         <form onSubmit={onSearch} className="mb-6 flex items-end gap-3">
           <div className="flex min-w-0 max-w-[18rem] flex-1 items-end gap-2">
@@ -306,6 +320,19 @@ export default function Category({ category, title, feed }) {
           ) : null}
         </>
       )}
+      </div>
+      {isForum ? (
+        <Link
+          to="/play"
+          aria-label={t("play.markLabel")}
+          className="absolute right-0 top-12 hidden flex-col items-center text-black min-[1120px]:flex"
+        >
+          <ChessMark className="h-16 w-16" />
+          <span className="mt-1 text-center font-sans text-[12px] font-semibold tracking-[0.02em]">
+            {t("play.markLabel")}
+          </span>
+        </Link>
+      ) : null}
       </div>
       {isForum && !writing ? (
         user ? (

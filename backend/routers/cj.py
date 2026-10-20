@@ -5,11 +5,11 @@ from fastapi import APIRouter, Depends, File, Form, Request, UploadFile
 from sqlalchemy import delete, func, select
 from sqlalchemy.orm import Session
 
+from cj_sync import run_sync, sync_status_payload
 from cj_vision import recognize_homework
 from deps import get_cj_editor, get_cj_viewer, get_core_db, get_super_admin
 from errors import ApiError, validation_error
-from identity import user_has
-from models import CJEntry, CJTeacherSubject, Exam, Subject, User, to_iso, utc_now
+from models import CJEntry, CJSyncState, CJTeacherSubject, Exam, Subject, User, to_iso, utc_now
 
 router = APIRouter()
 
@@ -261,36 +261,31 @@ def _exam_payload(row: Exam) -> dict:
     }
 
 
-def _teacher_subject_ids(db: Session, user_id: str) -> list[str]:
-    return list(
-        db.scalars(
-            select(CJTeacherSubject.subject_id)
-            .where(CJTeacherSubject.user_id == user_id)
-            .order_by(CJTeacherSubject.subject_id)
-        ).all()
+def _journal_configured(request: Request) -> bool:
+    return bool(request.app.state.settings.cj_journal_base_url)
+
+
+def _catalog_ids(db: Session, request: Request, week: str) -> list[str]:
+    if _journal_configured(request):
+        _ensure_subjects(db)
+    else:
+        _ensure_seed(db, week)
+    return list(_SUBJECT_DETAILS) + list(
+        db.scalars(select(Subject.id).where(Subject.is_custom.is_(True))).all()
     )
-
-
-def _teacher_payload(db: Session, user: User) -> dict:
-    return {
-        "id": user.id,
-        "email": user.email,
-        "display_name": user.display_name,
-        "subject_ids": _teacher_subject_ids(db, user.id),
-    }
 
 
 @router.get("/cj")
 def read_cj(
+    request: Request,
     week_start: str = "",
     user: User = Depends(get_cj_viewer),
     db: Session = Depends(get_core_db),
 ):
     week = _week_or_error(week_start)
-    _ensure_seed(db, week)
-    catalog_ids = list(_SUBJECT_DETAILS) + list(
-        db.scalars(select(Subject.id).where(Subject.is_custom.is_(True))).all()
-    )
+    catalog_ids = _catalog_ids(db, request, week)
+    if not catalog_ids:
+        return {"week_start": week, "subjects": [], "entries": [], "exams": []}
     subject_query = (
         select(Subject)
         .where(Subject.id.in_(catalog_ids))
@@ -465,8 +460,16 @@ async def recognize_cj_photo(
     if not raw or len(raw) > _PHOTO_LIMIT:
         raise validation_error([{"field": "image", "message": "Photo must be under 4MB."}])
 
-    _ensure_seed(db, week)
-    subjects = db.scalars(select(Subject).order_by(Subject.sort_order, Subject.name)).all()
+    if _journal_configured(request):
+        _ensure_subjects(db)
+    else:
+        _ensure_seed(db, week)
+    catalog_ids = set(_SUBJECT_DETAILS)
+    subjects = [
+        row
+        for row in db.scalars(select(Subject).order_by(Subject.sort_order, Subject.name)).all()
+        if row.id in catalog_ids or row.is_custom
+    ]
     reading = recognize_homework(
         request.app.state.settings.dashscope_api_key,
         raw,
@@ -599,50 +602,22 @@ def delete_exam(
     return None
 
 
-@router.get("/cj/teachers")
-def list_cj_teachers(
-    _: User = Depends(get_super_admin),
+@router.get("/cj/sync")
+def read_cj_sync(
+    _: object = Depends(get_super_admin),
     db: Session = Depends(get_core_db),
 ):
-    teachers = [
-        teacher
-        for teacher in db.scalars(select(User).order_by(User.display_name, User.email)).all()
-        if user_has(teacher, "teacher")
-    ]
-    return {"items": [_teacher_payload(db, teacher) for teacher in teachers]}
+    return sync_status_payload(db.get(CJSyncState, "current"))
 
 
-@router.put("/cj/teachers/{teacher_id}")
-def assign_cj_teacher_subjects(
-    teacher_id: str,
-    body: dict,
-    _: User = Depends(get_super_admin),
+@router.post("/cj/sync")
+def start_cj_sync(
+    request: Request,
+    _: object = Depends(get_super_admin),
     db: Session = Depends(get_core_db),
 ):
-    teacher = db.get(User, teacher_id)
-    if teacher is None or not user_has(teacher, "teacher"):
-        raise ApiError(404, "not_found", "Teacher not found.")
-
-    raw_ids = body.get("subject_ids")
-    if not isinstance(raw_ids, list) or any(not isinstance(value, str) for value in raw_ids):
-        raise validation_error([{"field": "subject_ids", "message": "Choose one subject."}])
-    subject_ids = list(dict.fromkeys(value.strip() for value in raw_ids if value.strip()))
-    if len(subject_ids) > 1:
-        raise validation_error([{"field": "subject_ids", "message": "Each teacher can manage one CJ subject."}])
-    existing_ids = set(
-        db.scalars(select(Subject.id).where(Subject.id.in_(subject_ids))).all()
-    ) if subject_ids else set()
-    if len(existing_ids) != len(subject_ids):
-        raise validation_error([{"field": "subject_ids", "message": "One or more subjects do not exist."}])
-
-    db.execute(delete(CJTeacherSubject).where(CJTeacherSubject.user_id == teacher.id))
-    for subject_id in subject_ids:
-        db.add(
-            CJTeacherSubject(
-                id=str(uuid4()),
-                user_id=teacher.id,
-                subject_id=subject_id,
-            )
-        )
-    db.flush()
-    return _teacher_payload(db, teacher)
+    return run_sync(
+        db,
+        request.app.state.settings,
+        session_factory=request.app.state.core_session_factory,
+    )

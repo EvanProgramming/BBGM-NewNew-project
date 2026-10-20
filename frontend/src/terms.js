@@ -5,7 +5,7 @@ function p(text, bold = false) {
 export const TERMS = {
   en: {
     title: "User agreement",
-    makers: "This site was made by Tori Zhao, Leo Gao, Ben Lu, and Dewey Peng.",
+    makers: "Founders: Tori Zhao and Jason Fang. This site was built by Leo Gao, Ben Lyu, Dewey Peng, and Tori Zhao. The newsletter is contributed by Media Club.",
     covers: "It covers Elegram: registration, sign-in, reading, Forum posts and comments, News copy, accounts, and notices.",
     version: "Version date: 5 October 2026.",
     lead: [
@@ -17,7 +17,7 @@ export const TERMS = {
       {
         heading: "1. Scope",
         paragraphs: [
-          p("1.1 Tori Zhao, Leo Gao, Ben Lu, and Dewey Peng made this site for students at the same school to read the paper and talk on Forum."),
+          p("1.1 Tori Zhao and Jason Fang founded this site. Leo Gao, Ben Lyu, Dewey Peng, and Tori Zhao built it for students at the same school to read the paper and talk on Forum. Media Club contributes the newsletter."),
           p("1.2 This agreement covers account security, how you use the site, and how the makers handle security. It is not a government filing, and the makers do not file reports to an authority through this site."),
           p("1.3 The site has no payments, no recommendation ranking, and no automatic review. A Forum post is public as soon as it is published. A News section stays off the public page until a super admin approves it."),
         ],
@@ -93,7 +93,7 @@ export const TERMS = {
   },
   zh: {
     title: "用户协议",
-    makers: "本站由 Tori Zhao、Leo Gao、Ben Lu、Dewey Peng 制作。",
+    makers: "创始人：Tori Zhao、Jason Fang。网站由 Leo Gao、Ben Lyu、Dewey Peng、Tori Zhao 搭建。校报由 Media Club 供稿。",
     covers: "本协议覆盖 Elegram：注册、登录、阅读、论坛发帖与评论、新闻稿、账号和通知。",
     version: "版本日期：2026 年 10 月 5 日。",
     lead: [
@@ -105,7 +105,7 @@ export const TERMS = {
       {
         heading: "1. 范围",
         paragraphs: [
-          p("1.1 Tori Zhao、Leo Gao、Ben Lu、Dewey Peng 制作本站，供同一所学校的学生阅读校报并在论坛讨论。"),
+          p("1.1 Tori Zhao、Jason Fang 创立本站。Leo Gao、Ben Lyu、Dewey Peng、Tori Zhao 搭建本站，供同一所学校的学生阅读校报并在论坛讨论。校报由 Media Club 供稿。"),
           p("1.2 本协议约定账号安全、使用方式，以及制作者如何处理安全问题。这不是政府备案，制作者也不通过本站向主管机关报送。"),
           p("1.3 本站没有支付、没有推荐排序、没有自动审核。论坛帖子一经发布即公开。新闻板块在超级管理员同意之前不会出现在公开页面。"),
         ],
