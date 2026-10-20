@@ -69,15 +69,15 @@ export default function Home() {
   return (
     <div>
       <ErrorBanner error={error} />
-      <div className="flex flex-wrap items-center justify-between gap-4 border-b border-black pt-5 pb-3" aria-label="News categories">
-        <div className="flex flex-wrap gap-x-6 gap-y-2">
+      <div className="flex flex-wrap items-center justify-between gap-4 border-b border-black pb-3 pt-5" aria-label="News categories">
+        <div className="flex flex-wrap items-center gap-x-1 gap-y-1">
           {TOPICS.map((item) => (
-            <button key={item.id} type="button" aria-pressed={topic === item.id} onClick={() => selectTopic(item.id)} className={`font-sans text-[11px] font-semibold uppercase tracking-[0.16em] ${topic === item.id ? "text-[#1A4FBF]" : "text-neutral-500 hover:text-black"}`}>
+            <button key={item.id} type="button" aria-pressed={topic === item.id} onClick={() => selectTopic(item.id)} className="nav-pill font-sans text-[13px] font-bold uppercase tracking-[0.12em]">
               {item.label}
             </button>
           ))}
         </div>
-        <span className="font-sans text-xs text-neutral-500">{total} stories</span>
+        <span className="font-sans text-[13px] font-medium text-neutral-600">{total} stories</span>
       </div>
       <HomeGrid items={items} total={total} loading={loading} />
     </div>

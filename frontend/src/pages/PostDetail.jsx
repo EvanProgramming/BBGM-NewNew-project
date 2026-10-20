@@ -202,7 +202,7 @@ export default function PostDetail() {
   }
 
   return (
-    <article className="mx-auto mt-10 min-w-0 max-w-[42rem]">
+    <article className="mx-auto mt-10 min-w-0 max-w-[46rem]">
       <FrontPageLink to={forumBack || "/"} labelKey={forumBack ? "link.forum" : "link.front"} />
       {loading ? (
         <>
@@ -223,7 +223,7 @@ export default function PostDetail() {
           <Headline className="mt-2 text-4xl [overflow-wrap:anywhere] sm:text-5xl">{post.title}</Headline>
           <div className="mt-3 flex items-center gap-3">
             {isForum ? <Avatar avatar={post.author?.avatar} size={48} /> : null}
-            <p className="font-sans text-sm text-neutral-500">
+            <p className="font-sans text-[15px] font-semibold text-neutral-600">
               {post.author?.display_name}
               {post.created_at ? ` · ${formatDateline(post.created_at, lang)}` : ""}
             </p>
@@ -231,12 +231,13 @@ export default function PostDetail() {
           {post.images?.length ? (
               <div className="mt-6 grid gap-3">
                 {post.images.map((src) => (
-                  <img
-                    key={src}
-                    src={uploadSrc(src)}
-                    alt=""
-                    className="w-full border border-black object-contain"
-                  />
+                  <div key={src} className="zoom-frame border border-black">
+                    <img
+                      src={uploadSrc(src)}
+                      alt=""
+                      className="w-full object-contain"
+                    />
+                  </div>
                 ))}
               </div>
             ) : null}
@@ -246,16 +247,16 @@ export default function PostDetail() {
           {post.category === "news" && post.blocks?.length && !post.news_categories?.length ? (
             <div className="mt-8 space-y-8">
               {post.blocks.map((block) => (
-                <section key={block.id}>
-                  <h2 className="font-serif text-2xl">{block.heading}</h2>
-                  <div className="mt-3 whitespace-pre-wrap font-sans text-[16px] leading-7 text-neutral-900">
+                <section key={block.id} className="border-b border-neutral-300 pb-8 last:border-b-0">
+                  <h2 className="font-serif text-3xl font-bold">{block.heading}</h2>
+                  <div className="mt-3 whitespace-pre-wrap font-sans text-[17px] font-medium leading-8 text-neutral-900">
                     {block.body}
                   </div>
                 </section>
               ))}
             </div>
           ) : (
-            <div className={`mt-8 whitespace-pre-wrap font-sans text-[16px] leading-7 text-neutral-900 [overflow-wrap:anywhere] ${isForum ? "rounded-2xl bg-[#F4F5F7] p-4" : ""}`}>
+            <div className={`mt-8 whitespace-pre-wrap font-sans text-[17px] font-medium leading-8 text-neutral-900 [overflow-wrap:anywhere] ${isForum ? "rounded-2xl bg-[#F4F5F7] p-5" : ""}`}>
               {post.body}
             </div>
           )}

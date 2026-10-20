@@ -63,7 +63,6 @@ export default function Category({ category, title, feed }) {
   const [ready, setReady] = useState(false);
 
   const isForum = category === "forum";
-  const canWrite = isForum && Boolean(user);
 
   useEffect(() => {
     if (feed === "mine" && !authReady) return undefined;

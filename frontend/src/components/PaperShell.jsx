@@ -9,21 +9,19 @@ import { canEditNews, CATEGORY_ROUTES, formatToday, hasRole } from "../format";
 import { useI18n } from "../i18n";
 import { TermsDialog } from "../pages/Terms";
 
-function navClass({ isActive }) {
-  return `font-sans text-[12px] font-medium uppercase tracking-[0.18em] ${
-    isActive ? "text-neutral-900" : "text-neutral-900 hover:text-[#1A4FBF]"
-  }`;
+function navClass() {
+  return "nav-pill font-sans text-[14px] font-bold uppercase tracking-[0.12em] sm:text-[15px]";
 }
 
 const menuItemClass =
-  "block w-full px-4 py-2 text-left uppercase tracking-[0.18em] hover:text-[#1A4FBF]";
+  "block w-full px-4 py-2.5 text-left text-[13px] font-semibold uppercase tracking-[0.14em] transition-colors hover:bg-[#1A4FBF] hover:text-white";
 
 function BarMenu({ label, open, onToggle, children }) {
   return (
     <div className="relative">
       <button
         type="button"
-        className="uppercase"
+        className="nav-pill uppercase"
         aria-expanded={open}
         aria-haspopup="menu"
         onClick={onToggle}
@@ -49,7 +47,7 @@ function SearchIcon() {
       strokeWidth="1.75"
       strokeLinecap="round"
       strokeLinejoin="round"
-      className="h-[15px] w-[15px] shrink-0 text-[#1A4FBF]"
+      className="h-[18px] w-[18px] shrink-0 text-[#1A4FBF]"
       aria-hidden="true"
     >
       <circle cx="11" cy="11" r="6.5" />
@@ -68,7 +66,7 @@ function ActivityBadge({ label }) {
   return (
     <span
       title={label}
-      className="ml-1 inline-flex h-[15px] min-w-[15px] items-center justify-center rounded-full bg-[#E10600] px-[4px] font-sans text-[9px] font-bold leading-none tracking-normal text-white normal-case"
+      className="ml-1 inline-flex h-[16px] min-w-[16px] items-center justify-center rounded-full bg-[#E10600] px-[4px] font-sans text-[10px] font-bold leading-none tracking-normal text-white normal-case"
     >
       1
     </span>
@@ -162,13 +160,13 @@ export default function PaperShell() {
 
   return (
     <div className="min-h-screen bg-white text-[#111111]">
-      <div className="mx-auto max-w-[1180px] px-8 pb-20">
+      <div className="mx-auto max-w-[1480px] px-4 pb-20 sm:px-6 lg:px-10">
         <div
           ref={barRef}
-          className="border-b border-black py-[10px] font-sans text-[11px] font-medium tracking-[0.18em] text-[#111111]"
+          className="border-b border-black py-2.5 font-sans text-[12px] font-semibold tracking-[0.14em] text-[#111111] sm:text-[13px]"
         >
           <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-2">
-            <nav className="flex flex-wrap items-center gap-x-6 gap-y-2 uppercase" aria-label="Site">
+            <nav className="flex flex-wrap items-center gap-x-2 gap-y-1 uppercase" aria-label="Site">
               <BarMenu label={t("shell.system")} open={openMenu === "system"} onToggle={() => toggleMenu("system")}>
                 <Link role="menuitem" to="/about" className={menuItemClass}>
                   {t("shell.about")}
@@ -208,15 +206,15 @@ export default function PaperShell() {
                 </BarMenu>
               ) : null}
               {user ? (
-                <Link to="/me/posts" className="uppercase">
+                <Link to="/me/posts" className="nav-pill uppercase">
                   {t("shell.myPosts")}
                 </Link>
               ) : null}
-              <Link to="/system" className="uppercase">
+              <Link to="/system" className="nav-pill uppercase">
                 {t("shell.notices")}
               </Link>
             </nav>
-            <div className="flex flex-wrap items-center gap-x-5 gap-y-2">
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
               {user ? (
                 <>
                   <Link
@@ -226,13 +224,13 @@ export default function PaperShell() {
                     <Avatar avatar={user.avatar} size={28} />
                     {user.display_name}
                   </Link>
-                  <button type="button" onClick={onSignOut} disabled={signingOut} className="inline-flex items-center gap-2 uppercase disabled:opacity-40">
+                  <button type="button" onClick={onSignOut} disabled={signingOut} className="nav-pill inline-flex items-center gap-2 uppercase disabled:opacity-40">
                     {signingOut ? <ButtonSpinner /> : null}
                     {t("shell.signOut")}
                   </button>
                 </>
               ) : (
-                <Link to="/sign-in" className="uppercase">
+                <Link to="/sign-in" className="nav-pill uppercase">
                   {t("shell.signIn")}
                 </Link>
               )}
@@ -243,8 +241,8 @@ export default function PaperShell() {
           </div>
         </div>
 
-        <header className="grid grid-cols-[1fr_auto_1fr] items-center gap-6 pb-1 pt-8">
-          <form onSubmit={onSearch} className="flex max-w-[13rem] items-end gap-2">
+        <header className="grid grid-cols-1 justify-items-center gap-4 pb-1 pt-6 sm:grid-cols-[1fr_auto_1fr] sm:items-center sm:gap-6 sm:pt-8">
+          <form onSubmit={onSearch} className="order-2 flex w-full max-w-[16rem] items-end gap-2 sm:order-none">
             <label className="sr-only" htmlFor="masthead-search">
               {t("shell.search")}
             </label>
@@ -254,35 +252,35 @@ export default function PaperShell() {
               value={query}
               onChange={(event) => setQuery(event.target.value)}
               placeholder={t("shell.searchPlaceholder")}
-              className="w-full border-0 border-b border-black bg-transparent pb-[3px] font-sans text-[13px] font-normal text-[#111111] outline-none placeholder:text-neutral-400"
+              className="w-full border-0 border-b border-black bg-transparent pb-[3px] font-sans text-[15px] font-medium text-[#111111] outline-none placeholder:text-neutral-400"
             />
           </form>
 
           <Link
             to="/"
             aria-label="Elegram"
-            className="relative z-10 flex cursor-pointer items-center justify-center whitespace-nowrap no-underline"
+            className="relative z-10 order-1 flex cursor-pointer items-center justify-center whitespace-nowrap no-underline sm:order-none"
           >
-            <span className="font-wordmark-elegram text-[52px] sm:text-[68px]">Elegram</span>
+            <span className="font-wordmark-elegram text-[54px] sm:text-[78px]">Elegram</span>
           </Link>
 
-          <div className="text-right">
-            <p className="font-sans text-[10px] font-semibold tracking-[0.16em] text-[#1A4FBF]">
+          <div className="order-3 text-center sm:order-none sm:text-right">
+            <p className="font-sans text-[12px] font-bold tracking-[0.16em] text-[#1A4FBF]">
               {t("shell.ownedBy")}
             </p>
-            <p className="mt-[3px] font-sans text-[10px] font-normal tracking-[0.01em] text-neutral-500">
+            <p className="mt-[3px] font-sans text-[12px] font-medium tracking-[0.01em] text-neutral-600">
               {t("shell.owners")}
             </p>
           </div>
         </header>
 
-        <p className="pb-6 pt-4 text-center font-sans text-[13px] font-semibold uppercase tracking-[0.28em] text-[#111111]">
+        <p className="pb-6 pt-5 text-center font-sans text-[13px] font-bold uppercase tracking-[0.2em] text-[#111111] sm:text-[15px] sm:tracking-[0.26em]">
           <Link to="/" className="text-inherit no-underline">
             {t("shell.tagline")}
           </Link>
         </p>
 
-        <nav className="flex flex-wrap items-center justify-center gap-x-10 gap-y-2 border-b-[2.5px] border-black pb-[14px]">
+        <nav className="flex flex-wrap items-center justify-center gap-x-1 gap-y-1 border-b-[3px] border-black pb-3 sm:gap-x-2">
           <NavLink to="/" end className={navClass}>
             {t("nav.news")}
           </NavLink>
@@ -304,7 +302,7 @@ export default function PaperShell() {
 
         {location.pathname === "/forum" || location.pathname.startsWith("/forum/") ? (
           <nav
-            className="flex flex-wrap items-center justify-center gap-x-8 gap-y-2 border-b border-neutral-200 py-3"
+            className="flex flex-wrap items-center justify-center gap-x-2 gap-y-1 border-b border-neutral-300 py-3"
             aria-label="Forum"
           >
             {[
@@ -317,17 +315,11 @@ export default function PaperShell() {
                 key={item.to}
                 to={item.to}
                 end={item.end}
-                className={({ isActive }) =>
-                  `inline-flex items-center font-sans text-[13px] ${
-                    isActive ? "text-[#1A4FBF]" : "text-neutral-900 hover:text-[#1A4FBF]"
-                  }`
-                }
+                className="nav-pill inline-flex items-center font-sans text-[14px] font-bold"
               >
-                {({ isActive }) => (
+                {() => (
                   <>
-                    <span className={isActive ? "underline decoration-2 underline-offset-[7px]" : undefined}>
-                      {t(item.label)}
-                    </span>
+                    <span>{t(item.label)}</span>
                     {item.to === "/forum/mine" && forumUnread ? (
                       <ActivityBadge label={t("forum.activityBadge")} />
                     ) : null}
@@ -344,7 +336,7 @@ export default function PaperShell() {
 
         <Outlet />
 
-        <p className="mt-16 border-t border-neutral-200 pt-4 font-sans text-[11px] leading-5 text-neutral-500">
+        <p className="mt-16 border-t border-neutral-300 pt-5 font-sans text-[13px] font-medium leading-6 text-neutral-600">
           {t("shell.footer")}
         </p>
       </div>

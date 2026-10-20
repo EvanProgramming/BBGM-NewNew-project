@@ -52,11 +52,11 @@ export default function ResetPassword() {
 
   if (done) {
     return (
-      <div className="mx-auto mt-10 max-w-md">
+      <div className="mx-auto mt-10 max-w-lg">
         <FrontPageLink />
         <SectionRule>{t("reset.title")}</SectionRule>
-        <p className="font-sans text-sm text-neutral-700">{t("reset.updated")}</p>
-        <p className="mt-4 font-sans text-sm">
+        <p className="font-sans text-[15px] text-neutral-700">{t("reset.updated")}</p>
+        <p className="mt-4 font-sans text-[15px]">
           <Link to="/sign-in" className="text-[#1A4FBF]">
             {t("signIn.submit")}
           </Link>
@@ -66,13 +66,13 @@ export default function ResetPassword() {
   }
 
   return (
-    <div className="mx-auto mt-10 max-w-md">
+    <div className="mx-auto mt-10 max-w-lg">
       <FrontPageLink />
       <SectionRule>{t("reset.title")}</SectionRule>
       <ErrorBanner error={banner} />
       <form onSubmit={onSubmit} autoComplete="off" className="space-y-5">
         <div>
-          <label className="block font-sans text-[11px] uppercase tracking-[0.16em] text-[#1A4FBF]" htmlFor="email">
+          <label className="block font-sans text-[13px] uppercase tracking-[0.16em] text-[#1A4FBF]" htmlFor="email">
             {t("reset.email")}
           </label>
           <input
@@ -84,12 +84,12 @@ export default function ResetPassword() {
               setEmail(event.target.value);
               setCodeSent(false);
             }}
-            className="mt-2 w-full border-0 border-b border-black py-2 font-sans text-sm outline-none"
+            className="mt-2 w-full border-0 border-b border-black py-2 font-sans text-[15px] outline-none"
           />
           <FieldError message={fieldMessage(error, "email")} />
         </div>
         <div>
-          <label className="block font-sans text-[11px] uppercase tracking-[0.16em] text-[#1A4FBF]" htmlFor="code">
+          <label className="block font-sans text-[13px] uppercase tracking-[0.16em] text-[#1A4FBF]" htmlFor="code">
             {t("reset.code")}
           </label>
           <div className="mt-2 flex items-end gap-3">
@@ -99,26 +99,26 @@ export default function ResetPassword() {
               autoComplete="one-time-code"
               value={code}
               onChange={(event) => setCode(event.target.value.replace(/\D/g, "").slice(0, 6))}
-              className="min-w-0 flex-1 border-0 border-b border-black py-2 font-sans text-sm outline-none"
+              className="min-w-0 flex-1 border-0 border-b border-black py-2 font-sans text-[15px] outline-none"
             />
             <button
               type="button"
               disabled={sendingCode || waiting}
               onClick={onSendCode}
-              className="inline-flex shrink-0 items-center gap-2 border border-black px-3 py-2 font-sans text-[11px] uppercase tracking-[0.16em] disabled:opacity-40"
+              className="inline-flex shrink-0 items-center gap-2 border border-black px-4 py-2.5 font-sans text-[13px] uppercase tracking-[0.16em] disabled:opacity-40"
             >
               {sendingCode ? <ButtonSpinner /> : null}
               {sendingCode ? t("register.sending") : waiting ? t("code.wait", { seconds: secondsLeft }) : t("register.send")}
             </button>
           </div>
           <FieldError message={fieldMessage(error, "code")} />
-          <p className="mt-2 font-sans text-sm text-neutral-500">{t("code.hint")}</p>
+          <p className="mt-2 font-sans text-[15px] text-neutral-500">{t("code.hint")}</p>
           {(codeSent || waiting) && !fieldMessage(error, "code") && !fieldMessage(error, "email") ? (
-            <p className="mt-2 font-sans text-sm text-neutral-500">{t("reset.sent")}</p>
+            <p className="mt-2 font-sans text-[15px] text-neutral-500">{t("reset.sent")}</p>
           ) : null}
         </div>
         <div>
-          <label className="block font-sans text-[11px] uppercase tracking-[0.16em] text-[#1A4FBF]" htmlFor="password">
+          <label className="block font-sans text-[13px] uppercase tracking-[0.16em] text-[#1A4FBF]" htmlFor="password">
             {t("reset.new")}
           </label>
           <ManualPasswordInput id="password" value={password} onChange={(event) => setPassword(event.target.value)} />
@@ -127,13 +127,13 @@ export default function ResetPassword() {
         <button
           type="submit"
           disabled={submitting}
-          className="inline-flex items-center gap-2 rounded-[2px] bg-black px-5 py-2 font-sans text-[11px] uppercase tracking-[0.18em] text-white disabled:opacity-40"
+          className="inline-flex items-center gap-2 rounded-[2px] bg-black px-6 py-2.5 font-sans text-[13px] uppercase tracking-[0.16em] text-white disabled:opacity-40"
         >
           {submitting ? <ButtonSpinner /> : null}
           {t("reset.submit")}
         </button>
       </form>
-      <p className="mt-6 font-sans text-sm text-neutral-500">
+      <p className="mt-6 font-sans text-[15px] text-neutral-500">
         <Link to="/sign-in" className="text-[#1A4FBF]">
           {t("reset.back")}
         </Link>

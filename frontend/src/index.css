@@ -10,6 +10,7 @@
 html {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  font-size: 17px;
 }
 
 body {
@@ -17,6 +18,94 @@ body {
   background: #ffffff;
   color: #111111;
   font-family: var(--font-sans);
+  font-weight: 500;
+}
+
+/* Navigation pills: a blue block on hover and on the current page. */
+.nav-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.38rem 0.5rem;
+  color: #111111;
+  line-height: 1.1;
+  text-decoration: none;
+  border-radius: 2px;
+  transition:
+    background-color 0.18s ease,
+    color 0.18s ease;
+}
+
+.nav-pill:hover,
+.nav-pill:focus-visible,
+.nav-pill[aria-current="page"],
+.nav-pill[aria-pressed="true"] {
+  background-color: #1a4fbf;
+  color: #ffffff;
+}
+
+@media (min-width: 640px) {
+  .nav-pill {
+    padding: 0.45rem 0.85rem;
+  }
+}
+
+/* Inline text links: underline plus a stronger blue on hover. */
+.text-link {
+  color: inherit;
+  text-decoration: none;
+  transition:
+    color 0.16s ease,
+    text-decoration-color 0.16s ease;
+}
+
+.text-link:hover,
+.text-link:focus-visible {
+  color: #0b3a9c;
+  font-weight: 700;
+  text-decoration: underline;
+  text-decoration-thickness: 2px;
+  text-underline-offset: 4px;
+}
+
+/* Images zoom inside a fixed frame. The frame lifts as well so the effect is
+   visible even on the blue placeholder wells. */
+.zoom-frame {
+  position: relative;
+  z-index: 0;
+  overflow: hidden;
+  transition:
+    transform 0.45s cubic-bezier(0.22, 0.61, 0.36, 1),
+    box-shadow 0.45s ease;
+}
+
+.zoom-frame:hover,
+.zoom-frame:focus-within {
+  z-index: 2;
+  transform: scale(1.025);
+  box-shadow: 0 14px 34px rgba(17, 17, 17, 0.18);
+}
+
+.zoom-frame img,
+.zoom-frame .zoom-target {
+  display: block;
+  transition: transform 0.5s cubic-bezier(0.22, 0.61, 0.36, 1);
+  will-change: transform;
+}
+
+.zoom-frame:hover img,
+.zoom-frame:focus-within img,
+.zoom-frame:hover .zoom-target,
+.zoom-frame:focus-within .zoom-target {
+  transform: scale(1.07);
+}
+
+.image-well-fill {
+  background-color: #d6deee;
+  background-image:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.5) 0%, rgba(255, 255, 255, 0) 48%),
+    radial-gradient(circle at 72% 24%, rgba(26, 79, 191, 0.14), transparent 56%);
+  background-size: 140% 140%;
+  background-position: center;
 }
 
 #root {
@@ -74,6 +163,12 @@ body {
   .cj-welcome-in,
   .like-pop {
     animation: none;
+  }
+
+  .zoom-frame,
+  .zoom-frame img,
+  .zoom-frame .zoom-target {
+    transition: none;
   }
 }
 
