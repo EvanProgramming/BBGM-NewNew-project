@@ -71,7 +71,7 @@ function Hero({ items, loading }) {
           <SlotTitle
             post={featured}
             fallback={t("home.featuredTitle")}
-            className="mt-2 text-[44px] font-bold leading-[1.02] sm:text-[56px]"
+            className="mt-2 text-[38px] font-bold leading-[1.04] sm:text-[46px]"
           />
           {featured?.excerpt ? <Dek>{featured.excerpt}</Dek> : null}
           <Byline post={featured} className="mt-3" />
