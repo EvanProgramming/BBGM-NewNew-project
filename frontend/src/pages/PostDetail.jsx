@@ -5,7 +5,7 @@ import { useAuth } from "../auth";
 import { uploadSrc } from "../avatar";
 import { Avatar } from "../components/Avatar";
 import { ForumLikeButton } from "../components/CommunityCard";
-import { ErrorBanner, FieldError, FrontPageLink, Headline, ImageWell, Kicker, TitleLine, ButtonSpinner } from "../components/ui";
+import { ErrorBanner, FieldError, FrontPageLink, Headline, ImageWell, Kicker, SafeImage, TitleLine, ButtonSpinner } from "../components/ui";
 import { canDeletePosts, canPinPosts, formatDateline, forumListPath, newsTopicsLabel } from "../format";
 import { useI18n } from "../i18n";
 import { mergeLiveFloors, useLiveRefresh } from "../live";
@@ -262,12 +262,8 @@ export default function PostDetail() {
           {post.images?.length ? (
               <div className="mt-6 grid gap-3">
                 {post.images.map((src) => (
-                  <div key={src} className="zoom-frame border border-black">
-                    <img
-                      src={uploadSrc(src)}
-                      alt=""
-                      className="w-full object-contain"
-                    />
+                  <div key={src} className="zoom-frame border border-black bg-[#D6DEEE]">
+                    <SafeImage src={uploadSrc(src)} className="w-full object-contain" />
                   </div>
                 ))}
               </div>

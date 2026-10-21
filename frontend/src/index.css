@@ -110,6 +110,35 @@ body {
 
 #root {
   min-height: 100vh;
+  overflow-x: clip;
+}
+
+/* A rule that spans the full viewport even though the content is centered. */
+.full-bleed-rule {
+  position: relative;
+}
+
+.full-bleed-rule::after,
+.full-bleed-rule-thin::after {
+  content: "";
+  position: absolute;
+  bottom: 0;
+  left: 50%;
+  width: 100vw;
+  transform: translateX(-50%);
+  pointer-events: none;
+}
+
+.full-bleed-rule::after {
+  border-bottom: 3px solid #111111;
+}
+
+.full-bleed-rule-thin {
+  position: relative;
+}
+
+.full-bleed-rule-thin::after {
+  border-bottom: 1px solid #111111;
 }
 
 @keyframes cj-welcome-in {

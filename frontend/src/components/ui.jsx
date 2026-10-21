@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { formatDateline, newsTopicsLabel } from "../format";
 import { useI18n } from "../i18n";
@@ -12,14 +13,21 @@ export function ButtonSpinner() {
   );
 }
 
+export function SafeImage({ src, alt = "", className = "h-full w-full object-cover" }) {
+  const [failed, setFailed] = useState(false);
+  useEffect(() => {
+    setFailed(false);
+  }, [src]);
+  if (!src || failed) {
+    return <div className="zoom-target image-well-fill h-full w-full" />;
+  }
+  return <img src={src} alt={alt} onError={() => setFailed(true)} className={className} />;
+}
+
 export function ImageWell({ className = "h-40", src, alt = "" }) {
   return (
     <div className={`zoom-frame bg-[#D6DEEE] ${className}`} aria-hidden={src ? undefined : "true"}>
-      {src ? (
-        <img src={src} alt={alt} className="h-full w-full object-cover" />
-      ) : (
-        <div className="zoom-target image-well-fill h-full w-full" />
-      )}
+      <SafeImage src={src} alt={alt} />
     </div>
   );
 }
@@ -122,12 +130,48 @@ export function Byline({ post, className = "" }) {
   );
 }
 
-export function SectionRule({ children }) {
+export function SectionRule({ children, first = false }) {
   return (
-    <div className="mb-6 mt-12 flex items-center gap-5 border-t border-neutral-300 pt-8">
-      <h2 className="font-serif text-[34px] font-extrabold leading-none tracking-[-0.02em]">{children}</h2>
-      <div className="h-[3px] flex-1 bg-black" />
+    <div className={`mb-7 flex items-center gap-5 border-t border-neutral-200 ${first ? "mt-0 pt-0" : "mt-14 pt-8"}`}>
+      <h2 className="font-serif text-[40px] font-extrabold leading-none tracking-[-0.02em] sm:text-[44px]">{children}</h2>
+      <div className="h-[4px] flex-1 bg-black" />
     </div>
+  );
+}
+
+export function CompactStoryRow({ post, className = "" }) {
+  if (!post) {
+    return (
+      <article className={`grid grid-cols-[6.5rem_1fr] gap-4 border-b border-neutral-300 pb-5 sm:grid-cols-[9rem_1fr] ${className}`}>
+        <ImageWell className="h-24 sm:h-28" />
+        <div className="flex flex-col justify-center gap-3">
+          <TitleLine />
+          <TitleLine className="w-1/2" />
+        </div>
+      </article>
+    );
+  }
+  const image = post.images?.[0] ? uploadSrc(post.images[0]) : undefined;
+  return (
+    <article className={`grid grid-cols-[6.5rem_1fr] gap-4 border-b border-neutral-300 pb-5 sm:grid-cols-[9rem_1fr] ${className}`}>
+      {image ? (
+        <Link to={`/posts/${post.id}`} aria-label={`Read ${post.title}`} className="zoom-frame block h-24 bg-[#D6DEEE] sm:h-28">
+          <SafeImage src={image} />
+        </Link>
+      ) : <ImageWell className="h-24 sm:h-28" />}
+      <div className="min-w-0">
+        {post.news_categories?.length ? (
+          <p className="font-sans text-[13px] font-bold uppercase tracking-[0.14em] text-[#1A4FBF]">{newsTopicsLabel(post.news_categories)}</p>
+        ) : (
+          <Kicker category={post.category} />
+        )}
+        <Headline to={`/posts/${post.id}`} className="mt-1 text-[1.35rem]">
+          {post.title}
+        </Headline>
+        <Dek>{post.excerpt}</Dek>
+        <Byline post={post} />
+      </div>
+    </article>
   );
 }
 
@@ -144,7 +188,7 @@ export function StoryTile({ post, wellClassName = "h-36", showExcerpt = true }) 
     <article className="border-b border-neutral-300 pb-5">
       {post.images?.[0] ? (
         <Link to={`/posts/${post.id}`} aria-label={`Read ${post.title}`} className={`zoom-frame block bg-[#D6DEEE] ${wellClassName}`}>
-          <img src={uploadSrc(post.images[0])} alt="" className="h-full w-full object-cover" />
+          <SafeImage src={uploadSrc(post.images[0])} />
         </Link>
       ) : <ImageWell className={wellClassName} />}
       <div className="mt-3">

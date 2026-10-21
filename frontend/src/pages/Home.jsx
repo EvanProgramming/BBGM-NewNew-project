@@ -72,14 +72,14 @@ export default function Home() {
       <div className="flex flex-wrap items-center justify-between gap-4 border-b border-black pb-3 pt-5" aria-label="News categories">
         <div className="flex flex-wrap items-center gap-x-1 gap-y-1">
           {TOPICS.map((item) => (
-            <button key={item.id} type="button" aria-pressed={topic === item.id} onClick={() => selectTopic(item.id)} className="nav-pill font-sans text-[13px] font-bold uppercase tracking-[0.12em]">
+            <button key={item.id} type="button" aria-pressed={topic === item.id} onClick={() => selectTopic(item.id)} className="nav-pill font-sans text-[14px] font-bold uppercase tracking-[0.12em]">
               {item.label}
             </button>
           ))}
         </div>
-        <span className="font-sans text-[13px] font-medium text-neutral-600">{total} stories</span>
+        <span className="font-sans text-[14px] font-medium text-neutral-600">{total} stories</span>
       </div>
-      <HomeGrid items={items} total={total} loading={loading} />
+      <HomeGrid items={items} loading={loading} />
     </div>
   );
 }

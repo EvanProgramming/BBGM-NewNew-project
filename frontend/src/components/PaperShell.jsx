@@ -10,7 +10,7 @@ import { useI18n } from "../i18n";
 import { TermsDialog } from "../pages/Terms";
 
 function navClass() {
-  return "nav-pill font-sans text-[14px] font-bold uppercase tracking-[0.12em] sm:text-[15px]";
+  return "nav-pill font-serif text-[17px] font-semibold uppercase tracking-[0.03em] sm:text-[19px]";
 }
 
 const menuItemClass =
@@ -37,25 +37,6 @@ function BarMenu({ label, open, onToggle, children }) {
   );
 }
 
-function SearchIcon() {
-  return (
-    <svg
-      xmlns="http://www.w3.org/2000/svg"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.75"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      className="h-[18px] w-[18px] shrink-0 text-[#1A4FBF]"
-      aria-hidden="true"
-    >
-      <circle cx="11" cy="11" r="6.5" />
-      <path d="m16.2 16.2 4.3 4.3" />
-    </svg>
-  );
-}
-
 const NAV_KEYS = {
   "/forum": "nav.forum",
   "/bottles": "nav.bottles",
@@ -79,8 +60,6 @@ export default function PaperShell() {
   const { lang, t } = useI18n();
   const location = useLocation();
   const barRef = useRef(null);
-  const [query, setQuery] = useState("");
-  const [searchNotice, setSearchNotice] = useState(false);
   const [termsOpen, setTermsOpen] = useState(false);
   const [signingOut, setSigningOut] = useState(false);
   const [openMenu, setOpenMenu] = useState(null);
@@ -165,11 +144,6 @@ export default function PaperShell() {
     setOpenMenu((current) => (current === name ? null : name));
   }
 
-  function onSearch(event) {
-    event.preventDefault();
-    setSearchNotice(true);
-  }
-
   async function onSignOut() {
     setSigningOut(true);
     try {
@@ -183,10 +157,10 @@ export default function PaperShell() {
 
   return (
     <div className="min-h-screen bg-white text-[#111111]">
-      <div className="mx-auto max-w-[1480px] px-4 pb-20 sm:px-6 lg:px-10">
+      <div className="mx-auto max-w-[1920px] px-4 pb-20 sm:px-8 lg:px-20 xl:px-[210px]">
         <div
           ref={barRef}
-          className="border-b border-black py-2.5 font-sans text-[12px] font-semibold tracking-[0.14em] text-[#111111] sm:text-[13px]"
+          className="full-bleed-rule-thin py-2.5 font-sans text-[13px] font-semibold tracking-[0.14em] text-[#111111] sm:text-[14px]"
         >
           <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-2">
             <nav className="flex flex-wrap items-center gap-x-2 gap-y-1 uppercase" aria-label="Site">
@@ -264,46 +238,23 @@ export default function PaperShell() {
           </div>
         </div>
 
-        <header className="grid grid-cols-1 justify-items-center gap-4 pb-1 pt-6 sm:grid-cols-[1fr_auto_1fr] sm:items-center sm:gap-6 sm:pt-8">
-          <form onSubmit={onSearch} className="order-2 flex w-full max-w-[16rem] items-end gap-2 sm:order-none">
-            <label className="sr-only" htmlFor="masthead-search">
-              {t("shell.search")}
-            </label>
-            <SearchIcon />
-            <input
-              id="masthead-search"
-              value={query}
-              onChange={(event) => setQuery(event.target.value)}
-              placeholder={t("shell.searchPlaceholder")}
-              className="w-full border-0 border-b border-black bg-transparent pb-[3px] font-sans text-[15px] font-medium text-[#111111] outline-none placeholder:text-neutral-400"
-            />
-          </form>
-
+        <header className="flex items-center justify-center pb-1 pt-7 sm:pt-9">
           <Link
             to="/"
             aria-label="Elegram"
-            className="relative z-10 order-1 flex cursor-pointer items-center justify-center whitespace-nowrap no-underline sm:order-none"
+            className="relative z-10 flex cursor-pointer items-center justify-center whitespace-nowrap no-underline"
           >
-            <span className="font-wordmark-elegram text-[54px] sm:text-[78px]">Elegram</span>
+            <span className="font-wordmark-elegram text-[58px] sm:text-[86px]">Elegram</span>
           </Link>
-
-          <div className="order-3 text-center sm:order-none sm:text-right">
-            <p className="font-sans text-[12px] font-bold tracking-[0.16em] text-[#1A4FBF]">
-              {t("shell.ownedBy")}
-            </p>
-            <p className="mt-[3px] font-sans text-[12px] font-medium tracking-[0.01em] text-neutral-600">
-              {t("shell.owners")}
-            </p>
-          </div>
         </header>
 
-        <p className="pb-6 pt-5 text-center font-sans text-[13px] font-bold uppercase tracking-[0.2em] text-[#111111] sm:text-[15px] sm:tracking-[0.26em]">
+        <p className="pb-7 pt-5 text-center font-serif text-[14px] font-bold uppercase tracking-[0.08em] text-[#111111] sm:text-[18px]">
           <Link to="/" className="text-inherit no-underline">
             {t("shell.tagline")}
           </Link>
         </p>
 
-        <nav className="flex flex-wrap items-center justify-center gap-x-1 gap-y-1 border-b-[3px] border-black pb-3 sm:gap-x-2">
+        <nav className="full-bleed-rule flex flex-wrap items-center justify-center gap-x-1 gap-y-1 pb-3 sm:gap-x-3">
           <NavLink to="/" end className={navClass}>
             {t("nav.news")}
           </NavLink>
@@ -352,10 +303,6 @@ export default function PaperShell() {
               </NavLink>
             ))}
           </nav>
-        ) : null}
-
-        {searchNotice ? (
-          <p className="mt-3 font-sans text-sm text-neutral-500">{t("shell.searchLater")}</p>
         ) : null}
 
         <Outlet />

@@ -5,7 +5,7 @@ import { useAuth } from "../auth";
 import { uploadSrc } from "../avatar";
 import { canDeletePosts, formatRelative, forumListPath } from "../format";
 import { useI18n } from "../i18n";
-import { TitleLine } from "./ui";
+import { SafeImage, TitleLine } from "./ui";
 import { Avatar } from "./Avatar";
 
 function CommentIcon() {
@@ -161,12 +161,8 @@ export function CommunityCard({ post, onDelete = null }) {
             <p className="mt-1 whitespace-pre-wrap font-sans text-[15px] font-medium leading-6 text-neutral-700 [overflow-wrap:anywhere]">{post.excerpt}</p>
           ) : null}
           {post.images?.[0] ? (
-            <div className="zoom-frame mt-3 max-h-72 rounded-xl">
-              <img
-                src={uploadSrc(post.images[0])}
-                alt=""
-                className="max-h-72 w-full object-cover"
-              />
+            <div className="zoom-frame mt-3 max-h-72 rounded-xl bg-[#D6DEEE]">
+              <SafeImage src={uploadSrc(post.images[0])} className="max-h-72 w-full object-cover" />
             </div>
           ) : null}
           <div className="mt-4 flex items-center gap-10 text-neutral-500">
