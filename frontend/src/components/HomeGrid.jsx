@@ -63,7 +63,7 @@ function Hero({ items, loading }) {
   return (
     <div className="grid grid-cols-1 gap-8 border-b border-neutral-300 pb-12 pt-8 lg:grid-cols-12">
       <div className="flex flex-col lg:col-span-7">
-        <StoryImage post={featured} className="aspect-[4/3] w-full" />
+        <StoryImage post={featured} className="aspect-[3/2] w-full" />
         <div className="mt-6 border-t border-neutral-300 pt-7 lg:pr-8">
           <p className="font-sans text-[13px] font-bold uppercase tracking-[0.14em] text-[#1A4FBF]">
             {t("home.featured")}
@@ -71,7 +71,7 @@ function Hero({ items, loading }) {
           <SlotTitle
             post={featured}
             fallback={t("home.featuredTitle")}
-            className="mt-2 text-[52px] font-bold leading-[1.02] sm:text-[64px]"
+            className="mt-2 text-[44px] font-bold leading-[1.02] sm:text-[56px]"
           />
           {featured?.excerpt ? <Dek>{featured.excerpt}</Dek> : null}
           <Byline post={featured} className="mt-3" />
