@@ -6,8 +6,50 @@ import { CommunityCard, CommunityCardSkeleton } from "../components/CommunityCar
 import ComposeForm from "../components/ComposeForm";
 import { EmptyCategory, StoryRow, StoryRowSkeleton } from "../components/StoryRow";
 import { ErrorBanner, FrontPageLink, SectionRule } from "../components/ui";
+import { canDeletePosts } from "../format";
 import { useI18n } from "../i18n";
+import { ChessMark } from "../play/marks";
 import { mergeLivePosts, useLiveRefresh } from "../live";
+
+function forumQueryKey(userKey) {
+  return `elegram_forum_q:${userKey}`;
+}
+
+function readForumQuery(userKey) {
+  try {
+    return localStorage.getItem(forumQueryKey(userKey)) || "";
+  } catch {
+    return "";
+  }
+}
+
+function writeForumQuery(userKey, value) {
+  try {
+    if (value) localStorage.setItem(forumQueryKey(userKey), value);
+    else localStorage.removeItem(forumQueryKey(userKey));
+  } catch {
+    /* private mode */
+  }
+}
+
+function SearchIcon() {
+  return (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.75"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className="h-[15px] w-[15px] shrink-0 text-[#1A4FBF]"
+      aria-hidden="true"
+    >
+      <circle cx="11" cy="11" r="6.5" />
+      <path d="m16.2 16.2 4.3 4.3" />
+    </svg>
+  );
+}
 
 function ComposeFab({ to, onClick }) {
   const { t } = useI18n();
@@ -63,8 +105,21 @@ export default function Category({ category, title, feed }) {
   const [ready, setReady] = useState(false);
 
   const isForum = category === "forum";
+  const userKey = user?.id || "guest";
+  const [draft, setDraft] = useState("");
+  const [keyword, setKeyword] = useState("");
+  const [syncedKey, setSyncedKey] = useState(null);
+  const searchReady = !isForum || (authReady && syncedKey === userKey);
+
+  if (isForum && authReady && syncedKey !== userKey) {
+    const stored = readForumQuery(userKey);
+    setDraft(stored);
+    setKeyword(stored);
+    setSyncedKey(userKey);
+  }
 
   useEffect(() => {
+    if (!searchReady) return undefined;
     if (feed === "mine" && !authReady) return undefined;
     if (feed === "mine" && !user) {
       navigate("/sign-in?next=/forum/mine", { replace: true });
@@ -75,7 +130,7 @@ export default function Category({ category, title, feed }) {
     setReady(false);
     setWriting(false);
     api
-      .listPosts({ category, feed, page: 1, pageSize: 20 })
+      .listPosts({ category, feed, page: 1, pageSize: 20, q: keyword })
       .then((data) => {
         if (cancelled) return;
         setItems(data.items);
@@ -99,17 +154,17 @@ export default function Category({ category, title, feed }) {
     return () => {
       cancelled = true;
     };
-  }, [authReady, category, feed, navigate, user]);
+  }, [authReady, category, feed, keyword, navigate, searchReady, user]);
 
   const refreshList = useCallback(
     () =>
-      api.listPosts({ category, feed, page: 1, pageSize }).then((data) => {
+      api.listPosts({ category, feed, page: 1, pageSize, q: keyword }).then((data) => {
         setItems((current) => (feed === "all" ? mergeLivePosts(current, data.items) : data.items));
         setPageSize(data.page_size);
         setTotal(data.total);
         setError(null);
       }),
-    [category, feed, pageSize],
+    [category, feed, keyword, pageSize],
   );
 
   useLiveRefresh(ready && (feed !== "mine" || Boolean(user)), refreshList);
@@ -127,7 +182,7 @@ export default function Category({ category, title, feed }) {
     const next = page + 1;
     setLoadingMore(true);
     api
-      .listPosts({ category, feed, page: next, pageSize })
+      .listPosts({ category, feed, page: next, pageSize, q: keyword })
       .then((data) => {
         setItems((current) => [...current, ...data.items]);
         setPage(data.page);
@@ -157,12 +212,67 @@ export default function Category({ category, title, feed }) {
     setWriting(false);
   }
 
+  function onSearch(event) {
+    event.preventDefault();
+    const next = draft.trim();
+    setDraft(next);
+    setKeyword(next);
+    writeForumQuery(userKey, next);
+  }
+
+  function onClearSearch() {
+    setDraft("");
+    setKeyword("");
+    writeForumQuery(userKey, "");
+  }
+
   const hasOlder = feed === "all" && total > page * pageSize;
+  const column = isForum ? "mx-auto w-full max-w-[42rem]" : "";
 
   return (
     <div className="mt-8">
       <FrontPageLink />
+      <div className={isForum ? "relative" : ""}>
+      <div className={column}>
       <SectionRule>{heading}</SectionRule>
+      {isForum ? (
+        <Link
+          to="/play"
+          aria-label={t("play.markLabel")}
+          className="mb-6 inline-flex flex-col items-center text-black min-[1120px]:hidden"
+        >
+          <ChessMark className="h-14 w-14" />
+          <span className="mt-1 text-center font-sans text-[12px] font-semibold tracking-[0.02em]">
+            {t("play.markLabel")}
+          </span>
+        </Link>
+      ) : null}
+      {isForum ? (
+        <form onSubmit={onSearch} className="mb-6 flex items-end gap-3">
+          <div className="flex min-w-0 max-w-[18rem] flex-1 items-end gap-2">
+            <label className="sr-only" htmlFor="forum-search">
+              {t("forum.search")}
+            </label>
+            <SearchIcon />
+            <input
+              id="forum-search"
+              value={draft}
+              onChange={(event) => setDraft(event.target.value)}
+              placeholder={t("forum.searchPlaceholder")}
+              className="w-full border-0 border-b border-black bg-transparent pb-[3px] font-sans text-[13px] font-normal text-[#111111] outline-none placeholder:text-neutral-400"
+            />
+          </div>
+          {draft || keyword ? (
+            <button
+              type="button"
+              onClick={onClearSearch}
+              className="shrink-0 font-sans text-[11px] uppercase tracking-[0.12em] text-neutral-500"
+            >
+              {t("forum.searchClear")}
+            </button>
+          ) : null}
+        </form>
+      ) : null}
       <ErrorBanner error={error} />
       {loading ? (
         isForum ? (
@@ -191,7 +301,7 @@ export default function Category({ category, title, feed }) {
               <CommunityCard
                 key={post.id}
                 post={post}
-                onDelete={feed === "mine" ? () => removeOwn(post) : null}
+                onDelete={feed === "mine" || canDeletePosts(user) ? () => removeOwn(post) : null}
               />
             ) : (
               <StoryRow key={post.id} post={post} />
@@ -209,6 +319,20 @@ export default function Category({ category, title, feed }) {
           ) : null}
         </>
       )}
+      </div>
+      {isForum ? (
+        <Link
+          to="/play"
+          aria-label={t("play.markLabel")}
+          className="absolute right-0 top-12 hidden flex-col items-center text-black min-[1120px]:flex"
+        >
+          <ChessMark className="h-16 w-16" />
+          <span className="mt-1 text-center font-sans text-[12px] font-semibold tracking-[0.02em]">
+            {t("play.markLabel")}
+          </span>
+        </Link>
+      ) : null}
+      </div>
       {isForum && !writing ? (
         user ? (
           <ComposeFab onClick={() => setWriting(true)} />

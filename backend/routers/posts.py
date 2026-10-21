@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, File, Query, Request, UploadFile
 from fastapi.responses import JSONResponse
-from sqlalchemy import case, func, select
+from sqlalchemy import case, func, or_, select
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 from starlette.datastructures import UploadFile as StarletteUploadFile
@@ -45,6 +45,7 @@ from store import (
     count_likes,
     create_comment,
     create_post_with_audit,
+    delete_comment,
     delete_post_graph,
     like_counts_for_posts,
     liked_post_ids,
@@ -52,7 +53,14 @@ from store import (
     user_liked,
     users_by_ids,
 )
-from validate import parse_forum_feed, parse_optional_category, parse_page, parse_page_size, parse_uuid
+from validate import (
+    parse_forum_feed,
+    parse_forum_query,
+    parse_optional_category,
+    parse_page,
+    parse_page_size,
+    parse_uuid,
+)
 
 router = APIRouter()
 
@@ -182,6 +190,16 @@ def _post_field_errors(body: CreatePostBody) -> list[dict[str, str]]:
     return fields
 
 
+def _keyword_rank(keyword: str):
+    escaped = keyword.lower().replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+    pattern = f"%{escaped}%"
+    hit = or_(
+        func.lower(Post.title).like(pattern, escape="\\"),
+        func.lower(Post.body).like(pattern, escape="\\"),
+    )
+    return case((hit, 0), else_=1)
+
+
 def _list_posts(
     db: Session,
     core: Session,
@@ -192,6 +210,7 @@ def _list_posts(
     author_id: str | None,
     viewer: User | None = None,
     feed: str | None = None,
+    keyword: str | None = None,
 ) -> dict:
     filters = [Post.status == "published"]
     if category is not None:
@@ -224,6 +243,8 @@ def _list_posts(
     if author_id is None:
         rank = case((Post.pinned.is_(True), 0), else_=1)
         order = (rank.asc(), Post.pinned_at.desc(), *order)
+    if keyword:
+        order = (_keyword_rank(keyword), *order)
     try:
         total = db.scalar(select(func.count()).select_from(Post).where(*filters)) or 0
         rows = db.scalars(
@@ -299,7 +320,7 @@ def _forum_previews(db: Session, core: Session, posts: list[Post]) -> dict[str, 
                     created_at=to_iso(item.created_at),
                     author=_author_public(authors.get(item.author_id), item.author_id),
                 )
-                for item in items[:4]
+                for item in items[-2:]
             ],
         )
     return result
@@ -343,6 +364,7 @@ def list_posts(
     viewer: User | None = Depends(get_optional_user),
     category: str | None = Query(default=None),
     feed: str | None = Query(default=None),
+    q: str | None = Query(default=None),
     page: str | None = Query(default=None),
     page_size: str | None = Query(default=None),
 ):
@@ -350,6 +372,7 @@ def list_posts(
     parsed_size = parse_page_size(page_size)
     parsed_category = parse_optional_category(category)
     parsed_feed = parse_forum_feed(feed, parsed_category)
+    parsed_q = parse_forum_query(q, parsed_category)
     if parsed_feed == "mine" and viewer is None:
         raise unauthenticated()
     if parsed_feed in ("recommended", "latest") and parsed_page != 1:
@@ -365,6 +388,7 @@ def list_posts(
         author_id=viewer.id if parsed_feed == "mine" and viewer is not None else None,
         viewer=viewer,
         feed=parsed_feed,
+        keyword=parsed_q,
     )
 
 
@@ -755,6 +779,35 @@ def posts_mutating_not_allowed(post_id: str):
     raise StarletteHTTPException(status_code=405)
 
 
-@router.api_route("/posts/{post_id}/comments/{comment_id}", methods=["PATCH", "DELETE"])
+@router.delete("/posts/{post_id}/comments/{comment_id}", status_code=204)
+def withdraw_comment(
+    post_id: str,
+    comment_id: str,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+    core: Session = Depends(get_core_db),
+):
+    post_id = parse_uuid(post_id)
+    comment_id = parse_uuid(comment_id, field="comment_id")
+    post = _published_post(db, post_id)
+    _require_forum(post)
+    try:
+        comment = db.get(Comment, comment_id)
+    except SQLAlchemyError as exc:
+        raise StorageError() from exc
+    if comment is None or comment.post_id != post.id:
+        raise ApiError(404, "not_found", "Comment not found.")
+    if comment.author_id != user.id and not user_has(user, *MODERATOR_ROLES):
+        raise forbidden()
+    if comment.author_id != user.id:
+        add_system_notice(
+            core,
+            user_id=comment.author_id,
+            body=f'Your comment on "{post.title}" was removed.',
+        )
+    delete_comment(db, comment)
+
+
+@router.api_route("/posts/{post_id}/comments/{comment_id}", methods=["PATCH"])
 def comments_mutating_not_allowed(post_id: str, comment_id: str):
     raise StarletteHTTPException(status_code=405)

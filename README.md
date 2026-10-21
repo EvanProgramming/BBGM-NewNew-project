@@ -1,6 +1,6 @@
 # Elegram
 
-由 Tori Zhao、Ben Lu、Leo Gao、Dewey Peng 所有（登录发帖、按栏目阅读）。Jason 和他的社团参与 BBGM News。
+由 Tori Zhao、Jason Fang 创立。网站由 Leo Gao、Ben Lyu、Dewey Peng、Tori Zhao 搭建。校报由 Media Club 供稿。登录发帖、按栏目阅读。
 
 > 第一版范围以 `docs/PRD.md`、`docs/schema.md`、`docs/UI_BLUEPRINT.md` 为准。
 
@@ -18,7 +18,7 @@
 
 ## 用户
 
-第一版面向日常阅读和发帖的人。本站由 Tori Zhao、Ben Lu、Leo Gao、Dewey Peng 所有。
+第一版面向日常阅读和发帖的人。创始人是 Tori Zhao、Jason Fang。网站由 Leo Gao、Ben Lyu、Dewey Peng、Tori Zhao 搭建。校报由 Media Club 供稿。
 
 - 读者：想快速知道「今天校园有什么」、宿舍和体育分别发生了什么。
 - 发帖学生：有账号后能发帖，不需要先成为编辑。

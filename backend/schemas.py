@@ -9,7 +9,7 @@ NEWSROOM_ROLES = ("editor", "super_admin")
 MODERATOR_ROLES = ("admin", "super_admin")
 ASSIGNABLE_ROLES = ("student", "teacher", "editor", "admin")
 CJ_VIEWER_ROLES = ("student", "teacher", "super_admin")
-CJ_EDITOR_ROLES = ("teacher", "super_admin")
+CJ_EDITOR_ROLES = ("super_admin",)
 REVIEW_STATUSES = ("editing", "pending", "published")
 AVATAR_PRESETS = ("oak", "gym", "book", "dorm", "bus", "night")
 DEFAULT_AVATAR = "preset:oak"
@@ -42,6 +42,12 @@ class PasswordResetBody(BaseModel):
 class ChangePasswordBody(BaseModel):
     current_password: str
     password: str
+
+
+class BottleTextBody(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+
+    body: str
 
 
 class CreatePostBody(BaseModel):

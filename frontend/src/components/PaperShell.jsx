@@ -58,6 +58,7 @@ function SearchIcon() {
 
 const NAV_KEYS = {
   "/forum": "nav.forum",
+  "/bottles": "nav.bottles",
   "/cj": "nav.cj",
   "/opinion": "nav.opinion",
 };
@@ -84,7 +85,9 @@ export default function PaperShell() {
   const [signingOut, setSigningOut] = useState(false);
   const [openMenu, setOpenMenu] = useState(null);
   const [forumUnread, setForumUnread] = useState(false);
+  const [bottleUnread, setBottleUnread] = useState(false);
   const activitySeq = useRef(0);
+  const bottleSeq = useRef(0);
   const onMine = location.pathname === "/forum/mine";
 
   const syncForumActivity = useCallback(async () => {
@@ -117,7 +120,27 @@ export default function PaperShell() {
     return undefined;
   }, [user, syncForumActivity]);
 
+  const syncBottleActivity = useCallback(async () => {
+    const seq = bottleSeq.current + 1;
+    bottleSeq.current = seq;
+    const data = await api.bottleActivity();
+    if (seq !== bottleSeq.current) return;
+    setBottleUnread(data?.unread === 1);
+  }, []);
+
+  useEffect(() => {
+    if (!user) {
+      setBottleUnread(false);
+      return undefined;
+    }
+    syncBottleActivity().catch(() => {
+      /* keep the last badge */
+    });
+    return undefined;
+  }, [user, syncBottleActivity]);
+
   useLiveRefresh(Boolean(user), syncForumActivity);
+  useLiveRefresh(Boolean(user), syncBottleActivity);
 
   useEffect(() => {
     setOpenMenu(null);
@@ -295,6 +318,7 @@ export default function PaperShell() {
               <span className="inline-flex items-center">
                 {t(NAV_KEYS[item.to] || item.label)}
                 {item.to === "/forum" && forumUnread ? <ActivityBadge label={t("forum.activityBadge")} /> : null}
+                {item.to === "/bottles" && bottleUnread ? <ActivityBadge label={t("bottle.activityBadge")} /> : null}
               </span>
             </NavLink>
           ))}
@@ -337,7 +361,11 @@ export default function PaperShell() {
         <Outlet />
 
         <p className="mt-16 border-t border-neutral-300 pt-5 font-sans text-[13px] font-medium leading-6 text-neutral-600">
-          {t("shell.footer")}
+          {t("shell.founders")}
+          <br />
+          {t("shell.builders")}
+          <br />
+          {t("shell.newsletter")}
         </p>
       </div>
       {termsOpen ? <TermsDialog onClose={() => setTermsOpen(false)} /> : null}

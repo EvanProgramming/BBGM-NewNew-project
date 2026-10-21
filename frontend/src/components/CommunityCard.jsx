@@ -3,7 +3,7 @@ import { Link, useLocation, useNavigate } from "react-router-dom";
 import { ApiError, api } from "../api";
 import { useAuth } from "../auth";
 import { uploadSrc } from "../avatar";
-import { formatRelative, forumListPath } from "../format";
+import { canDeletePosts, formatRelative, forumListPath } from "../format";
 import { useI18n } from "../i18n";
 import { TitleLine } from "./ui";
 import { Avatar } from "./Avatar";
@@ -99,10 +99,50 @@ export function ForumLikeButton({ post, signInNext, className = "" }) {
 }
 
 export function CommunityCard({ post, onDelete = null }) {
+  const { user } = useAuth();
   const { lang, t } = useI18n();
   const location = useLocation();
-  const replies = post.reply_count ?? 0;
+  const navigate = useNavigate();
+  const previewKey = (post.reply_preview || []).map((item) => item.id).join(",");
+  const [replies, setReplies] = useState(post.reply_count ?? 0);
+  const [previews, setPreviews] = useState((post.reply_preview || []).slice(0, 2));
+  const [withdrawingId, setWithdrawingId] = useState(null);
+  const [withdrawError, setWithdrawError] = useState(null);
   const detailState = { forumBack: forumListPath(location.pathname) || "/forum" };
+
+  useEffect(() => {
+    setReplies(post.reply_count ?? 0);
+    setPreviews((post.reply_preview || []).slice(0, 2));
+  }, [post.id, post.reply_count, previewKey, post.reply_preview]);
+
+  function ownsComment(reply) {
+    return Boolean(user?.id) && reply.author?.id === user.id;
+  }
+
+  function canRemoveComment(reply) {
+    return ownsComment(reply) || canDeletePosts(user);
+  }
+
+  async function withdrawComment(reply) {
+    if (withdrawingId) return;
+    const own = ownsComment(reply);
+    if (!window.confirm(t(own ? "post.withdrawCommentConfirm" : "post.deleteCommentConfirm"))) return;
+    setWithdrawingId(reply.id);
+    setWithdrawError(null);
+    try {
+      await api.deleteComment(post.id, reply.id);
+      setPreviews((current) => current.filter((item) => item.id !== reply.id));
+      setReplies((current) => Math.max(0, current - 1));
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 401) {
+        navigate("/sign-in?next=/forum");
+        return;
+      }
+      setWithdrawError(err instanceof ApiError ? err.message : t("post.withdrawComment"));
+    } finally {
+      setWithdrawingId(null);
+    }
+  }
 
   return (
     <article className="mb-4 min-w-0 overflow-hidden rounded-2xl border border-neutral-200 bg-[#F4F5F7] p-5">
@@ -150,6 +190,34 @@ export function CommunityCard({ post, onDelete = null }) {
               </button>
             ) : null}
           </div>
+          {previews.length ? (
+            <ul className="mt-4 space-y-3 border-t border-neutral-200 pt-3">
+              {previews.map((reply) => (
+                <li key={reply.id} className="flex min-w-0 gap-2">
+                  <Avatar avatar={reply.author?.avatar} size={22} />
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-start gap-2">
+                      <p className="font-sans text-xs font-medium text-[#111111]">{reply.author?.display_name}</p>
+                      {canRemoveComment(reply) ? (
+                        <button
+                          type="button"
+                          onClick={() => withdrawComment(reply)}
+                          disabled={withdrawingId === reply.id}
+                          className="ml-auto shrink-0 font-sans text-[11px] uppercase tracking-[0.14em] text-red-700 disabled:opacity-40"
+                        >
+                          {t(ownsComment(reply) ? "post.withdrawComment" : "post.delete")}
+                        </button>
+                      ) : null}
+                    </div>
+                    <p className="mt-0.5 line-clamp-3 whitespace-pre-wrap font-sans text-sm leading-5 text-neutral-700 [overflow-wrap:anywhere]">
+                      {reply.body}
+                    </p>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          ) : null}
+          {withdrawError ? <p className="mt-2 font-sans text-sm text-red-700">{withdrawError}</p> : null}
         </div>
       </div>
     </article>

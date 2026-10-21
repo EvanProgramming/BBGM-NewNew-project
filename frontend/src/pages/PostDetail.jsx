@@ -28,6 +28,7 @@ export default function PostDetail() {
   const [withdrawing, setWithdrawing] = useState(false);
   const [commentBody, setCommentBody] = useState("");
   const [commentSubmitting, setCommentSubmitting] = useState(false);
+  const [withdrawingCommentId, setWithdrawingCommentId] = useState(null);
   const [ready, setReady] = useState(false);
   const commentPageRef = useRef(1);
   commentPageRef.current = commentPage;
@@ -189,6 +190,36 @@ export default function PostDetail() {
     }
   }
 
+  async function onWithdrawComment(commentId, authorId) {
+    if (withdrawingCommentId) return;
+    const own = authorId === user?.id;
+    if (!window.confirm(t(own ? "post.withdrawCommentConfirm" : "post.deleteCommentConfirm"))) return;
+    setWithdrawingCommentId(commentId);
+    setCommentError(null);
+    try {
+      await api.deleteComment(postId, commentId);
+      const isFloor = comments.some((item) => item.id === commentId);
+      setComments((current) =>
+        current
+          .filter((item) => item.id !== commentId)
+          .map((item) => ({
+            ...item,
+            replies: (item.replies || []).filter((reply) => reply.id !== commentId),
+          })),
+      );
+      if (isFloor) setCommentTotal((count) => Math.max(0, count - 1));
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 401) {
+        setUser(null);
+        navigate(`/sign-in?next=/posts/${postId}`);
+        return;
+      }
+      setCommentError(err);
+    } finally {
+      setWithdrawingCommentId(null);
+    }
+  }
+
   async function loadOlderComments() {
     const next = commentPage + 1;
     try {
@@ -315,13 +346,35 @@ export default function PostDetail() {
                       <p className="font-sans text-[11px] uppercase tracking-[0.16em] text-[#1A4FBF]">
                         {item.author?.display_name}
                       </p>
+                      {user?.id && (item.author?.id === user.id || canDeletePosts(user)) ? (
+                        <button
+                          type="button"
+                          onClick={() => onWithdrawComment(item.id, item.author?.id)}
+                          disabled={withdrawingCommentId === item.id}
+                          className="ml-auto font-sans text-[11px] uppercase tracking-[0.14em] text-red-700 disabled:opacity-40"
+                        >
+                          {t(item.author?.id === user.id ? "post.withdrawComment" : "post.delete")}
+                        </button>
+                      ) : null}
                     </div>
                     <p className="mt-2 whitespace-pre-wrap font-sans text-sm leading-6 [overflow-wrap:anywhere]">{item.body}</p>
                     {item.replies?.map((reply) => (
                       <div key={reply.id} className="mt-3 ml-6 flex min-w-0 gap-2 border-l border-black pl-4">
                         <Avatar avatar={reply.author?.avatar} size={22} />
-                        <div className="min-w-0">
-                          <p className="font-sans text-[11px] text-neutral-500">{reply.author?.display_name}</p>
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-2">
+                            <p className="font-sans text-[11px] text-neutral-500">{reply.author?.display_name}</p>
+                            {user?.id && (reply.author?.id === user.id || canDeletePosts(user)) ? (
+                              <button
+                                type="button"
+                                onClick={() => onWithdrawComment(reply.id, reply.author?.id)}
+                                disabled={withdrawingCommentId === reply.id}
+                                className="ml-auto font-sans text-[11px] uppercase tracking-[0.14em] text-red-700 disabled:opacity-40"
+                              >
+                                {t(reply.author?.id === user.id ? "post.withdrawComment" : "post.delete")}
+                              </button>
+                            ) : null}
+                          </div>
                           <p className="mt-1 min-w-0 whitespace-pre-wrap font-sans text-sm leading-6 [overflow-wrap:anywhere]">{reply.body}</p>
                         </div>
                       </div>

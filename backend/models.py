@@ -135,6 +135,19 @@ class CJEntry(CoreBase):
     updated_at: Mapped[str] = mapped_column(String(32), nullable=False)
 
 
+class CJSyncState(CoreBase):
+    __tablename__ = "cj_sync_state"
+
+    id: Mapped[str] = mapped_column(String(16), primary_key=True)
+    synced_at: Mapped[str] = mapped_column(String(32), nullable=False, default="")
+    window_from: Mapped[str] = mapped_column(String(10), nullable=False, default="")
+    window_to: Mapped[str] = mapped_column(String(10), nullable=False, default="")
+    courses: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    entries: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    status: Mapped[str] = mapped_column(String(16), nullable=False, default="idle")
+    message: Mapped[str] = mapped_column(Text, nullable=False, default="")
+
+
 class EmailCode(CoreBase):
     __tablename__ = "email_codes"
 
@@ -240,6 +253,54 @@ class ForumActivitySeen(ContentBase):
 
     user_id: Mapped[str] = mapped_column(String(36), primary_key=True)
     seen_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
+class Bottle(ContentBase):
+    __tablename__ = "bottles"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    author_id: Mapped[str] = mapped_column(String(36), nullable=False, index=True)
+    body: Mapped[str] = mapped_column(Text, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+    picks: Mapped[list["BottlePick"]] = relationship(back_populates="bottle")
+
+
+class BottlePick(ContentBase):
+    __tablename__ = "bottle_picks"
+    __table_args__ = (UniqueConstraint("bottle_id", "picker_id", name="uq_bottle_picks_bottle_picker"),)
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    bottle_id: Mapped[str] = mapped_column(ForeignKey("bottles.id"), nullable=False, index=True)
+    picker_id: Mapped[str] = mapped_column(String(36), nullable=False, index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    thrower_read_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    picker_read_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+    bottle: Mapped[Bottle] = relationship(back_populates="picks")
+    messages: Mapped[list["BottleMessage"]] = relationship(back_populates="pick")
+
+
+class BottleMessage(ContentBase):
+    __tablename__ = "bottle_messages"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    pick_id: Mapped[str] = mapped_column(ForeignKey("bottle_picks.id"), nullable=False, index=True)
+    author_id: Mapped[str] = mapped_column(String(36), nullable=False, index=True)
+    body: Mapped[str] = mapped_column(Text, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+    pick: Mapped[BottlePick] = relationship(back_populates="messages")
+
+
+class BottleReport(ContentBase):
+    __tablename__ = "bottle_reports"
+    __table_args__ = (UniqueConstraint("pick_id", "reporter_id", name="uq_bottle_reports_pick_reporter"),)
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    pick_id: Mapped[str] = mapped_column(ForeignKey("bottle_picks.id"), nullable=False, index=True)
+    reporter_id: Mapped[str] = mapped_column(String(36), nullable=False, index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 
 
 class AuditEvent(ContentBase):

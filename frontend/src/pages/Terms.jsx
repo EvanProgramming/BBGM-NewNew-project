@@ -16,7 +16,7 @@ function TermsBody() {
   return (
     <>
       <SectionRule>{terms.title}</SectionRule>
-      <p className="font-serif text-3xl leading-snug">{terms.makers}</p>
+      <p className="font-sans text-[15px] leading-7">{terms.makers}</p>
       <p className="mt-4 font-sans text-[15px] leading-7">{terms.covers}</p>
       <p className="mt-2 font-sans text-[13px] text-neutral-500">{terms.version}</p>
       <p className="mt-6 font-sans text-[15px] leading-7">

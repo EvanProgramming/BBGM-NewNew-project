@@ -6,7 +6,7 @@ alwaysApply: true
 
 # 全局架构
 
-Elegram 是登录发帖、按栏目阅读的站点，由 Tori Zhao、Ben Lu、Leo Gao、Dewey Peng 所有。前后端分目录，不要搭成单仓混写或后台套件。
+Elegram 是登录发帖、按栏目阅读的站点。创始人是 Tori Zhao、Jason Fang。网站由 Leo Gao、Ben Lyu、Dewey Peng、Tori Zhao 搭建。校报由 Media Club 供稿。前后端分目录，不要搭成单仓混写或后台套件。
 
 ## 目录
 
