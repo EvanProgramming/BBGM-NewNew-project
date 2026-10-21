@@ -1,3 +1,28 @@
+import { useEffect, useRef, useState } from "react";
+
+export function usePlayFrame() {
+  const ref = useRef(null);
+  const [height, setHeight] = useState(undefined);
+
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return undefined;
+    const fit = () => {
+      const top = el.getBoundingClientRect().top;
+      setHeight(Math.max(0, window.innerHeight - top - 8));
+    };
+    fit();
+    window.addEventListener("resize", fit);
+    window.addEventListener("orientationchange", fit);
+    return () => {
+      window.removeEventListener("resize", fit);
+      window.removeEventListener("orientationchange", fit);
+    };
+  }, []);
+
+  return { ref, height };
+}
+
 export function GameHeader({
   onBack,
   onHome,
@@ -37,12 +62,17 @@ export function GameHeader({
 }
 
 export function GameScreen({ header, board, panel, modal }) {
+  const frame = usePlayFrame();
   return (
-    <div className="play-board flex h-[calc(100dvh-14rem)] min-h-[28rem] flex-col overflow-hidden bg-page font-sans text-ink">
+    <div
+      ref={frame.ref}
+      style={frame.height ? { height: frame.height } : undefined}
+      className="play-board flex h-[calc(100dvh-12rem)] max-h-[100dvh] flex-col overflow-hidden bg-page font-sans text-ink"
+    >
       {header}
-      <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-hidden px-3 pb-3 sm:gap-4 sm:px-4 sm:pb-4 max-lg:landscape:flex-row lg:flex-row">
+      <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-hidden px-2 pb-2 sm:gap-4 sm:px-4 sm:pb-4 max-lg:landscape:flex-row lg:flex-row">
         <div className="flex min-h-0 min-w-0 flex-1">{board}</div>
-        <aside className="flex min-h-0 min-w-0 flex-none flex-col overflow-hidden rounded-lg border border-line bg-surface text-ink h-[min(42%,22rem)] min-h-[11.5rem] p-3 sm:p-5 max-lg:landscape:h-auto max-lg:landscape:min-h-0 max-lg:landscape:w-[min(42vw,22rem)] lg:h-auto lg:min-h-0 lg:w-[min(40%,28rem)] lg:p-6">
+        <aside className="flex max-h-[40%] min-h-0 w-full min-w-0 flex-none flex-col overflow-y-auto rounded-lg border border-line bg-surface p-3 text-ink sm:p-5 max-lg:landscape:h-full max-lg:landscape:max-h-full max-lg:landscape:w-[min(42vw,22rem)] lg:h-full lg:max-h-full lg:w-[min(40%,28rem)] lg:p-6">
           <div className="flex min-h-0 flex-1 flex-col">{panel}</div>
         </aside>
       </div>

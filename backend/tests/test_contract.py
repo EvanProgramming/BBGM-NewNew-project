@@ -1521,12 +1521,15 @@ def test_cj_journal_sync_cleans_and_stores(tmp_path, monkeypatch):
         assert (start, end) == ("2026-10-12", "2026-10-23")
         return payloads["items"]
 
+    expected_clean = {"items": [
+        {"id": "bbgm-calc|2026-10-12", "ic": "Limits", "hw": "FRQ", "an": "Quiz"}
+    ]}
+
     def fake_clean(api_key, model, items):
         assert api_key == "test-deepseek-key"
         assert model == "deepseek-chat"
-        assert items == [
-            {"id": "bbgm-calc|2026-10-12", "ic": "Limits", "hw": "FRQ", "an": "Quiz"}
-        ]
+        if expected_clean["items"] is not None:
+            assert items == expected_clean["items"]
         return [{**item, "ic": f"{item['ic']} review"} for item in items]
 
     monkeypatch.setattr(cj_sync, "fetch_journal", fake_fetch)
@@ -1596,7 +1599,7 @@ def test_cj_journal_sync_cleans_and_stores(tmp_path, monkeypatch):
         assert saved.json()["from"] == "2026-10-12"
         assert saved.json()["to"] == "2026-10-23"
         assert saved.json()["courses"] == 1
-        assert saved.json()["entries"] == 1
+        assert saved.json()["entries"] == 2
         viewed = student_client.get("/api/v1/cj?week_start=2026-10-12")
         assert viewed.status_code == 200, viewed.text
         calculus = next(subject for subject in viewed.json()["subjects"] if subject["id"] == "ap-calculus-11ac")
@@ -1610,15 +1613,60 @@ def test_cj_journal_sync_cleans_and_stores(tmp_path, monkeypatch):
         assert entry["announcement"] == "Quiz"
         assert entry["day_index"] == 0
         assert entry["period"] == 10
+        mirrored = next(item for item in viewed.json()["entries"] if item["subject_id"] == "ap-calculus-11mc")
+        assert mirrored["ic"] == "Limits review"
+        assert mirrored["hw"] == "FRQ"
+        assert mirrored["announcement"] == "Quiz"
+        assert mirrored["period"] == 5
+
+        mc_course = {
+            "code": "CALC-MC",
+            "name": "11Mc AP Calculus AB",
+            "teacher": "Kyle Sheldon Manzoni",
+            "classroom": "E522",
+            "environment": "BBGM",
+            "period": "Period 5",
+            "daily_content": [
+                {"date": "2026-10-12", "ic": "Derivatives", "hw": "", "an": "Board"},
+            ],
+        }
+        ac_course = {
+            **course,
+            "daily_content": [
+                {"date": "2026-10-12", "ic": "Limits", "hw": "FRQ", "an": ""},
+            ],
+        }
+        payloads["items"] = [ac_course, mc_course]
+        expected_clean["items"] = [
+            {"id": "bbgm-calc|2026-10-12", "ic": "Limits", "hw": "FRQ", "an": ""},
+            {"id": "bbgm-calc-mc|2026-10-12", "ic": "Derivatives", "hw": "", "an": "Board"},
+        ]
+        both = super_client.post("/api/v1/cj/sync")
+        assert both.status_code == 200, both.text
+        assert both.json()["courses"] == 2
+        split = student_client.get("/api/v1/cj?week_start=2026-10-12").json()["entries"]
+        ac_entry = next(item for item in split if item["subject_id"] == "ap-calculus-11ac")
+        mc_entry = next(item for item in split if item["subject_id"] == "ap-calculus-11mc")
+        assert ac_entry["ic"] == "Limits review"
+        assert mc_entry["ic"] == "Derivatives review"
+        assert ac_entry["hw"] == "FRQ"
+        assert mc_entry["hw"] == "FRQ"
+        assert ac_entry["announcement"] == "Board"
+        assert mc_entry["announcement"] == "Board"
 
         payloads["items"] = [{**course, "daily_content": []}]
+        expected_clean["items"] = None
         cleared = super_client.post("/api/v1/cj/sync")
         assert cleared.status_code == 200, cleared.text
         after = student_client.get("/api/v1/cj?week_start=2026-10-12")
         cleared_entry = next(item for item in after.json()["entries"] if item["subject_id"] == "ap-calculus-11ac")
+        cleared_mc = next(item for item in after.json()["entries"] if item["subject_id"] == "ap-calculus-11mc")
         assert cleared_entry["ic"] == ""
         assert cleared_entry["hw"] == ""
         assert cleared_entry["announcement"] == ""
+        assert cleared_mc["ic"] == ""
+        assert cleared_mc["hw"] == ""
+        assert cleared_mc["announcement"] == ""
         latest = super_client.get("/api/v1/cj/sync")
         assert latest.json()["status"] == "ok"
         assert latest.json()["courses"] == 1
@@ -2242,6 +2290,38 @@ def test_drift_bottles_are_anonymous_and_private(tmp_path, monkeypatch):
         assert opened.json()["thrower"]["email"] == "amy.throw@basischina.com"
         assert opened.json()["picker"]["email"] == "ben.pick@basischina.com"
         assert opened.json()["thrower"]["display_name"] == "Amy Thrower"
+        roster = client.get("/api/v1/admin/users?page_size=50")
+        assert roster.status_code == 200, roster.text
+        ben_admin_id = next(item["id"] for item in roster.json()["items"] if item["email"] == "ben.pick@basischina.com")
+        amy_admin_id = next(item["id"] for item in roster.json()["items"] if item["email"] == "amy.throw@basischina.com")
+        assert client.patch(
+            f"/api/v1/admin/users/{ben_admin_id}",
+            json={"roles": ["student", "admin"]},
+        ).status_code == 200
+        _login(client, "ben.pick@basischina.com", "west-hall-8")
+        ben_as_admin = client.get(f"/api/v1/bottles/picks/{ben_thread['id']}")
+        assert ben_as_admin.status_code == 200, ben_as_admin.text
+        assert "email" not in ben_as_admin.json()["thrower"]
+        assert "amy.throw@" not in ben_as_admin.text
+        _login(client, "ada.min@basischina.com", "desk-key-99")
+        assert client.patch(
+            f"/api/v1/admin/users/{amy_admin_id}",
+            json={"roles": ["student", "admin"]},
+        ).status_code == 200
+        assert client.patch(
+            f"/api/v1/admin/users/{ben_admin_id}",
+            json={"roles": ["student"]},
+        ).status_code == 200
+        _login(client, "amy.throw@basischina.com", "east-hall-8")
+        amy_as_admin = client.get(f"/api/v1/bottles/picks/{ben_thread['id']}")
+        assert amy_as_admin.status_code == 200, amy_as_admin.text
+        assert "email" not in amy_as_admin.json()["picker"]
+        assert "ben.pick@" not in amy_as_admin.text
+        _login(client, "ada.min@basischina.com", "desk-key-99")
+        assert client.patch(
+            f"/api/v1/admin/users/{amy_admin_id}",
+            json={"roles": ["student"]},
+        ).status_code == 200
         removed_reply = client.delete(
             f"/api/v1/bottles/picks/{cara_thread['id']}/messages/{cara_message_id}"
         )

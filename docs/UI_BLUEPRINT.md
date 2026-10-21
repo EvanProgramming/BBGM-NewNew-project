@@ -27,7 +27,7 @@
 | `/bottles/picks/:pickId` | 漂流瓶对话 | 需登录 | `GET /api/v1/bottles/picks/{pick_id}`。同学之间不显示名字和头像。打开时 `POST .../read` |
 | `/cj` | 按角色进入 | 需登录 | `super_admin` 去 `/cj/admin`；`student` 或仅 `teacher` 去学生端只读周视图 |
 | `/cj/student` | 学生端月历 | 需 `student` 或 `teacher` | 每一行整周链到 `/cj/student/week?start=`；Period 选择存在浏览器本地 |
-| `/cj/student/week` | 学生端周视图 | 需 `student` 或 `teacher` | `GET /api/v1/cj?week_start=`。课表仍是原来的学科目录，选择存在浏览器本地。同步来的 IC / HW / A 显示在学生选中的对应学科上 |
+| `/cj/student/week` | 学生端周视图 | 需 `student` 或 `teacher` | `GET /api/v1/cj?week_start=`。课表仍是原来的学科目录，选择存在浏览器本地。同步来的 IC / HW / A 显示在学生选中的对应学科上。11Ac 与 11Mc 的同一门课两个班都能看到 |
 | `/cj/student/day` | 学生端旧单日页 | 需 `student` 或 `teacher` | 保留旧链接兼容，不作为月历主入口 |
 | `/cj/admin` | CJ 完整管理端 | 仅 `super_admin` | 管理全部 CJ 与考试。顶部「提取课程信息」调用 `POST /api/v1/cj/sync`。未按按钮时服务端每小时也会提取一次。打开页面时 `GET /api/v1/cj/sync` 显示上次结果。手改会在下一次成功提取时被窗口内的新内容覆盖。不再分配老师学科 |
 | `/cj/admin/student-preview` | 学生端只读预览 | 仅 `super_admin` | 与学生周视图读取同一份 CJ，供管理端在独立标签页验证保存结果；不放宽学生端路由权限 |
@@ -158,7 +158,7 @@
 | 捞 | 「捞一个」。`POST /api/v1/bottles/pick`。`pick` 有 `id` 时去 `/bottles/picks/{id}`。`pick` 为 `null` 时留在本页，写明海里现在没有新瓶子。 |
 | 我扔的 / 我捞的 | `GET /api/v1/bottles/mine` 的 `thrown` 与 `picked`。每行用 `excerpt`、`created_at`、`reply_count`、`unread`。有 `pick_id` 的行链到对话。还没有人捞到的瓶子没有对话链，作者可删除。停留时约每 4 秒再请求。 |
 | 被举报 | 仅 `roles` 含 `admin` 或 `super_admin`。`GET /api/v1/bottles/reports`。行链到该 `pick_id`。 |
-| 对话 | 瓶子正文和 `messages[]`。同学之间用「我」和「有人」，不显示 `display_name` 或头像。打开时 `POST .../read`。回复框 `POST .../messages`。自己的回复可撤回。管理员看到 `thrower` 与 `picker` 的 `display_name` 和 `email`，并可删除瓶子或回复。任一方可举报。输入框内容不因刷新丢失。 |
+| 对话 | 瓶子正文和 `messages[]`。同学之间用「我」和「有人」，不显示 `display_name` 或头像。打开时 `POST .../read`。回复框 `POST .../messages`。自己的回复可撤回。管理员查看别人的对话时看到 `thrower` 与 `picker` 的 `display_name` 和 `email`。对话参与者看不到对方邮箱。管理员可删除瓶子或回复。任一方可举报。输入框内容不因刷新丢失。 |
 | 空 | 我扔的、我捞的、被举报各自有空态句。 |
 | 错误 | `ErrorBanner` ← `error.message`。`401` 去登录。对话 `404` 写明找不到。 |
 

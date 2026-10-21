@@ -22,8 +22,10 @@ export default function Play() {
 
   if (!ready || !user) return null;
 
+  const playing = picked !== "";
+
   return (
-    <div className="mt-8">
+    <div className={playing ? "mt-3" : "mt-8"}>
       <Link
         to="/forum"
         className="font-sans text-[11px] uppercase tracking-[0.16em] text-[#1A4FBF]"
@@ -63,11 +65,11 @@ export default function Play() {
           </div>
         </>
       ) : picked === "gomoku" ? (
-        <div className="mt-6">
+        <div className="-mx-6 mt-2 sm:-mx-4">
           <GomokuGame onBack={() => setParams({})} initialRoomCode={room} />
         </div>
       ) : (
-        <div className="mt-6">
+        <div className="-mx-6 mt-2 sm:-mx-4">
           <ChessGame onBack={() => setParams({})} initialRoomCode={room} />
         </div>
       )}

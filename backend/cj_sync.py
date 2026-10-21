@@ -23,6 +23,16 @@ _DEEPSEEK_TIMEOUT = 90
 _DEEPSEEK_URL = "https://api.deepseek.com/chat/completions"
 _CHUNK = 20
 _DATE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+_PAIR_MATE = {
+    "ap-calculus-11ac": "ap-calculus-11mc",
+    "ap-calculus-11mc": "ap-calculus-11ac",
+    "chinese-11ac": "chinese-11mc",
+    "chinese-11mc": "chinese-11ac",
+    "ap-lang-11ac": "ap-lang-11mc",
+    "ap-lang-11mc": "ap-lang-11ac",
+    "ap-euro-11ac": "ap-euro-11mc",
+    "ap-euro-11mc": "ap-euro-11ac",
+}
 _JOURNAL_SUBJECTS = {
     "physics-2": "ap-physics-2",
     "physics": "ap-physics",
@@ -268,27 +278,51 @@ def match_journal_course(name: str, teacher: str = "") -> str | None:
     return target.get(_section(folded) or "")
 
 
+def _day_fields(course: dict | None, day: date, cleaned: dict[str, dict]) -> dict:
+    if course is None:
+        return {"ic": "", "hw": "", "an": ""}
+    slot_id = f"{course['id']}|{day.isoformat()}"
+    return cleaned.get(slot_id) or {"ic": "", "hw": "", "an": ""}
+
+
+def _fill_empty(own: dict, other: dict) -> dict:
+    return {key: own[key] or other[key] for key in ("ic", "hw", "an")}
+
+
 def _apply(db: Session, courses: list[dict], cleaned: dict[str, dict], start: str, end: str) -> tuple[int, int]:
     from routers.cj import _SUBJECT_DETAILS, _ensure_subjects
 
     _ensure_subjects(db)
-    written = 0
-    matched = 0
+    by_subject: dict[str, dict] = {}
     for course in courses:
         subject_id = match_journal_course(course["name"], course["teacher"])
         subject = db.get(Subject, subject_id) if subject_id else None
         if subject is None:
             logger.warning("CJ journal course has no catalog subject: %s", course["name"])
             continue
-        matched += 1
+        by_subject[subject_id] = course
+    written = 0
+    handled: set[str] = set()
+    for subject_id, course in by_subject.items():
+        if subject_id in handled:
+            continue
+        subject = db.get(Subject, subject_id)
+        mate_id = _PAIR_MATE.get(subject_id)
+        mate = db.get(Subject, mate_id) if mate_id else None
+        mate_course = by_subject.get(mate_id) if mate_id else None
+        handled.add(subject_id)
+        if mate_id:
+            handled.add(mate_id)
         for day in _school_days(start, end):
-            slot_id = f"{course['id']}|{day.isoformat()}"
-            fields = cleaned.get(slot_id) or {"ic": "", "hw": "", "an": ""}
-            if _write_day(db, subject, day, fields, subject.period):
+            own = _day_fields(course, day, cleaned)
+            other = _day_fields(mate_course, day, cleaned)
+            if subject is not None and _write_day(db, subject, day, _fill_empty(own, other), subject.period):
+                written += 1
+            if mate is not None and _write_day(db, mate, day, _fill_empty(other, own), mate.period):
                 written += 1
     _drop_unmapped(db, set(_SUBJECT_DETAILS))
     db.flush()
-    return matched, written
+    return len(by_subject), written
 
 
 def _drop_unmapped(db: Session, catalog_ids: set[str]) -> None:

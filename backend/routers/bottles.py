@@ -174,8 +174,14 @@ def _thread_out(
     }
     if core is not None and user_has(user, *MODERATOR_ROLES):
         people = users_by_ids(core, [bottle.author_id, pick.picker_id])
-        payload["thrower"] = _party(people.get(bottle.author_id), bottle.author_id)
-        payload["picker"] = _party(people.get(pick.picker_id), pick.picker_id)
+        thrower = _party(people.get(bottle.author_id), bottle.author_id)
+        picker = _party(people.get(pick.picker_id), pick.picker_id)
+        if user.id == pick.picker_id:
+            thrower.pop("email", None)
+        if user.id == bottle.author_id:
+            picker.pop("email", None)
+        payload["thrower"] = thrower
+        payload["picker"] = picker
     return payload
 
 

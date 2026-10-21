@@ -157,9 +157,11 @@ export default function BottleThread() {
         <>
           {thread.thrower && thread.picker ? (
             <p className="mt-4 font-sans text-sm text-neutral-600">
-              {t("bottle.thrownBy")} {thread.thrower.display_name} · {thread.thrower.email}
+              {t("bottle.thrownBy")} {thread.thrower.display_name}
+              {thread.thrower.email ? ` · ${thread.thrower.email}` : ""}
               <br />
-              {t("bottle.pickedBy")} {thread.picker.display_name} · {thread.picker.email}
+              {t("bottle.pickedBy")} {thread.picker.display_name}
+              {thread.picker.email ? ` · ${thread.picker.email}` : ""}
             </p>
           ) : null}
           <article className="mt-4 border border-neutral-200 bg-neutral-50 px-4 py-4">

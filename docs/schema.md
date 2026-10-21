@@ -923,7 +923,7 @@ News 文章仍使用 `Post(category="news")`，每篇文章只有一个内容板
 - `super_admin`：读取和修改全部 CJ 与考试，并可从课表接口提取。
 - `editor` / 普通 `admin`：无 CJ 接口权限。
 
-配置了 `CJ_JOURNAL_BASE_URL` 后，学生端仍用原来的学科目录选课，不再灌入示例作业。提取窗口是上海时区本周一到下周五。课表课程按名称对上目录里的学科（11Ac 与 11Mc 分开），IC / HW / AN 写到该学科上，不新建学科，也不改学科的节次和班级。对不上的课程跳过。DeepSeek 只清洗和补全非空文字，不把文字从一个字段搬到另一个字段。模型或课表接口失败时不改已有 CJ 行。窗口内某天变空，则清空该天已有条目的 IC / HW / 通知。窗口外的记录不动。
+配置了 `CJ_JOURNAL_BASE_URL` 后，学生端仍用原来的学科目录选课，不再灌入示例作业。提取窗口是上海时区本周一到下周五。课表课程按名称对上目录里的学科。Chinese、AP Lang、AP Euro、AP Calculus 会同时写到 11Ac 和 11Mc；两个班同一天都有内容时各留各的，空字段用另一个班同一天的内容补上。不新建学科，也不改学科的节次和班级。对不上的课程跳过。DeepSeek 只清洗和补全非空文字，不把文字从一个字段搬到另一个字段。模型或课表接口失败时不改已有 CJ 行。窗口内某天变空，则清空该天已有条目的 IC / HW / 通知。窗口外的记录不动。
 
 学科目录由服务端准备。学生把学科放进 Period 1–8 的选择只留在浏览器，不写入本接口。
 
@@ -1026,7 +1026,7 @@ News 文章仍使用 `Post(category="news")`，每篇文章只有一个内容板
 
 #### `POST /api/v1/cj/sync`
 
-仅 `super_admin`。立刻按同一窗口提取：请求 `GET {CJ_JOURNAL_BASE_URL}/public/journal?from=&to=`，头 `Authorization: Bearer <CJ_JOURNAL_API_KEY>`。非空 IC / HW / AN 交给 DeepSeek 清洗后，按课程名称写入已有学科的 `cj_entries`。对不上目录的课程不写入。进程在配置了课表地址后也会自行调用这一次，之后每 60 分钟一次。已有一次在跑时返回 `409`。
+仅 `super_admin`。立刻按同一窗口提取：请求 `GET {CJ_JOURNAL_BASE_URL}/public/journal?from=&to=`，头 `Authorization: Bearer <CJ_JOURNAL_API_KEY>`。非空 IC / HW / AN 交给 DeepSeek 清洗后，按课程名称写入已有学科的 `cj_entries`。同一门成对课程写入 11Ac 和 11Mc 两边。对不上目录的课程不写入。进程在配置了课表地址后也会自行调用这一次，之后每 60 分钟一次。已有一次在跑时返回 `409`。
 
 **Response**
 
@@ -1099,7 +1099,7 @@ News 文章仍使用 `Post(category="news")`，每篇文章只有一个内容板
 
 ### 1.8 Bottles
 
-与 Forum 平级，不是帖子栏目。`category` 枚举不含瓶子。全部接口要求 `scoop_session`。同学之间的成功响应不出现 `author_id`、`picker_id`、`display_name`、`avatar`、`email`。`admin` 与 `super_admin` 读取单条对话时另含双方身份。正文去掉首尾空白后为 1–500 字。每个 UTC 日（北京时间每天 08:00 重置）每人最多扔 3 枚、捞 5 枚。次数用尽为 `403` `forbidden`，不落库。海里没有可捞的瓶子时 `200` 且 `pick` 为 `null`，不计入捞取次数。
+与 Forum 平级，不是帖子栏目。`category` 枚举不含瓶子。全部接口要求 `scoop_session`。同学之间的成功响应不出现 `author_id`、`picker_id`、`display_name`、`avatar`、`email`。`admin` 与 `super_admin` 读取别人的对话时另含双方身份。扔瓶人或捞瓶人即使也是管理员，响应里也不含对方的 `email`。正文去掉首尾空白后为 1–500 字。每个 UTC 日（北京时间每天 08:00 重置）每人最多扔 3 枚、捞 5 枚。次数用尽为 `403` `forbidden`，不落库。海里没有可捞的瓶子时 `200` 且 `pick` 为 `null`，不计入捞取次数。
 
 `Bottle`
 
@@ -1142,8 +1142,8 @@ News 文章仍使用 `Post(category="news")`，每篇文章只有一个内容板
 | `messages` | BottleMessage[] | 按 `created_at` 从早到晚 |
 | `role` | string | 当前用户是 `thrower`、`picker` 或 `moderator` |
 | `unread` | integer | `0` 或 `1` |
-| `thrower` | object | 仅 `admin` / `super_admin`：`id` `display_name` `email` |
-| `picker` | object | 同上 |
+| `thrower` | object | 仅 `admin` / `super_admin`：`id` `display_name` `email`。当前用户是捞瓶人时没有 `email` |
+| `picker` | object | 同上。当前用户是扔瓶人时没有 `email` |
 
 `BottleActivity`：`{ "unread": 0 | 1 }`。任一对话有对方在自己已读时间之后写的回复，则为 `1`。不会变成 `2`。
 

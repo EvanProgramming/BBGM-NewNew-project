@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { usePlayFrame } from "./GameShell.jsx";
 
 export function useLobbyMode({
   initialRoomCode = "",
@@ -80,8 +81,13 @@ export default function GameLobby({
   clockEnabled = true,
   onClockEnabled,
 }) {
+  const frame = usePlayFrame();
   return (
-    <main className="play-board flex h-[calc(100dvh-14rem)] min-h-[28rem] flex-col overflow-hidden bg-page font-sans text-ink">
+    <main
+      ref={frame.ref}
+      style={frame.height ? { height: frame.height } : undefined}
+      className="play-board flex h-[calc(100dvh-12rem)] max-h-[100dvh] flex-col overflow-hidden bg-page font-sans text-ink"
+    >
       <header className="flex shrink-0 items-center gap-2 border-b border-line bg-surface px-4 py-3 sm:px-6 sm:gap-3">
         <button
           type="button"
