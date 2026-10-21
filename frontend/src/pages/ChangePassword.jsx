@@ -44,11 +44,11 @@ export default function ChangePassword() {
 
   if (done) {
     return (
-      <div className="mx-auto mt-10 max-w-md">
+      <div className="mx-auto mt-10 max-w-lg">
         <FrontPageLink />
         <SectionRule>{t("password.title")}</SectionRule>
-        <p className="font-sans text-sm text-neutral-700">{t("reset.updated")}</p>
-        <p className="mt-4 font-sans text-sm">
+        <p className="font-sans text-[15px] text-neutral-700">{t("reset.updated")}</p>
+        <p className="mt-4 font-sans text-[15px]">
           <Link to="/" className="text-[#1A4FBF]">
             {t("link.frontPage")}
           </Link>
@@ -60,13 +60,13 @@ export default function ChangePassword() {
   const banner = error && !error.fields?.length ? error : null;
 
   return (
-    <div className="mx-auto mt-10 max-w-md">
+    <div className="mx-auto mt-10 max-w-lg">
       <FrontPageLink />
       <SectionRule>{t("password.title")}</SectionRule>
       <ErrorBanner error={banner} />
       <form onSubmit={onSubmit} autoComplete="off" className="space-y-5">
         <div>
-          <label className="block font-sans text-[11px] uppercase tracking-[0.16em] text-[#1A4FBF]" htmlFor="current_password">
+          <label className="block font-sans text-[13px] uppercase tracking-[0.16em] text-[#1A4FBF]" htmlFor="current_password">
             {t("password.current")}
           </label>
           <ManualPasswordInput
@@ -77,7 +77,7 @@ export default function ChangePassword() {
           <FieldError message={fieldMessage(error, "current_password")} />
         </div>
         <div>
-          <label className="block font-sans text-[11px] uppercase tracking-[0.16em] text-[#1A4FBF]" htmlFor="password">
+          <label className="block font-sans text-[13px] uppercase tracking-[0.16em] text-[#1A4FBF]" htmlFor="password">
             {t("password.new")}
           </label>
           <ManualPasswordInput id="password" value={password} onChange={(event) => setPassword(event.target.value)} />
@@ -86,7 +86,7 @@ export default function ChangePassword() {
         <button
           type="submit"
           disabled={submitting}
-          className="inline-flex items-center gap-2 rounded-[2px] bg-black px-5 py-2 font-sans text-[11px] uppercase tracking-[0.18em] text-white disabled:opacity-40"
+          className="inline-flex items-center gap-2 rounded-[2px] bg-black px-6 py-2.5 font-sans text-[13px] uppercase tracking-[0.16em] text-white disabled:opacity-40"
         >
           {submitting ? <ButtonSpinner /> : null}
           {t("password.submit")}

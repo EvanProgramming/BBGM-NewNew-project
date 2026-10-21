@@ -238,7 +238,7 @@ function CourseRow({ period, subject, entry, date, detailPath }) {
             <h3 className="truncate font-sans text-sm font-semibold">{subject.short_name}</h3>
             <p className="truncate font-sans text-[10px] text-neutral-500">{subject.teacher} · {subject.room}</p>
           </div>
-          <div className="grid min-w-0 gap-2 sm:grid-cols-3">
+          <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-start">
             <Info label="IC" value={entry?.ic} color={accent} />
             <Info label="HW" value={entry?.hw} color={accent} />
             <Info label="A" value={entry?.announcement} color={accent} />
@@ -254,11 +254,18 @@ function CourseRow({ period, subject, entry, date, detailPath }) {
   return <Link to={`${detailPath}?${query}`} className="block text-inherit no-underline">{content}</Link>;
 }
 
+function textWeight(value) {
+  return Math.max(1, Math.min(6, Math.ceil((value || "").length / 20)));
+}
+
 function Info({ label, value, color }) {
   return (
-    <div>
+    <div
+      className="min-w-[6rem] flex-1"
+      style={{ flexBasis: 0, flexGrow: textWeight(value) }}
+    >
       <p className="font-sans text-[10px] uppercase tracking-[0.14em]" style={{ color }}>{label}</p>
-      <p className="truncate font-sans text-[11px] leading-4">{value || "—"}</p>
+      <p className="font-sans text-[11px] leading-4 [overflow-wrap:anywhere]">{value || "—"}</p>
     </div>
   );
 }

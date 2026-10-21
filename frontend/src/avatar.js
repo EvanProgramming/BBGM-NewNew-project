@@ -1,7 +1,7 @@
 const PRESETS = new Set(["oak", "gym", "book", "dorm", "bus", "night"]);
 
 function apiOrigin() {
-  const base = import.meta.env.VITE_API_BASE || "http://localhost:8000/api/v1";
+  const base = import.meta.env.VITE_API_BASE || "/api/v1";
   if (base.startsWith("http://") || base.startsWith("https://")) {
     return new URL(base).origin;
   }

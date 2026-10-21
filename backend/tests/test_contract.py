@@ -1,3 +1,4 @@
+import hashlib
 import time
 from datetime import datetime, timedelta, timezone
 
@@ -9,7 +10,8 @@ import avatars
 from errors import StorageError
 from mail import peek_console_code
 from main import create_app
-from models import AuditEvent, Post
+from models import AuditEvent, Post, User, utc_now
+from security import hash_password
 from validate import normalize_email
 
 
@@ -2034,6 +2036,48 @@ def test_forum_activity_badge_tracks_other_people_only(tmp_path, monkeypatch):
         assert author.get("/api/v1/me/forum-activity").json()["unread"] == 1
         assert other.delete(f"/api/v1/posts/{post_id}/likes").status_code == 200
         assert author.get("/api/v1/me/forum-activity").json()["unread"] == 0
+    app.state.engine.dispose()
+
+
+def _legacy_hash(password: str, iterations: int = 100_000) -> str:
+    salt = "0123456789abcdef0123456789abcdef"
+    digest = hashlib.pbkdf2_hmac("sha256", password.encode(), salt.encode(), iterations)
+    return f"pbkdf2_sha256${iterations}${salt}${digest.hex()}"
+
+
+def test_password_hashes_use_owasp_iterations_and_upgrade_on_login(tmp_path, monkeypatch):
+    # Same password hashed twice must use different salts.
+    assert hash_password("same-password") != hash_password("same-password")
+
+    app = _make_app(tmp_path, monkeypatch)
+    with TestClient(app) as client:
+        registered = _register(client, "jordan.hale@basischina.com", "east-hall-8", "Jordan Hale")
+        assert registered.status_code == 201, registered.text
+        user_id = registered.json()["id"]
+
+        with Session(app.state.core_engine) as db:
+            user = db.get(User, user_id)
+            assert user.password_hash.startswith("pbkdf2_sha256$600000$")
+            fresh_hash = user.password_hash
+            user.password_hash = _legacy_hash("east-hall-8", 100_000)
+            db.commit()
+
+        wrong = client.post(
+            "/api/v1/auth/login",
+            json={"email": "jordan.hale@basischina.com", "password": "wrong-pass"},
+        )
+        assert wrong.status_code == 401
+
+        # A legacy 100k hash still logs in, then is transparently upgraded.
+        login = client.post(
+            "/api/v1/auth/login",
+            json={"email": "jordan.hale@basischina.com", "password": "east-hall-8"},
+        )
+        assert login.status_code == 200, login.text
+        with Session(app.state.core_engine) as db:
+            user = db.get(User, user_id)
+            assert user.password_hash.startswith("pbkdf2_sha256$600000$")
+            assert user.password_hash != fresh_hash
     app.state.engine.dispose()
 
 

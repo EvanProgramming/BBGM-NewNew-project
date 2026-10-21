@@ -105,7 +105,6 @@ export default function Category({ category, title, feed }) {
   const [ready, setReady] = useState(false);
 
   const isForum = category === "forum";
-  const canWrite = isForum && Boolean(user);
   const userKey = user?.id || "guest";
   const [draft, setDraft] = useState("");
   const [keyword, setKeyword] = useState("");

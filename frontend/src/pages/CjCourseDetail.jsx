@@ -71,7 +71,7 @@ export default function CjCourseDetail({ portal = "student", backPath = "/cj/stu
             <CourseMeta label="Course type" value={subject.required ? "Required" : "Elective / configurable"} />
           </section>
 
-          <section className="mt-6 grid gap-4 lg:grid-cols-3">
+          <section className="mt-6 flex flex-col gap-4 lg:flex-row lg:items-stretch">
             <DetailPanel label="IC" title="In-class content" value={entry?.ic} />
             <DetailPanel label="HW" title="Homework" value={entry?.hw} />
             <DetailPanel label="A" title="Announcement" value={entry?.announcement} />
@@ -91,12 +91,19 @@ function CourseMeta({ label, value }) {
   );
 }
 
+function textWeight(value) {
+  return Math.max(1, Math.min(6, Math.ceil((value || "").length / 40)));
+}
+
 function DetailPanel({ label, title, value }) {
   return (
-    <article className="min-h-[220px] border-2 border-black p-5">
+    <article
+      className="min-h-[220px] min-w-0 border-2 border-black p-5 lg:min-w-[15rem] lg:flex-1"
+      style={{ flexBasis: 0, flexGrow: textWeight(value) }}
+    >
       <span className="inline-block bg-[#1A4FBF] px-2 py-1 font-sans text-[11px] font-semibold text-white">{label}</span>
       <h2 className="mt-4 font-serif text-2xl">{title}</h2>
-      <p className={`mt-4 whitespace-pre-wrap font-sans text-lg leading-7 ${value ? "text-neutral-900" : "text-neutral-400"}`}>
+      <p className={`mt-4 whitespace-pre-wrap font-sans text-lg leading-7 [overflow-wrap:anywhere] ${value ? "text-neutral-900" : "text-neutral-400"}`}>
         {value || "No information has been posted yet."}
       </p>
     </article>

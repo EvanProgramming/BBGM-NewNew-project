@@ -3,7 +3,7 @@ import hmac
 import secrets
 
 COOKIE_NAME = "scoop_session"
-_PBKDF2_ITERATIONS = 100_000
+_PBKDF2_ITERATIONS = 600_000
 
 
 def hash_password(password: str) -> str:
@@ -35,6 +35,21 @@ def verify_password(password: str, password_hash: str) -> bool:
         rounds,
     )
     return hmac.compare_digest(dk.hex(), digest)
+
+
+def needs_rehash(password_hash: str) -> bool:
+    """True when a stored hash uses an older scheme or fewer iterations."""
+    try:
+        scheme, iterations, _salt, _digest = password_hash.split("$", 3)
+    except (AttributeError, ValueError):
+        return True
+    if scheme != "pbkdf2_sha256":
+        return True
+    try:
+        rounds = int(iterations)
+    except ValueError:
+        return True
+    return rounds < _PBKDF2_ITERATIONS
 
 
 def new_session_token() -> str:

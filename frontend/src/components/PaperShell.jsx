@@ -9,21 +9,19 @@ import { canEditNews, CATEGORY_ROUTES, formatToday, hasRole } from "../format";
 import { useI18n } from "../i18n";
 import { TermsDialog } from "../pages/Terms";
 
-function navClass({ isActive }) {
-  return `font-sans text-[12px] font-medium uppercase tracking-[0.18em] ${
-    isActive ? "text-neutral-900" : "text-neutral-900 hover:text-[#1A4FBF]"
-  }`;
+function navClass() {
+  return "nav-pill font-serif text-[17px] font-semibold uppercase tracking-[0.03em] sm:text-[19px]";
 }
 
 const menuItemClass =
-  "block w-full px-4 py-2 text-left uppercase tracking-[0.18em] hover:text-[#1A4FBF]";
+  "block w-full px-4 py-2.5 text-left text-[13px] font-semibold uppercase tracking-[0.14em] transition-colors hover:bg-[#1A4FBF] hover:text-white";
 
 function BarMenu({ label, open, onToggle, children }) {
   return (
     <div className="relative">
       <button
         type="button"
-        className="uppercase"
+        className="nav-pill uppercase"
         aria-expanded={open}
         aria-haspopup="menu"
         onClick={onToggle}
@@ -50,7 +48,7 @@ function ActivityBadge({ label }) {
   return (
     <span
       title={label}
-      className="ml-1 inline-flex h-[15px] min-w-[15px] items-center justify-center rounded-full bg-[#E10600] px-[4px] font-sans text-[9px] font-bold leading-none tracking-normal text-white normal-case"
+      className="ml-1 inline-flex h-[16px] min-w-[16px] items-center justify-center rounded-full bg-[#E10600] px-[4px] font-sans text-[10px] font-bold leading-none tracking-normal text-white normal-case"
     >
       1
     </span>
@@ -159,13 +157,13 @@ export default function PaperShell() {
 
   return (
     <div className="min-h-screen bg-white text-[#111111]">
-      <div className="mx-auto max-w-[1180px] px-8 pb-20">
+      <div className="mx-auto max-w-[1920px] px-4 pb-20 sm:px-8 lg:px-20 xl:px-[210px]">
         <div
           ref={barRef}
-          className="border-b border-black py-[10px] font-sans text-[11px] font-medium tracking-[0.18em] text-[#111111]"
+          className="full-bleed-rule-thin py-2.5 font-sans text-[13px] font-semibold tracking-[0.14em] text-[#111111] sm:text-[14px]"
         >
           <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-2">
-            <nav className="flex flex-wrap items-center gap-x-6 gap-y-2 uppercase" aria-label="Site">
+            <nav className="flex flex-wrap items-center gap-x-2 gap-y-1 uppercase" aria-label="Site">
               <BarMenu label={t("shell.system")} open={openMenu === "system"} onToggle={() => toggleMenu("system")}>
                 <Link role="menuitem" to="/about" className={menuItemClass}>
                   {t("shell.about")}
@@ -205,15 +203,15 @@ export default function PaperShell() {
                 </BarMenu>
               ) : null}
               {user ? (
-                <Link to="/me/posts" className="uppercase">
+                <Link to="/me/posts" className="nav-pill uppercase">
                   {t("shell.myPosts")}
                 </Link>
               ) : null}
-              <Link to="/system" className="uppercase">
+              <Link to="/system" className="nav-pill uppercase">
                 {t("shell.notices")}
               </Link>
             </nav>
-            <div className="flex flex-wrap items-center gap-x-5 gap-y-2">
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
               {user ? (
                 <>
                   <Link
@@ -223,13 +221,13 @@ export default function PaperShell() {
                     <Avatar avatar={user.avatar} size={28} />
                     {user.display_name}
                   </Link>
-                  <button type="button" onClick={onSignOut} disabled={signingOut} className="inline-flex items-center gap-2 uppercase disabled:opacity-40">
+                  <button type="button" onClick={onSignOut} disabled={signingOut} className="nav-pill inline-flex items-center gap-2 uppercase disabled:opacity-40">
                     {signingOut ? <ButtonSpinner /> : null}
                     {t("shell.signOut")}
                   </button>
                 </>
               ) : (
-                <Link to="/sign-in" className="uppercase">
+                <Link to="/sign-in" className="nav-pill uppercase">
                   {t("shell.signIn")}
                 </Link>
               )}
@@ -240,34 +238,23 @@ export default function PaperShell() {
           </div>
         </div>
 
-        <header className="grid grid-cols-[1fr_auto_1fr] items-center gap-6 pb-1 pt-8">
-          <div />
-
+        <header className="flex items-center justify-center pb-1 pt-7 sm:pt-9">
           <Link
             to="/"
             aria-label="Elegram"
             className="relative z-10 flex cursor-pointer items-center justify-center whitespace-nowrap no-underline"
           >
-            <span className="font-wordmark-elegram text-[52px] sm:text-[68px]">Elegram</span>
+            <span className="font-wordmark-elegram text-[58px] sm:text-[86px]">Elegram</span>
           </Link>
-
-          <div className="text-right">
-            <p className="font-sans text-[10px] font-semibold tracking-[0.16em] text-[#1A4FBF]">
-              {t("shell.ownedBy")}
-            </p>
-            <p className="mt-[3px] font-sans text-[10px] font-normal tracking-[0.01em] text-neutral-500">
-              {t("shell.owners")}
-            </p>
-          </div>
         </header>
 
-        <p className="pb-6 pt-4 text-center font-sans text-[13px] font-semibold uppercase tracking-[0.28em] text-[#111111]">
+        <p className="pb-7 pt-5 text-center font-serif text-[14px] font-bold uppercase tracking-[0.08em] text-[#111111] sm:text-[18px]">
           <Link to="/" className="text-inherit no-underline">
             {t("shell.tagline")}
           </Link>
         </p>
 
-        <nav className="flex flex-wrap items-center justify-center gap-x-10 gap-y-2 border-b-[2.5px] border-black pb-[14px]">
+        <nav className="full-bleed-rule flex flex-wrap items-center justify-center gap-x-1 gap-y-1 pb-3 sm:gap-x-3">
           <NavLink to="/" end className={navClass}>
             {t("nav.news")}
           </NavLink>
@@ -290,7 +277,7 @@ export default function PaperShell() {
 
         {location.pathname === "/forum" || location.pathname.startsWith("/forum/") ? (
           <nav
-            className="flex flex-wrap items-center justify-center gap-x-8 gap-y-2 border-b border-neutral-200 py-3"
+            className="flex flex-wrap items-center justify-center gap-x-2 gap-y-1 border-b border-neutral-300 py-3"
             aria-label="Forum"
           >
             {[
@@ -303,17 +290,11 @@ export default function PaperShell() {
                 key={item.to}
                 to={item.to}
                 end={item.end}
-                className={({ isActive }) =>
-                  `inline-flex items-center font-sans text-[13px] ${
-                    isActive ? "text-[#1A4FBF]" : "text-neutral-900 hover:text-[#1A4FBF]"
-                  }`
-                }
+                className="nav-pill inline-flex items-center font-sans text-[14px] font-bold"
               >
-                {({ isActive }) => (
+                {() => (
                   <>
-                    <span className={isActive ? "underline decoration-2 underline-offset-[7px]" : undefined}>
-                      {t(item.label)}
-                    </span>
+                    <span>{t(item.label)}</span>
                     {item.to === "/forum/mine" && forumUnread ? (
                       <ActivityBadge label={t("forum.activityBadge")} />
                     ) : null}
@@ -326,7 +307,7 @@ export default function PaperShell() {
 
         <Outlet />
 
-        <p className="mt-16 border-t border-neutral-200 pt-4 font-sans text-[11px] leading-5 text-neutral-500">
+        <p className="mt-16 border-t border-neutral-300 pt-5 font-sans text-[13px] font-medium leading-6 text-neutral-600">
           {t("shell.founders")}
           <br />
           {t("shell.builders")}

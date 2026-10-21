@@ -5,7 +5,7 @@ import { useAuth } from "../auth";
 import { uploadSrc } from "../avatar";
 import { canDeletePosts, formatRelative, forumListPath } from "../format";
 import { useI18n } from "../i18n";
-import { TitleLine } from "./ui";
+import { SafeImage, TitleLine } from "./ui";
 import { Avatar } from "./Avatar";
 
 function CommentIcon() {
@@ -145,27 +145,25 @@ export function CommunityCard({ post, onDelete = null }) {
   }
 
   return (
-    <article className="mb-3 min-w-0 overflow-hidden rounded-2xl bg-[#F4F5F7] p-4">
-      <div className="flex gap-3">
-        <Avatar avatar={post.author?.avatar} size={44} className="rounded-full" />
+    <article className="mb-4 min-w-0 overflow-hidden rounded-2xl border border-neutral-200 bg-[#F4F5F7] p-5">
+      <div className="flex gap-4">
+        <Avatar avatar={post.author?.avatar} size={48} className="rounded-full" />
         <div className="min-w-0 flex-1">
-          <p className="font-sans text-sm font-medium text-[#111111]">{post.author?.display_name}</p>
-          <p className="mt-0.5 font-sans text-xs text-neutral-500">{formatRelative(post.created_at, lang)}</p>
+          <p className="font-sans text-[15px] font-bold text-[#111111]">{post.author?.display_name}</p>
+          <p className="mt-0.5 font-sans text-[13px] font-medium text-neutral-600">{formatRelative(post.created_at, lang)}</p>
           {post.pinned ? (
-            <p className="mt-2 font-sans text-[11px] font-semibold uppercase tracking-[0.16em] text-[#1A4FBF]">{t("post.pinned")}</p>
+            <p className="mt-2 font-sans text-[13px] font-bold uppercase tracking-[0.14em] text-[#1A4FBF]">{t("post.pinned")}</p>
           ) : null}
-          <Link to={`/posts/${post.id}`} state={detailState} className="mt-3 block font-sans text-[15px] font-medium leading-6 text-[#111111] [overflow-wrap:anywhere]">
+          <Link to={`/posts/${post.id}`} state={detailState} className="text-link mt-3 block font-sans text-[17px] font-semibold leading-6 text-[#111111] [overflow-wrap:anywhere]">
             {post.title}
           </Link>
           {post.excerpt ? (
-            <p className="mt-1 whitespace-pre-wrap font-sans text-sm leading-6 text-neutral-700 [overflow-wrap:anywhere]">{post.excerpt}</p>
+            <p className="mt-1 whitespace-pre-wrap font-sans text-[15px] font-medium leading-6 text-neutral-700 [overflow-wrap:anywhere]">{post.excerpt}</p>
           ) : null}
           {post.images?.[0] ? (
-            <img
-              src={uploadSrc(post.images[0])}
-              alt=""
-              className="mt-3 max-h-64 w-full rounded-xl object-cover"
-            />
+            <div className="zoom-frame mt-3 max-h-72 rounded-xl bg-[#D6DEEE]">
+              <SafeImage src={uploadSrc(post.images[0])} className="max-h-72 w-full object-cover" />
+            </div>
           ) : null}
           <div className="mt-4 flex items-center gap-10 text-neutral-500">
             <Link
@@ -224,8 +222,8 @@ export function CommunityCard({ post, onDelete = null }) {
 
 export function CommunityCardSkeleton() {
   return (
-    <div className="mb-3 flex gap-3 rounded-2xl bg-[#F4F5F7] p-4">
-      <div className="h-11 w-11 rounded-full bg-[#D6DEEE]" />
+    <div className="mb-4 flex gap-4 rounded-2xl border border-neutral-200 bg-[#F4F5F7] p-5">
+      <div className="h-12 w-12 rounded-full bg-[#D6DEEE]" />
       <div className="flex flex-1 flex-col justify-center gap-3">
         <TitleLine />
         <TitleLine className="w-1/3" />
