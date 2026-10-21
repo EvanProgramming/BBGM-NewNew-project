@@ -31,7 +31,7 @@ from schemas import (
     UserPrivate,
 )
 from config import load_settings
-from security import COOKIE_NAME, hash_password, sign_cookie_value, unsign_cookie_value, verify_password
+from security import COOKIE_NAME, hash_password, needs_rehash, sign_cookie_value, unsign_cookie_value, verify_password
 from store import (
     apply_admin_email,
     consume_email_code,
@@ -216,6 +216,8 @@ def login(body: LoginBody, request: Request, db: Session = Depends(get_core_db))
 
     try:
         apply_admin_email(user, request.app.state.settings.admin_email)
+        if needs_rehash(user.password_hash):
+            user.password_hash = hash_password(body.password)
         token = create_session(db, user.id)
     except SQLAlchemyError as exc:
         db.rollback()
