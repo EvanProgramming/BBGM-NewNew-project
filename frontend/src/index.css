@@ -173,6 +173,26 @@ body {
   animation: like-pop 280ms ease-out;
 }
 
+@keyframes bell-voted-in {
+  0% {
+    transform: scale(0.72);
+    opacity: 0;
+  }
+  60% {
+    transform: scale(1.08);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+.bell-voted-in {
+  display: inline-flex;
+  animation: bell-voted-in 420ms ease-out both;
+}
+
 @keyframes publish-spin {
   to {
     transform: rotate(360deg);
@@ -190,7 +210,8 @@ body {
 
 @media (prefers-reduced-motion: reduce) {
   .cj-welcome-in,
-  .like-pop {
+  .like-pop,
+  .bell-voted-in {
     animation: none;
   }
 

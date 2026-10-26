@@ -7,7 +7,7 @@ export const TERMS = {
     title: "User agreement",
     makers: "Founders: Tori Zhao and Jason Fang. This site was built by Leo Gao, Ben Lyu, Dewey Peng, and Tori Zhao. The newsletter is contributed by Media Club.",
     covers: "It covers Elegram: registration, sign-in, reading, Forum posts and comments, News copy, accounts, and notices.",
-    version: "Version date: 5 October 2026.",
+    version: "Version date: 26 October 2026.",
     lead: [
       p("Read this agreement before you register. "),
       p("Bold text covers account responsibility, security duties, and how violations are handled. ", true),
@@ -20,6 +20,7 @@ export const TERMS = {
           p("1.1 Tori Zhao and Jason Fang founded this site. Leo Gao, Ben Lyu, Dewey Peng, and Tori Zhao built it for students at the same school to read the paper and talk on Forum. Media Club contributes the newsletter."),
           p("1.2 This agreement covers account security, how you use the site, and how the makers handle security. It is not a government filing, and the makers do not file reports to an authority through this site."),
           p("1.3 The site has no payments, no recommendation ranking, and no automatic review. A Forum post is public as soon as it is published. A News section stays off the public page until a super admin approves it."),
+          p("1.4 This forum is an English forum. Please use English on Forum."),
         ],
       },
       {
@@ -95,7 +96,7 @@ export const TERMS = {
     title: "用户协议",
     makers: "创始人：Tori Zhao、Jason Fang。网站由 Leo Gao、Ben Lyu、Dewey Peng、Tori Zhao 搭建。校报由 Media Club 供稿。",
     covers: "本协议覆盖 Elegram：注册、登录、阅读、论坛发帖与评论、新闻稿、账号和通知。",
-    version: "版本日期：2026 年 10 月 5 日。",
+    version: "版本日期：2026 年 10 月 26 日。",
     lead: [
       p("注册前请阅读本协议。"),
       p("加粗文字说明账号责任、安全义务，以及违规如何处理。", true),
@@ -108,6 +109,7 @@ export const TERMS = {
           p("1.1 Tori Zhao、Jason Fang 创立本站。Leo Gao、Ben Lyu、Dewey Peng、Tori Zhao 搭建本站，供同一所学校的学生阅读校报并在论坛讨论。校报由 Media Club 供稿。"),
           p("1.2 本协议约定账号安全、使用方式，以及制作者如何处理安全问题。这不是政府备案，制作者也不通过本站向主管机关报送。"),
           p("1.3 本站没有支付、没有推荐排序、没有自动审核。论坛帖子一经发布即公开。新闻板块在超级管理员同意之前不会出现在公开页面。"),
+          p("1.4 此论坛为英文论坛。请你们在 Forum 中使用英文。"),
         ],
       },
       {

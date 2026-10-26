@@ -35,6 +35,7 @@ export default function PostDetail() {
 
   useEffect(() => {
     let cancelled = false;
+    let denied = false;
     setLoading(true);
     setReady(false);
     setPost(null);
@@ -58,19 +59,23 @@ export default function PostDetail() {
       })
       .catch((err) => {
         if (cancelled) return;
+        if (err instanceof ApiError && err.status === 401) {
+          denied = true;
+          navigate(`/sign-in?next=${encodeURIComponent(`/posts/${postId}`)}`, { replace: true });
+          return;
+        }
         setPost(null);
         setError(err);
       })
       .finally(() => {
-        if (!cancelled) {
-          setLoading(false);
-          setReady(true);
-        }
+        if (cancelled || denied) return;
+        setLoading(false);
+        setReady(true);
       });
     return () => {
       cancelled = true;
     };
-  }, [postId]);
+  }, [navigate, postId]);
 
   const refreshThread = useCallback(async () => {
     const data = await api.getPost(postId);

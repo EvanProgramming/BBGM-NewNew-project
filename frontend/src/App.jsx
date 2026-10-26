@@ -3,6 +3,7 @@ import { AuthProvider } from "./auth";
 import { I18nProvider } from "./i18n";
 import PaperShell from "./components/PaperShell";
 import About from "./pages/About";
+import Bell from "./pages/Bell";
 import BottleThread from "./pages/BottleThread";
 import Bottles from "./pages/Bottles";
 import AdminUsers from "./pages/AdminUsers";
@@ -53,6 +54,7 @@ export default function App() {
             <Route path="/forum/all" element={<Category category="forum" feed="all" title="Forum" />} />
             <Route path="/forum/mine" element={<Category category="forum" feed="mine" title="Forum" />} />
             <Route path="/play" element={<Play />} />
+            <Route path="/bell" element={<Bell />} />
             <Route path="/bottles" element={<Bottles />} />
             <Route path="/bottles/picks/:pickId" element={<BottleThread />} />
             <Route path="/cj" element={CJ_PAUSED ? <CjPaused /> : <CjPortal />} />

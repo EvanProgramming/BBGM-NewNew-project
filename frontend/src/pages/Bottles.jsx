@@ -137,6 +137,7 @@ export default function Bottles() {
   return (
     <div className="mx-auto mt-8 w-full max-w-[42rem]">
       <SectionRule>{t("bottle.title")}</SectionRule>
+      <p className="mb-6 font-sans text-[15px] leading-7 text-neutral-700">{t("bottle.intro")}</p>
       <ErrorBanner error={error} />
       <form onSubmit={onThrow}>
         <textarea

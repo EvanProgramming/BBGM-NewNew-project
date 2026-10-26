@@ -10,7 +10,7 @@ import avatars
 from errors import StorageError
 from mail import peek_console_code
 from main import create_app
-from models import AuditEvent, Post, User, utc_now
+from models import AuditEvent, BellRound, BellTrack, Post, User, utc_now
 from security import hash_password
 from validate import normalize_email
 
@@ -623,8 +623,8 @@ def test_student_community_comments_promote_and_admin_roles(tmp_path, monkeypatc
 
         guest = TestClient(app)
         listed = guest.get(f"/api/v1/posts/{post_id}/comments")
-        assert listed.status_code == 200
-        assert listed.json()["items"] == []
+        assert listed.status_code == 401
+        assert listed.json()["error"]["code"] == "unauthenticated"
         unauth = guest.post(
             f"/api/v1/posts/{post_id}/comments",
             json={"body": "Saving a dryer for tonight."},
@@ -647,19 +647,21 @@ def test_student_community_comments_promote_and_admin_roles(tmp_path, monkeypatc
         assert reply.status_code == 422
         assert reply.json()["error"]["fields"][0]["field"] == "parent_id"
 
-        newspaper = guest.get(f"/api/v1/posts/{post_id}")
+        hidden = guest.get(f"/api/v1/posts/{post_id}")
+        assert hidden.status_code == 401
         news_id = None
         detail = guest.get("/api/v1/posts")
         assert detail.json()["total"] == 0
 
-        comments = guest.get(f"/api/v1/posts/{post_id}/comments")
+        comments = client.get(f"/api/v1/posts/{post_id}/comments")
         assert comments.status_code == 200
         assert comments.json()["total"] == 1
         assert comments.json()["items"][0]["replies"] == []
         assert comments.json()["items"][0]["body"] == "I have a roll in 312."
         assert comments.json()["items"][0]["author"]["avatar"] == "preset:oak"
+        assert guest.get(f"/api/v1/posts/{post_id}/comments").status_code == 401
 
-        board_after = guest.get("/api/v1/posts?category=forum")
+        board_after = client.get("/api/v1/posts?category=forum")
         card = board_after.json()["items"][0]
         assert card["reply_count"] == 1
         assert len(card["reply_preview"]) == 1
@@ -722,7 +724,7 @@ def test_student_community_comments_promote_and_admin_roles(tmp_path, monkeypatc
         assert public.status_code == 200
         assert public.json()["category"] == "news"
         assert public.json()["blocks"][0]["heading"] == "Quarters"
-        assert guest.get(f"/api/v1/posts/{post_id}").json()["title"] == "Laundry chat in the stairwell"
+        assert guest.get(f"/api/v1/posts/{post_id}").status_code == 401
         assert guest.get("/api/v1/posts").json()["total"] == 1
 
         paper_comments = guest.get(f"/api/v1/posts/{news_id}/comments")
@@ -948,8 +950,8 @@ def test_forum_likes_idempotent_guest_and_newspaper_rejected(tmp_path, monkeypat
 
         guest = TestClient(app)
         guest_list = guest.get("/api/v1/posts?category=forum")
-        assert guest_list.json()["items"][0]["liked"] is False
-        assert guest_list.json()["items"][0]["like_count"] == 1
+        assert guest_list.status_code == 401
+        assert guest.get(f"/api/v1/posts/{post_id}").status_code == 401
         assert guest.post(f"/api/v1/posts/{post_id}/likes").status_code == 401
 
         removed = client.delete(f"/api/v1/posts/{post_id}/likes")
@@ -1500,6 +1502,18 @@ def test_cj_journal_sync_cleans_and_stores(tmp_path, monkeypatch):
     assert cj_sync.match_journal_course("11 Ac AP Calculus AB") == "ap-calculus-11ac"
     assert cj_sync.match_journal_course("AP Stats") == "ap-stats"
     assert cj_sync.match_journal_course("AP Microeconomics", "Andrew Mark Peterson") == "ap-micro-macro"
+    assert cj_sync.match_journal_course("AP European History") == "ap-euro-11ac"
+    assert cj_sync.match_journal_course("AP Euro") == "ap-euro-11ac"
+    assert cj_sync.match_journal_course("11Ac AP European History") == "ap-euro-11ac"
+    assert cj_sync.match_journal_course("11Mc AP Euro") == "ap-euro-11mc"
+    assert cj_sync.match_journal_course("AP Calculus AB") == "ap-calculus-11ac"
+    assert cj_sync.match_journal_course("AP Calculus AB · 11Ac") == "ap-calculus-11ac"
+    assert cj_sync.match_journal_course("Chinese 11 · Ac") == "chinese-11ac"
+    assert cj_sync.match_journal_course("Morning Advisory · 11Ac") == "advisory-11ac"
+    assert cj_sync.match_journal_course("Lunch · 11Mc") == "lunch-11mc"
+    assert cj_sync.match_journal_course("AE · 11Ac") == "ae-11ac"
+    assert cj_sync.match_journal_course("AP Physics 1") == "ap-physics"
+    assert cj_sync.match_journal_course("Study Hall") is None
     course = {
         "code": "CALC",
         "name": "11 Ac AP Calculus AB",
@@ -1647,8 +1661,8 @@ def test_cj_journal_sync_cleans_and_stores(tmp_path, monkeypatch):
         split = student_client.get("/api/v1/cj?week_start=2026-10-12").json()["entries"]
         ac_entry = next(item for item in split if item["subject_id"] == "ap-calculus-11ac")
         mc_entry = next(item for item in split if item["subject_id"] == "ap-calculus-11mc")
-        assert ac_entry["ic"] == "Limits review"
-        assert mc_entry["ic"] == "Derivatives review"
+        assert ac_entry["ic"] == "Limits review\nDerivatives review"
+        assert mc_entry["ic"] == ac_entry["ic"]
         assert ac_entry["hw"] == "FRQ"
         assert mc_entry["hw"] == "FRQ"
         assert ac_entry["announcement"] == "Board"
@@ -1670,6 +1684,57 @@ def test_cj_journal_sync_cleans_and_stores(tmp_path, monkeypatch):
         latest = super_client.get("/api/v1/cj/sync")
         assert latest.json()["status"] == "ok"
         assert latest.json()["courses"] == 1
+
+        kept = super_client.put(
+            "/api/v1/cj",
+            json={
+                "week_start": "2026-10-12",
+                "day_index": 2,
+                "subject_id": "ap-euro-11ac",
+                "ic": "Congress of Vienna",
+                "hw": "Primary-source notes",
+                "announcement": "",
+            },
+        )
+        assert kept.status_code == 200, kept.text
+        mirrored_euro = super_client.post("/api/v1/cj/sync")
+        assert mirrored_euro.status_code == 200, mirrored_euro.text
+        euro_rows = student_client.get("/api/v1/cj?week_start=2026-10-12").json()["entries"]
+        euro_ac = next(item for item in euro_rows if item["subject_id"] == "ap-euro-11ac")
+        euro_mc = next(item for item in euro_rows if item["subject_id"] == "ap-euro-11mc")
+        assert euro_ac["ic"] == "Congress of Vienna"
+        assert euro_ac["hw"] == "Primary-source notes"
+        assert euro_mc["ic"] == euro_ac["ic"]
+        assert euro_mc["hw"] == euro_ac["hw"]
+        assert euro_ac["period"] == 6
+        assert euro_mc["period"] == 10
+
+        euro_course = {
+            "code": "EURO",
+            "name": "AP European History",
+            "teacher": "Stewart Mark Smith",
+            "classroom": "E528",
+            "environment": "BBGM",
+            "period": "Period 6",
+            "daily_content": [
+                {"date": "2026-10-13", "ic": "Vienna", "hw": "Notes", "an": ""},
+            ],
+        }
+        payloads["items"] = [euro_course]
+        expected_clean["items"] = [
+            {"id": "bbgm-euro|2026-10-13", "ic": "Vienna", "hw": "Notes", "an": ""},
+        ]
+        future = super_client.post("/api/v1/cj/sync")
+        assert future.status_code == 200, future.text
+        assert future.json()["courses"] == 1
+        later = student_client.get("/api/v1/cj?week_start=2026-10-12").json()["entries"]
+        later_ac = next(item for item in later if item["subject_id"] == "ap-euro-11ac" and item["day_index"] == 1)
+        later_mc = next(item for item in later if item["subject_id"] == "ap-euro-11mc" and item["day_index"] == 1)
+        assert later_ac["ic"] == "Vienna review"
+        assert later_mc["ic"] == later_ac["ic"]
+        assert later_mc["hw"] == "Notes"
+        assert later_ac["period"] == 6
+        assert later_mc["period"] == 10
     app.state.engine.dispose()
     app.state.core_engine.dispose()
 
@@ -1815,7 +1880,7 @@ def test_forum_keyword_reorders_for_that_request(tmp_path, monkeypatch):
 
         guest = TestClient(app)
         untouched = guest.get("/api/v1/posts", params={"category": "forum", "feed": "all"})
-        assert [item["id"] for item in untouched.json()["items"]] == [created[1], created[2], created[0]]
+        assert untouched.status_code == 401
 
         blank = client.get("/api/v1/posts", params={"category": "forum", "feed": "all", "q": "   "})
         assert [item["id"] for item in blank.json()["items"]] == [created[1], created[2], created[0]]
@@ -1889,16 +1954,18 @@ def test_author_withdraws_own_comment(tmp_path, monkeypatch):
         assert stranger.status_code == 201
         denied = other.delete(f"/api/v1/posts/{post_id}/comments/{comment_id}")
         assert denied.status_code == 403
-        still = guest.get(f"/api/v1/posts/{post_id}/comments")
+        assert guest.get(f"/api/v1/posts/{post_id}/comments").status_code == 401
+        assert guest.get(f"/api/v1/posts/{post_id}").status_code == 401
+        still = author.get(f"/api/v1/posts/{post_id}/comments")
         assert still.json()["total"] == 2
 
         withdrawn = author.delete(f"/api/v1/posts/{post_id}/comments/{comment_id}")
         assert withdrawn.status_code == 204, withdrawn.text
         assert withdrawn.content == b""
-        left = guest.get(f"/api/v1/posts/{post_id}/comments")
+        left = author.get(f"/api/v1/posts/{post_id}/comments")
         assert left.json()["total"] == 1
         assert left.json()["items"][0]["body"] == "Come by 312."
-        card = guest.get("/api/v1/posts", params={"category": "forum"}).json()["items"][0]
+        card = author.get("/api/v1/posts", params={"category": "forum"}).json()["items"][0]
         assert card["reply_count"] == 1
         assert [item["body"] for item in card["reply_preview"]] == ["Come by 312."]
 
@@ -2476,3 +2543,470 @@ def test_play_login_illegal_move_and_shared_room(tmp_path, monkeypatch):
                 assert synced["moves"] == [{"row": 7, "col": 7, "player": "black"}]
                 assert synced["turn"] == "white"
     app.state.engine.dispose()
+
+
+_MORNING = "0039MnYb0qxYh1"
+_SECOND = "0039MnYb0qxYh2"
+_LATER = "0039MnYb0qxYh3"
+_FOURTH = "0039MnYb0qxYh4"
+_FIFTH = "0039MnYb0qxYh5"
+_SIXTH = "0039MnYb0qxYh6"
+
+
+def _bell_catalog():
+    return {
+        _MORNING: {
+            "song_id": _MORNING,
+            "title": "Morning Bell",
+            "artists": "Ada Min",
+            "external_url": f"https://y.qq.com/n/ryqq/songDetail/{_MORNING}",
+            "cover_url": "https://y.qq.com/music/photo_new/T002R300x300M00000MorningCover.jpg",
+        },
+        _SECOND: {
+            "song_id": _SECOND,
+            "title": "Second Song",
+            "artists": "Ben Lyu",
+            "external_url": f"https://y.qq.com/n/ryqq/songDetail/{_SECOND}",
+        },
+        _LATER: {
+            "song_id": _LATER,
+            "title": "Later Song",
+            "artists": "Dewey Peng",
+            "external_url": f"https://y.qq.com/n/ryqq/songDetail/{_LATER}",
+        },
+        _FOURTH: {
+            "song_id": _FOURTH,
+            "title": "Fourth Song",
+            "artists": "Leo Gao",
+            "external_url": f"https://y.qq.com/n/ryqq/songDetail/{_FOURTH}",
+        },
+        _FIFTH: {
+            "song_id": _FIFTH,
+            "title": "Fifth Song",
+            "artists": "Jason Fang",
+            "external_url": f"https://y.qq.com/n/ryqq/songDetail/{_FIFTH}",
+        },
+        _SIXTH: {
+            "song_id": _SIXTH,
+            "title": "Sixth Song",
+            "artists": "Media Club",
+            "external_url": f"https://y.qq.com/n/ryqq/songDetail/{_SIXTH}",
+        },
+    }
+
+
+def _patch_qq(monkeypatch):
+    catalog = _bell_catalog()
+
+    def search(query):
+        needle = query.lower()
+        return [row for row in catalog.values() if needle in row["title"].lower()]
+
+    def fetch(song_id):
+        return catalog.get(song_id)
+
+    monkeypatch.setattr("routers.bell.search_songs", search)
+    monkeypatch.setattr("routers.bell.fetch_song", fetch)
+
+
+def _window(clock, start_seconds=60, end_hours=4):
+    start = clock["now"] + timedelta(seconds=start_seconds)
+    end = clock["now"] + timedelta(hours=end_hours)
+
+    def iso(moment):
+        return moment.strftime("%Y-%m-%dT%H:%M:%SZ")
+
+    return {"starts_at": iso(start), "ends_at": iso(end)}, start
+
+
+def test_bell_vote_requires_login_one_song_and_one_changeable_vote(tmp_path, monkeypatch):
+    _patch_qq(monkeypatch)
+    app = _make_app(tmp_path, monkeypatch, admin_email="ada.min@basischina.com")
+    clock = {"now": datetime.now(timezone.utc).replace(microsecond=0)}
+    monkeypatch.setattr("routers.bell.utc_now", lambda: clock["now"])
+    with TestClient(app) as admin, TestClient(app) as jordan, TestClient(app) as priya, TestClient(app) as mod:
+        guest = TestClient(app)
+        hidden = guest.get("/api/v1/bell")
+        assert hidden.status_code == 401
+        assert "Morning Bell" not in hidden.text
+        assert guest.get("/api/v1/bell/search?q=Morning").status_code == 401
+        assert guest.post("/api/v1/bell/tracks", json={"song_id": _MORNING}).status_code == 401
+        assert guest.post("/api/v1/bell/votes", json={"track_id": "8f2a1c6e-4b90-4d3a-9e1f-2c7b0d84a511"}).status_code == 401
+        assert guest.delete("/api/v1/bell/votes").status_code == 401
+
+        jordan_user = _register(jordan, "jordan.hale@basischina.com", "east-hall-8", "Jordan Hale")
+        priya_user = _register(priya, "priya.nair@basischina.com", "west-hall-8", "Priya Nair")
+        mod_user = _register(mod, "mod.chen@basischina.com", "south-hall-8", "Mod Chen")
+        assert jordan_user.status_code == 201
+        assert priya_user.status_code == 201
+        assert mod_user.status_code == 201
+        priya_id = priya_user.json()["id"]
+        assert _register(admin, "ada.min@basischina.com", "desk-key-99", "Ada Min").status_code == 201
+        promoted = admin.patch(
+            f"/api/v1/admin/users/{mod_user.json()['id']}",
+            json={"roles": ["admin"]},
+        )
+        assert promoted.status_code == 200, promoted.text
+        assert promoted.json()["roles"] == ["admin"]
+
+        empty = jordan.get("/api/v1/bell")
+        assert empty.status_code == 200, empty.text
+        assert empty.json() == {
+            "round": None,
+            "tracks": [],
+            "my_track_id": None,
+            "my_vote_track_id": None,
+            "can_manage": False,
+            "history": [],
+        }
+        first_window, voting_starts = _window(clock)
+        denied = jordan.post("/api/v1/bell/rounds", json=first_window)
+        assert denied.status_code == 403
+        assert mod.post("/api/v1/bell/rounds", json=first_window).status_code == 403
+
+        opened = admin.post("/api/v1/bell/rounds", json=first_window)
+        assert opened.status_code == 201, opened.text
+        opened_round = opened.json()["round"]
+        assert opened_round["status"] == "open"
+        assert opened_round["starts_at"] == first_window["starts_at"]
+        assert opened_round["ends_at"] == first_window["ends_at"]
+        assert opened_round["qualified_track_ids"] == []
+        assert "winner_track_id" not in opened_round
+        assert opened.json()["can_manage"] is True
+        assert opened.json()["history"] == [
+            {
+                "id": opened_round["id"],
+                "status": "open",
+                "starts_at": first_window["starts_at"],
+                "ends_at": first_window["ends_at"],
+                "closed_at": None,
+            }
+        ]
+        student_board = jordan.get("/api/v1/bell").json()
+        assert student_board["can_manage"] is False
+        assert student_board["history"] == []
+        again = admin.post("/api/v1/bell/rounds", json=_window(clock, end_hours=3)[0])
+        assert again.status_code == 409
+        assert again.json()["error"]["code"] == "round_open"
+
+        found = jordan.get("/api/v1/bell/search?q=Morning")
+        assert found.status_code == 200, found.text
+        assert found.json()["items"][0]["external_url"] == f"https://y.qq.com/n/ryqq/songDetail/{_MORNING}"
+        assert found.json()["items"][0]["cover_url"].endswith("00MorningCover.jpg")
+
+        added = jordan.post("/api/v1/bell/tracks", json={"song_id": _MORNING})
+        assert added.status_code == 201, added.text
+        board = added.json()
+        morning = board["tracks"][0]
+        assert morning["title"] == "Morning Bell"
+        assert morning["artists"] == "Ada Min"
+        assert morning["external_url"] == f"https://y.qq.com/n/ryqq/songDetail/{_MORNING}"
+        assert morning["cover_url"].endswith("00MorningCover.jpg")
+        assert morning["vote_count"] == 1
+        assert morning["rank"] == 1
+        assert morning["qualified"] is False
+        assert morning["nominated_by"] == {"display_name": "Jordan Hale"}
+        assert "email" not in morning["nominated_by"]
+        assert "basischina.com" not in added.text
+        assert board["my_vote_track_id"] == morning["id"]
+        assert board["my_track_id"] == morning["id"]
+        assert board["can_manage"] is False
+        second_try = jordan.post("/api/v1/bell/tracks", json={"song_id": _SECOND})
+        assert second_try.status_code == 422
+        assert second_try.json()["error"]["fields"][0]["message"] == "You already added a song this round."
+
+        clock["now"] = clock["now"] + timedelta(seconds=2)
+        taken = priya.post("/api/v1/bell/tracks", json={"song_id": _MORNING})
+        assert taken.status_code == 409
+        assert taken.json()["error"]["code"] == "track_taken"
+        assert taken.json()["error"]["fields"][0]["message"] == morning["id"]
+        priya_add = admin.post("/api/v1/bell/tracks", json={"song_id": _SECOND})
+        assert priya_add.status_code == 201, priya_add.text
+        second = next(item for item in priya_add.json()["tracks"] if item["title"] == "Second Song")
+        assert second["external_url"].startswith("https://y.qq.com/n/ryqq/songDetail/")
+        assert second["vote_count"] == 1
+        assert priya_add.json()["my_vote_track_id"] == second["id"]
+
+        too_soon = priya.post("/api/v1/bell/votes", json={"track_id": morning["id"]})
+        assert too_soon.status_code == 422
+        assert too_soon.json()["error"]["fields"][0]["field"] == "round"
+        assert priya.delete("/api/v1/bell/votes").status_code == 422
+
+        clock["now"] = voting_starts + timedelta(seconds=1)
+        first_vote = priya.post("/api/v1/bell/votes", json={"track_id": morning["id"]})
+        assert first_vote.status_code == 200, first_vote.text
+        assert first_vote.json()["my_vote_track_id"] == morning["id"]
+        assert first_vote.json()["round"]["qualified_track_ids"] == []
+        same_vote = priya.post("/api/v1/bell/votes", json={"track_id": morning["id"]})
+        assert same_vote.status_code == 200, same_vote.text
+        holding = priya.post("/api/v1/bell/tracks", json={"song_id": _FOURTH})
+        assert holding.status_code == 422, holding.text
+        assert holding.json()["error"]["fields"][0]["message"] == "Withdraw your vote before choosing another song."
+        blocked = priya.post("/api/v1/bell/votes", json={"track_id": second["id"]})
+        assert blocked.status_code == 422, blocked.text
+        assert blocked.json()["error"]["fields"][0]["message"] == "Withdraw your vote before choosing another song."
+        held = priya.get("/api/v1/bell")
+        assert held.json()["my_vote_track_id"] == morning["id"]
+        withdrawn = priya.delete("/api/v1/bell/votes")
+        assert withdrawn.status_code == 200, withdrawn.text
+        assert withdrawn.json()["my_vote_track_id"] is None
+        changed = priya.post("/api/v1/bell/votes", json={"track_id": second["id"]})
+        assert changed.status_code == 200, changed.text
+        changed_board = changed.json()
+        assert changed_board["my_vote_track_id"] == second["id"]
+        by_title = {item["title"]: item["vote_count"] for item in changed_board["tracks"]}
+        assert by_title == {"Second Song": 2, "Morning Bell": 1}
+
+        jordan_vote = jordan.post("/api/v1/bell/votes", json={"track_id": morning["id"]})
+        assert jordan_vote.status_code == 200, jordan_vote.text
+        tied = {item["title"]: item for item in jordan_vote.json()["tracks"]}
+        assert tied["Morning Bell"]["vote_count"] == 1
+        assert tied["Second Song"]["vote_count"] == 2
+        assert mod.delete(f"/api/v1/bell/tracks/{morning['id']}").status_code == 403
+
+        for song_id in (_FOURTH, _FIFTH, _SIXTH):
+            clock["now"] = clock["now"] + timedelta(seconds=2)
+            extra = admin.post("/api/v1/bell/tracks", json={"song_id": song_id})
+            assert extra.status_code == 201, extra.text
+
+        closed = admin.post(f"/api/v1/bell/rounds/{opened.json()['round']['id']}/close")
+        assert closed.status_code == 200, closed.text
+        result = closed.json()
+        assert result["round"]["status"] == "closed"
+        ranked = result["tracks"]
+        assert [item["title"] for item in ranked] == [
+            "Second Song",
+            "Morning Bell",
+            "Fourth Song",
+            "Fifth Song",
+            "Sixth Song",
+        ]
+        assert [item["rank"] for item in ranked] == [1, 2, 3, 4, 5]
+        assert [item["qualified"] for item in ranked] == [True, True, True, True, False]
+        assert result["round"]["qualified_track_ids"] == [item["id"] for item in ranked[:4]]
+        assert ranked[0]["id"] == second["id"]
+        assert "winner_track_id" not in result["round"]
+        assert jordan.post("/api/v1/bell/votes", json={"track_id": second["id"]}).status_code == 422
+        assert admin.post("/api/v1/bell/tracks", json={"song_id": _LATER}).status_code == 422
+        assert jordan.post("/api/v1/bell/tracks", json={"song_id": _LATER}).status_code == 422
+        assert priya.delete("/api/v1/bell/votes").status_code == 422
+        assert admin.delete(f"/api/v1/bell/tracks/{morning['id']}").status_code == 422
+        still_hidden = guest.get("/api/v1/bell")
+        assert still_hidden.status_code == 401
+        assert "Morning Bell" not in still_hidden.text
+        assert "vote_count" not in still_hidden.text
+
+        second_window, second_start = _window(clock, start_seconds=1, end_hours=4)
+        reopened = admin.post("/api/v1/bell/rounds", json=second_window)
+        assert reopened.status_code == 201, reopened.text
+        fresh = reopened.json()
+        assert fresh["tracks"] == []
+        assert fresh["round"]["status"] == "open"
+        assert [item["id"] for item in fresh["history"]] == [fresh["round"]["id"]]
+        assert fresh["history"][0]["closed_at"] is None
+        held = jordan.get("/api/v1/bell").json()
+        assert held["tracks"] == []
+        assert held["round"]["id"] == fresh["round"]["id"]
+        assert held["history"] == []
+        with Session(app.state.engine) as db:
+            assert db.get(BellRound, opened_round["id"]) is None
+            assert list(db.scalars(select(BellTrack.title)).all()) == []
+        muted = admin.patch(f"/api/v1/admin/users/{priya_id}", json={"muted": True})
+        assert muted.status_code == 200, muted.text
+        readable = priya.get("/api/v1/bell")
+        assert readable.status_code == 200
+        assert priya.get("/api/v1/bell/search?q=Later").status_code == 200
+        blocked_add = priya.post("/api/v1/bell/tracks", json={"song_id": _LATER})
+        assert blocked_add.status_code == 403
+        assert blocked_add.json()["error"]["code"] == "account_muted"
+        blocked_vote = priya.post("/api/v1/bell/votes", json={"track_id": morning["id"]})
+        assert blocked_vote.status_code == 403
+        assert priya.delete("/api/v1/bell/votes").status_code == 403
+
+        clock["now"] = second_start + timedelta(seconds=1)
+        own = jordan.post("/api/v1/bell/tracks", json={"song_id": _MORNING})
+        assert own.status_code == 201, own.text
+        own_track = next(item for item in own.json()["tracks"] if item["title"] == "Morning Bell")
+        assert own_track["mine"] is True
+        assert own_track["vote_count"] == 1
+        assert mod.delete(f"/api/v1/bell/tracks/{own_track['id']}").status_code == 403
+        removed_own = jordan.delete(f"/api/v1/bell/tracks/{own_track['id']}")
+        assert removed_own.status_code == 200, removed_own.text
+        assert "Morning Bell" not in removed_own.text
+        later = admin.post("/api/v1/bell/tracks", json={"song_id": _LATER})
+        assert later.status_code == 201, later.text
+        later_track = next(item for item in later.json()["tracks"] if item["title"] == "Later Song")
+        assert mod.delete(f"/api/v1/bell/tracks/{later_track['id']}").status_code == 403
+        leo = TestClient(app)
+        assert _register(leo, "leo.gao@basischina.com", "north-hall-8", "Leo Gao").status_code == 201
+        leo_vote = leo.post("/api/v1/bell/votes", json={"track_id": later_track["id"]})
+        assert leo_vote.status_code == 200, leo_vote.text
+        removed_song = admin.delete(f"/api/v1/bell/tracks/{later_track['id']}")
+        assert removed_song.status_code == 200, removed_song.text
+        assert "Later Song" not in removed_song.text
+        cleared = leo.get("/api/v1/bell")
+        assert cleared.status_code == 200
+        assert cleared.json()["my_vote_track_id"] is None
+        restored = admin.post("/api/v1/bell/tracks", json={"song_id": _LATER})
+        assert restored.status_code == 201, restored.text
+        restored_id = next(item["id"] for item in restored.json()["tracks"] if item["title"] == "Later Song")
+        revote = leo.post("/api/v1/bell/votes", json={"track_id": restored_id})
+        assert revote.status_code == 200, revote.text
+        assert revote.json()["my_vote_track_id"] == restored_id
+
+        def unavailable(_settings, *_args):
+            from qqmusic import QqUnavailable
+
+            raise QqUnavailable()
+
+        monkeypatch.setattr("routers.bell.search_songs", unavailable)
+        monkeypatch.setattr("routers.bell.fetch_song", unavailable)
+        missed = leo.get("/api/v1/bell/search?q=Morning")
+        assert missed.status_code == 503
+        assert missed.json()["error"]["code"] == "qq_unavailable"
+        assert leo.post("/api/v1/bell/tracks", json={"song_id": _SECOND}).status_code == 422
+        not_added = admin.post("/api/v1/bell/tracks", json={"song_id": _SECOND})
+        assert not_added.status_code == 503
+        kept = jordan.get("/api/v1/bell")
+        assert kept.status_code == 200
+        assert any(item["title"] == "Later Song" for item in kept.json()["tracks"])
+        assert "Second Song" not in kept.text
+        later_id = next(item["id"] for item in kept.json()["tracks"] if item["title"] == "Later Song")
+        clock["now"] = clock["now"] + timedelta(hours=5)
+        settled = jordan.get("/api/v1/bell")
+        assert settled.status_code == 200, settled.text
+        assert settled.json()["round"]["status"] == "closed"
+        assert settled.json()["round"]["qualified_track_ids"] == [later_id]
+        assert settled.json()["tracks"][0]["rank"] == 1
+        assert settled.json()["tracks"][0]["qualified"] is True
+        assert jordan.post("/api/v1/bell/votes", json={"track_id": later_id}).status_code == 422
+        assert jordan.delete("/api/v1/bell/votes").status_code == 422
+
+        removed = admin.delete(f"/api/v1/admin/users/{priya_id}")
+        assert removed.status_code == 204
+        with Session(app.state.engine) as db:
+            titles = list(db.scalars(select(BellTrack.title)).all())
+        assert "Second Song" not in titles
+        assert "Morning Bell" not in titles
+        assert "Later Song" in titles
+    app.state.engine.dispose()
+
+
+def test_bell_vote_resets_each_shanghai_day(tmp_path, monkeypatch):
+    _patch_qq(monkeypatch)
+    app = _make_app(tmp_path, monkeypatch, admin_email="ada.min@basischina.com")
+    clock = {"now": datetime(2026, 10, 26, 15, 0, tzinfo=timezone.utc)}
+    monkeypatch.setattr("routers.bell.utc_now", lambda: clock["now"])
+    with TestClient(app) as admin, TestClient(app) as jordan:
+        assert _register(admin, "ada.min@basischina.com", "desk-key-99", "Ada Min").status_code == 201
+        assert _register(jordan, "jordan.hale@basischina.com", "east-hall-8", "Jordan Hale").status_code == 201
+        window, voting_starts = _window(clock, start_seconds=60, end_hours=30)
+        opened = admin.post("/api/v1/bell/rounds", json=window)
+        assert opened.status_code == 201, opened.text
+        clock["now"] = voting_starts + timedelta(seconds=1)
+        added = jordan.post("/api/v1/bell/tracks", json={"song_id": _MORNING})
+        assert added.status_code == 201, added.text
+        morning = next(item for item in added.json()["tracks"] if item["title"] == "Morning Bell")
+        assert morning["vote_count"] == 1
+        assert added.json()["my_vote_track_id"] == morning["id"]
+        second = admin.post("/api/v1/bell/tracks", json={"song_id": _SECOND})
+        assert second.status_code == 201, second.text
+        second_track = next(item for item in second.json()["tracks"] if item["title"] == "Second Song")
+        blocked = jordan.post("/api/v1/bell/votes", json={"track_id": second_track["id"]})
+        assert blocked.status_code == 422
+        clock["now"] = datetime(2026, 10, 26, 16, 1, tzinfo=timezone.utc)
+        fresh = jordan.get("/api/v1/bell").json()
+        assert fresh["my_vote_track_id"] is None
+        again = jordan.post("/api/v1/bell/votes", json={"track_id": second_track["id"]})
+        assert again.status_code == 200, again.text
+        counts = {item["title"]: item["vote_count"] for item in again.json()["tracks"]}
+        assert counts["Morning Bell"] == 1
+        assert counts["Second Song"] == 2
+        assert again.json()["my_vote_track_id"] == second_track["id"]
+    app.state.engine.dispose()
+
+
+def test_qq_song_link_keeps_metadata_only():
+    from qqmusic import _map_song
+
+    assert _map_song({"mid": "nope", "name": "Foreign", "singer": [{"name": "Nobody"}]}) is None
+    mapped = _map_song(
+        {
+            "mid": "0039MnYb0qxYhV",
+            "name": "晴天",
+            "singer": [{"name": "周杰伦"}],
+            "url": "https://example.invalid/audio.mp3",
+            "ppurl": "https://example.invalid/preview.mp3",
+            "file": {"media_mid": "audio"},
+        }
+    )
+    assert mapped == {
+        "song_id": "0039MnYb0qxYhV",
+        "title": "晴天",
+        "artists": "周杰伦",
+        "external_url": "https://y.qq.com/n/ryqq/songDetail/0039MnYb0qxYhV",
+        "cover_url": "",
+    }
+    covered = _map_song(
+        {
+            "mid": "0039MnYb0qxYhV",
+            "name": "晴天",
+            "singer": [{"name": "周杰伦"}],
+            "albummid": "001A2B3C4D5E",
+        }
+    )
+    assert covered["cover_url"] == "https://y.qq.com/music/photo_new/T002R300x300M000001A2B3C4D5E.jpg"
+    rendered = str(mapped)
+    assert "mp3" not in rendered
+    assert "example.invalid" not in rendered
+    assert "media_mid" not in rendered
+
+
+def test_bell_cover_is_loaded_through_the_site(tmp_path, monkeypatch):
+    from qqmusic import QqUnavailable
+
+    app = _make_app(tmp_path, monkeypatch, admin_email="ada.min@basischina.com")
+    jpeg = b"\xff\xd8\xffalbum"
+
+    def fake_cover(album_mid):
+        if album_mid != "000MkMni19ClKG":
+            raise QqUnavailable()
+        return jpeg, "image/jpeg"
+
+    monkeypatch.setattr("routers.bell.fetch_cover", fake_cover)
+    with TestClient(app) as client:
+        assert client.get("/api/v1/bell/covers/000MkMni19ClKG").status_code == 401
+        assert _register(client, "jordan.hale@basischina.com", "east-hall-8", "Jordan Hale").status_code == 201
+        got = client.get("/api/v1/bell/covers/000MkMni19ClKG")
+        assert got.status_code == 200, got.text
+        assert got.content == jpeg
+        assert got.headers["content-type"].startswith("image/jpeg")
+        assert client.get("/api/v1/bell/covers/bad-mid").status_code == 404
+        missing = client.get("/api/v1/bell/covers/001MissingCover")
+        assert missing.status_code == 503
+        assert missing.json()["error"]["code"] == "qq_unavailable"
+    app.state.engine.dispose()
+
+
+def test_qq_search_keeps_first_five():
+    from qqmusic import top_matches
+
+    songs = []
+    for index in range(6):
+        songs.append(
+            {
+                "songmid": f"0039MnYb0qxYh{index}",
+                "songname": f"Song {index}",
+                "singer": [{"name": "Ada Min"}],
+                "stream": "https://example.invalid/audio.mp3",
+                "size128": 123,
+            }
+        )
+    songs.append({"songmid": "short", "songname": "Skipped", "singer": [{"name": "Ada Min"}]})
+    picked = top_matches(songs)
+    assert [row["title"] for row in picked] == [f"Song {index}" for index in range(5)]
+    rendered = str(picked)
+    assert "stream" not in rendered
+    assert "size128" not in rendered
+    assert "example.invalid" not in rendered
+    assert "Skipped" not in rendered

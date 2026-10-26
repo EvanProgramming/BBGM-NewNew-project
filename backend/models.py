@@ -1,8 +1,9 @@
 import json
 from datetime import datetime, timezone
 from uuid import uuid4
+from zoneinfo import ZoneInfo
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, Index, Integer, String, Text, UniqueConstraint, create_engine, event
+from sqlalchemy import Boolean, DateTime, ForeignKey, Index, Integer, String, Text, UniqueConstraint, create_engine, event, text
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship, sessionmaker
 
 
@@ -313,6 +314,50 @@ class AuditEvent(ContentBase):
     at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 
 
+class BellRound(ContentBase):
+    __tablename__ = "bell_rounds"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    status: Mapped[str] = mapped_column(String(16), nullable=False)
+    starts_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    ends_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    closed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
+class BellTrack(ContentBase):
+    """author_id is a user id. It is not a foreign key: users live in the core database."""
+
+    __tablename__ = "bell_tracks"
+    __table_args__ = (UniqueConstraint("round_id", "song_id", name="uq_bell_tracks_round_song"),)
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    round_id: Mapped[str] = mapped_column(ForeignKey("bell_rounds.id"), nullable=False, index=True)
+    song_id: Mapped[str] = mapped_column(String(20), nullable=False)
+    title: Mapped[str] = mapped_column(String(120), nullable=False)
+    artists: Mapped[str] = mapped_column(String(200), nullable=False, default="")
+    external_url: Mapped[str] = mapped_column(String(200), nullable=False)
+    cover_url: Mapped[str] = mapped_column(String(300), nullable=False, default="")
+    author_id: Mapped[str] = mapped_column(String(36), nullable=False, index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
+class BellVote(ContentBase):
+    """user_id is a user id. It is not a foreign key: users live in the core database."""
+
+    __tablename__ = "bell_votes"
+    __table_args__ = (
+        UniqueConstraint("round_id", "user_id", "vote_day", name="uq_bell_votes_round_user_day"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    round_id: Mapped[str] = mapped_column(ForeignKey("bell_rounds.id"), nullable=False, index=True)
+    track_id: Mapped[str] = mapped_column(ForeignKey("bell_tracks.id"), nullable=False, index=True)
+    user_id: Mapped[str] = mapped_column(String(36), nullable=False)
+    vote_day: Mapped[str] = mapped_column(String(10), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
 def make_engine(database_url: str):
     connect_args = {}
     if database_url.startswith("sqlite"):
@@ -474,6 +519,71 @@ def migrate_core_schema(engine) -> None:
                     "WHERE subject_id IS NULL AND title LIKE 'AP Economics%'")
 
 
+def _shanghai_day(value) -> str:
+    if value is None:
+        return ""
+    if isinstance(value, str):
+        text = value.strip().replace("Z", "+00:00")
+        try:
+            parsed = datetime.fromisoformat(text)
+        except ValueError:
+            parsed = datetime.strptime(text[:19], "%Y-%m-%d %H:%M:%S")
+    else:
+        parsed = value
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+    return parsed.astimezone(ZoneInfo("Asia/Shanghai")).date().isoformat()
+
+
+def _backfill_vote_days(conn) -> None:
+    rows = conn.exec_driver_sql(
+        "SELECT id, created_at FROM bell_votes WHERE vote_day IS NULL OR vote_day = ''"
+    ).fetchall()
+    for row_id, created_at in rows:
+        day = _shanghai_day(created_at) or "1970-01-01"
+        conn.execute(
+            text("UPDATE bell_votes SET vote_day = :day WHERE id = :id"),
+            {"day": day, "id": str(row_id)},
+        )
+
+
+def _sqlite_vote_needs_rebuild(conn) -> bool:
+    for row in conn.exec_driver_sql("PRAGMA index_list(bell_votes)").fetchall():
+        if not row[2] or row[3] == "pk":
+            continue
+        columns = [
+            info[2]
+            for info in conn.exec_driver_sql(f"PRAGMA index_info('{row[1]}')").fetchall()
+        ]
+        if columns == ["round_id", "user_id"]:
+            return True
+    return False
+
+
+def _rebuild_sqlite_bell_votes(conn) -> None:
+    conn.exec_driver_sql(
+        "CREATE TABLE bell_votes_next ("
+        "id VARCHAR(36) NOT NULL, "
+        "round_id VARCHAR(36) NOT NULL, "
+        "track_id VARCHAR(36) NOT NULL, "
+        "user_id VARCHAR(36) NOT NULL, "
+        "vote_day VARCHAR(10) NOT NULL, "
+        "created_at DATETIME NOT NULL, "
+        "PRIMARY KEY (id), "
+        "CONSTRAINT uq_bell_votes_round_user_day UNIQUE (round_id, user_id, vote_day), "
+        "FOREIGN KEY(round_id) REFERENCES bell_rounds (id), "
+        "FOREIGN KEY(track_id) REFERENCES bell_tracks (id))"
+    )
+    conn.exec_driver_sql(
+        "INSERT INTO bell_votes_next (id, round_id, track_id, user_id, vote_day, created_at) "
+        "SELECT id, round_id, track_id, user_id, vote_day, created_at FROM bell_votes"
+    )
+    conn.exec_driver_sql("DROP TABLE bell_votes")
+    conn.exec_driver_sql("ALTER TABLE bell_votes_next RENAME TO bell_votes")
+    conn.exec_driver_sql("CREATE INDEX ix_bell_votes_round_id ON bell_votes (round_id)")
+    conn.exec_driver_sql("CREATE INDEX ix_bell_votes_track_id ON bell_votes (track_id)")
+
+
 def migrate_content_schema(engine) -> None:
     if engine.dialect.name == "sqlite":
         with engine.begin() as conn:
@@ -493,6 +603,23 @@ def migrate_content_schema(engine) -> None:
                 conn.exec_driver_sql("ALTER TABLE news_blocks ADD COLUMN formatted_body TEXT")
             if block_cols and "format_source" not in block_cols:
                 conn.exec_driver_sql("ALTER TABLE news_blocks ADD COLUMN format_source VARCHAR(16)")
+            bell_cols = {row[1] for row in conn.exec_driver_sql("PRAGMA table_info(bell_tracks)").fetchall()}
+            if "spotify_track_id" in bell_cols and "song_id" not in bell_cols:
+                conn.exec_driver_sql("ALTER TABLE bell_tracks RENAME COLUMN spotify_track_id TO song_id")
+            if bell_cols and "cover_url" not in bell_cols:
+                conn.exec_driver_sql("ALTER TABLE bell_tracks ADD COLUMN cover_url TEXT NOT NULL DEFAULT ''")
+            vote_cols = {row[1] for row in conn.exec_driver_sql("PRAGMA table_info(bell_votes)").fetchall()}
+            if vote_cols and "vote_day" not in vote_cols:
+                conn.exec_driver_sql("ALTER TABLE bell_votes ADD COLUMN vote_day VARCHAR(10) NOT NULL DEFAULT ''")
+                _backfill_vote_days(conn)
+            if vote_cols and _sqlite_vote_needs_rebuild(conn):
+                _rebuild_sqlite_bell_votes(conn)
+            round_cols = {row[1] for row in conn.exec_driver_sql("PRAGMA table_info(bell_rounds)").fetchall()}
+            if round_cols and "starts_at" not in round_cols:
+                conn.exec_driver_sql("ALTER TABLE bell_rounds ADD COLUMN starts_at DATETIME")
+                conn.exec_driver_sql(
+                    "UPDATE bell_rounds SET starts_at = created_at WHERE starts_at IS NULL"
+                )
     elif engine.dialect.name == "mysql":
         with engine.begin() as conn:
             post_cols = {
@@ -504,6 +631,62 @@ def migrate_content_schema(engine) -> None:
                 )
             if post_cols and "pinned_at" not in post_cols:
                 conn.exec_driver_sql("ALTER TABLE posts ADD COLUMN pinned_at DATETIME NULL")
+            bell_exists = conn.exec_driver_sql(
+                "SELECT COUNT(*) FROM information_schema.tables "
+                "WHERE table_schema = DATABASE() AND table_name = 'bell_tracks'"
+            ).scalar()
+            if bell_exists:
+                bell_cols = {
+                    row[0] for row in conn.exec_driver_sql("SHOW COLUMNS FROM bell_tracks").fetchall()
+                }
+                if "spotify_track_id" in bell_cols and "song_id" not in bell_cols:
+                    conn.exec_driver_sql(
+                        "ALTER TABLE bell_tracks CHANGE COLUMN spotify_track_id "
+                        "song_id VARCHAR(20) NOT NULL"
+                    )
+                if "cover_url" not in bell_cols:
+                    conn.exec_driver_sql(
+                        "ALTER TABLE bell_tracks ADD COLUMN cover_url VARCHAR(300) NOT NULL DEFAULT ''"
+                    )
+            votes_exist = conn.exec_driver_sql(
+                "SELECT COUNT(*) FROM information_schema.tables "
+                "WHERE table_schema = DATABASE() AND table_name = 'bell_votes'"
+            ).scalar()
+            if votes_exist:
+                vote_cols = {
+                    row[0] for row in conn.exec_driver_sql("SHOW COLUMNS FROM bell_votes").fetchall()
+                }
+                if "vote_day" not in vote_cols:
+                    conn.exec_driver_sql("ALTER TABLE bell_votes ADD COLUMN vote_day VARCHAR(10) NULL")
+                    _backfill_vote_days(conn)
+                    conn.exec_driver_sql("ALTER TABLE bell_votes MODIFY vote_day VARCHAR(10) NOT NULL")
+                indexes = {
+                    row[0]
+                    for row in conn.exec_driver_sql(
+                        "SELECT INDEX_NAME FROM information_schema.statistics "
+                        "WHERE table_schema = DATABASE() AND table_name = 'bell_votes'"
+                    ).fetchall()
+                }
+                if "uq_bell_votes_round_user" in indexes:
+                    conn.exec_driver_sql("ALTER TABLE bell_votes DROP INDEX uq_bell_votes_round_user")
+                if "uq_bell_votes_round_user_day" not in indexes:
+                    conn.exec_driver_sql(
+                        "ALTER TABLE bell_votes ADD UNIQUE INDEX uq_bell_votes_round_user_day "
+                        "(round_id, user_id, vote_day)"
+                    )
+            rounds_exist = conn.exec_driver_sql(
+                "SELECT COUNT(*) FROM information_schema.tables "
+                "WHERE table_schema = DATABASE() AND table_name = 'bell_rounds'"
+            ).scalar()
+            if rounds_exist:
+                round_cols = {
+                    row[0] for row in conn.exec_driver_sql("SHOW COLUMNS FROM bell_rounds").fetchall()
+                }
+                if "starts_at" not in round_cols:
+                    conn.exec_driver_sql("ALTER TABLE bell_rounds ADD COLUMN starts_at DATETIME NULL")
+                    conn.exec_driver_sql(
+                        "UPDATE bell_rounds SET starts_at = created_at WHERE starts_at IS NULL"
+                    )
     ContentBase.metadata.create_all(engine)
     if engine.dialect.name == "sqlite":
         with engine.begin() as conn:

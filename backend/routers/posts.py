@@ -373,7 +373,7 @@ def list_posts(
     parsed_category = parse_optional_category(category)
     parsed_feed = parse_forum_feed(feed, parsed_category)
     parsed_q = parse_forum_query(q, parsed_category)
-    if parsed_feed == "mine" and viewer is None:
+    if parsed_category == "forum" and viewer is None:
         raise unauthenticated()
     if parsed_feed in ("recommended", "latest") and parsed_page != 1:
         raise validation_error(
@@ -397,6 +397,7 @@ def list_comments(
     post_id: str,
     db: Session = Depends(get_db),
     core: Session = Depends(get_core_db),
+    viewer: User | None = Depends(get_optional_user),
     page: str | None = Query(default=None),
     page_size: str | None = Query(default=None),
 ):
@@ -405,6 +406,8 @@ def list_comments(
     parsed_size = parse_page_size(page_size)
     post = _published_post(db, post_id)
     _require_forum(post)
+    if viewer is None:
+        raise unauthenticated()
 
     floor_filter = [Comment.post_id == post_id, Comment.parent_id.is_(None)]
     try:
@@ -584,6 +587,8 @@ def get_post(
     viewer: User | None = Depends(get_optional_user),
 ):
     post = _published_post(db, parse_uuid(post_id))
+    if post.category == "forum" and viewer is None:
+        raise unauthenticated()
     return _public_detail(db, core, post, viewer)
 
 

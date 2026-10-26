@@ -148,6 +148,9 @@ export default function BottleThread() {
       <Link to="/bottles" className="font-sans text-[12px] uppercase tracking-[0.14em] text-[#1A4FBF]">
         {t("bottle.title")}
       </Link>
+      {thread && !(thread.thrower && thread.picker) ? (
+        <p className="mt-4 font-sans text-[15px] leading-7 text-neutral-700">{t("bottle.threadHint")}</p>
+      ) : null}
       <ErrorBanner error={error} />
       {loading ? (
         <p className="mt-6 font-sans text-sm text-neutral-500">{t("bottle.loading")}</p>

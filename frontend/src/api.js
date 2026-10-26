@@ -264,6 +264,22 @@ export const api = {
   unlikePost: (postId) => request(`/posts/${encodeURIComponent(postId)}/likes`, { method: "DELETE" }),
   forumActivity: () => request("/me/forum-activity"),
   readForumActivity: () => request("/me/forum-activity/read", { method: "POST" }),
+  bell: () => request("/bell"),
+  searchBell: (q) => request(`/bell/search?q=${encodeURIComponent(q)}`),
+  addBellTrack: (songId) =>
+    request("/bell/tracks", { method: "POST", body: JSON.stringify({ song_id: songId }) }),
+  voteBell: (trackId) =>
+    request("/bell/votes", { method: "POST", body: JSON.stringify({ track_id: trackId }) }),
+  withdrawBellVote: () => request("/bell/votes", { method: "DELETE" }),
+  deleteBellTrack: (trackId) =>
+    request(`/bell/tracks/${encodeURIComponent(trackId)}`, { method: "DELETE" }),
+  openBellRound: (startsAt, endsAt) =>
+    request("/bell/rounds", {
+      method: "POST",
+      body: JSON.stringify({ starts_at: startsAt, ends_at: endsAt }),
+    }),
+  closeBellRound: (roundId) =>
+    request(`/bell/rounds/${encodeURIComponent(roundId)}/close`, { method: "POST" }),
   throwBottle: (body) => request("/bottles", { method: "POST", body: JSON.stringify({ body }) }),
   pickBottle: () => request("/bottles/pick", { method: "POST" }),
   myBottles: () => request("/bottles/mine"),

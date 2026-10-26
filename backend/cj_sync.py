@@ -24,6 +24,8 @@ _DEEPSEEK_URL = "https://api.deepseek.com/chat/completions"
 _CHUNK = 20
 _DATE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 _PAIR_MATE = {
+    "advisory-11ac": "advisory-11mc",
+    "advisory-11mc": "advisory-11ac",
     "ap-calculus-11ac": "ap-calculus-11mc",
     "ap-calculus-11mc": "ap-calculus-11ac",
     "chinese-11ac": "chinese-11mc",
@@ -32,15 +34,22 @@ _PAIR_MATE = {
     "ap-lang-11mc": "ap-lang-11ac",
     "ap-euro-11ac": "ap-euro-11mc",
     "ap-euro-11mc": "ap-euro-11ac",
+    "lunch-11ac": "lunch-11mc",
+    "lunch-11mc": "lunch-11ac",
+    "ae-11ac": "ae-11mc",
+    "ae-11mc": "ae-11ac",
 }
 _JOURNAL_SUBJECTS = {
     "physics-2": "ap-physics-2",
     "physics": "ap-physics",
     "stats": "ap-stats",
+    "advisory": {"Ac": "advisory-11ac", "Mc": "advisory-11mc"},
     "calculus": {"Ac": "ap-calculus-11ac", "Mc": "ap-calculus-11mc"},
     "chinese": {"Ac": "chinese-11ac", "Mc": "chinese-11mc"},
     "lang": {"Ac": "ap-lang-11ac", "Mc": "ap-lang-11mc"},
     "euro": {"Ac": "ap-euro-11ac", "Mc": "ap-euro-11mc"},
+    "lunch": {"Ac": "lunch-11ac", "Mc": "lunch-11mc"},
+    "ae": {"Ac": "ae-11ac", "Mc": "ae-11mc"},
     "biology": "ap-biology",
     "environmental": "ap-environmental",
     "geography": "ap-geography",
@@ -275,7 +284,10 @@ def match_journal_course(name: str, teacher: str = "") -> str | None:
         return None
     if isinstance(target, str):
         return target
-    return target.get(_section(folded) or "")
+    section = _section(folded)
+    if section:
+        return target.get(section)
+    return target["Ac"]
 
 
 def _day_fields(course: dict | None, day: date, cleaned: dict[str, dict]) -> dict:
@@ -285,8 +297,70 @@ def _day_fields(course: dict | None, day: date, cleaned: dict[str, dict]) -> dic
     return cleaned.get(slot_id) or {"ic": "", "hw": "", "an": ""}
 
 
-def _fill_empty(own: dict, other: dict) -> dict:
-    return {key: own[key] or other[key] for key in ("ic", "hw", "an")}
+def _share_fields(own: dict, other: dict) -> dict:
+    shared = {}
+    for key in ("ic", "hw", "an"):
+        left = own.get(key) or ""
+        right = other.get(key) or ""
+        if not left.strip():
+            shared[key] = right
+        elif not right.strip() or left.strip() == right.strip():
+            shared[key] = left
+        else:
+            shared[key] = _clip(f"{left.rstrip()}\n{right.lstrip()}")
+    return shared
+
+
+def _share_stored_pair(
+    db: Session,
+    subject_id: str,
+    mate_id: str,
+    skip_from: str | None,
+    skip_to: str | None,
+) -> int:
+    subject = db.get(Subject, subject_id)
+    mate = db.get(Subject, mate_id)
+    if subject is None or mate is None:
+        return 0
+    rows = list(
+        db.scalars(select(CJEntry).where(CJEntry.subject_id.in_([subject_id, mate_id]))).all()
+    )
+    grouped: dict[tuple[str, int], dict[str, CJEntry]] = {}
+    for row in rows:
+        grouped.setdefault((row.week_start, row.day_index), {})[row.subject_id] = row
+    written = 0
+    for week_start, day_index in grouped:
+        day = date.fromisoformat(week_start) + timedelta(days=day_index)
+        if skip_from and skip_to and skip_from <= day.isoformat() <= skip_to:
+            continue
+        sides = grouped[(week_start, day_index)]
+        own = sides.get(subject_id)
+        other = sides.get(mate_id)
+        shared = _share_fields(
+            {
+                "ic": own.ic if own else "",
+                "hw": own.hw if own else "",
+                "an": own.announcement if own else "",
+            },
+            {
+                "ic": other.ic if other else "",
+                "hw": other.hw if other else "",
+                "an": other.announcement if other else "",
+            },
+        )
+        if not _row_matches(own, shared):
+            if _write_day(db, subject, day, shared, subject.period):
+                written += 1
+        if not _row_matches(other, shared):
+            if _write_day(db, mate, day, shared, mate.period):
+                written += 1
+    return written
+
+
+def _row_matches(row: CJEntry | None, shared: dict) -> bool:
+    if row is None:
+        return not any((shared["ic"], shared["hw"], shared["an"]))
+    return row.ic == shared["ic"] and row.hw == shared["hw"] and row.announcement == shared["an"]
 
 
 def _apply(db: Session, courses: list[dict], cleaned: dict[str, dict], start: str, end: str) -> tuple[int, int]:
@@ -314,12 +388,22 @@ def _apply(db: Session, courses: list[dict], cleaned: dict[str, dict], start: st
         if mate_id:
             handled.add(mate_id)
         for day in _school_days(start, end):
-            own = _day_fields(course, day, cleaned)
-            other = _day_fields(mate_course, day, cleaned)
-            if subject is not None and _write_day(db, subject, day, _fill_empty(own, other), subject.period):
+            shared = _share_fields(
+                _day_fields(course, day, cleaned),
+                _day_fields(mate_course, day, cleaned),
+            )
+            if subject is not None and _write_day(db, subject, day, shared, subject.period):
                 written += 1
-            if mate is not None and _write_day(db, mate, day, _fill_empty(other, own), mate.period):
+            if mate is not None and _write_day(db, mate, day, shared, mate.period):
                 written += 1
+    euro_in_journal = "ap-euro-11ac" in by_subject or "ap-euro-11mc" in by_subject
+    written += _share_stored_pair(
+        db,
+        "ap-euro-11ac",
+        "ap-euro-11mc",
+        start if euro_in_journal else None,
+        end if euro_in_journal else None,
+    )
     _drop_unmapped(db, set(_SUBJECT_DETAILS))
     db.flush()
     return len(by_subject), written
@@ -526,6 +610,12 @@ def _family(folded: str) -> str | None:
         return "physics"
     if "stat" in folded:
         return "stats"
+    if "advisory" in folded:
+        return "advisory"
+    if "lunch" in folded:
+        return "lunch"
+    if re.search(r"\bae\b", folded):
+        return "ae"
     if "calculus" in folded:
         return "calculus"
     if "chinese" in folded:

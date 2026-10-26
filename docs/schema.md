@@ -43,7 +43,7 @@ Content-Type: application/json
 }
 ```
 
-公开读接口（栏目列表、详情、首页列表、Forum 评论列表）**不**要求鉴权。漂流瓶和下棋全部接口要求鉴权。
+公开读接口（News 栏目列表、News 详情、首页列表）**不**要求鉴权。Forum 列表、Forum 详情和 Forum 评论列表要求登录。漂流瓶、下棋和起床铃全部接口要求鉴权。
 
 ### 通用错误包络
 
@@ -67,13 +67,16 @@ Content-Type: application/json
 | 401 | `unauthenticated` | 无会话或会话无效 |
 | 401 | `invalid_credentials` | 登录邮箱或密码不对（不区分「用户不存在」与「密码错误」） |
 | 403 | `forbidden` | 已登录但无权（直接发 News、非编辑写草稿、非超级管理员改角色 / 禁言 / 删用户 / 同意板块、既不是该 Forum 帖作者也不是 `admin` / `super_admin` 时删帖、当日漂流瓶次数用尽、打开不属于自己且自己不是管理员的漂流瓶对话） |
-| 403 | `account_muted` | 已登录但被禁言，仍调用发帖、跟帖、点赞、创建或提交草稿、扔瓶子、捞瓶子或回复漂流瓶 |
-| 404 | `not_found` | 帖子、评论父楼、用户、漂流瓶或漂流瓶对话不存在 |
+| 403 | `account_muted` | 已登录但被禁言，仍调用发帖、跟帖、点赞、创建或提交草稿、扔瓶子、捞瓶子或回复漂流瓶、加入起床铃歌曲、给起床铃投票或撤回起床铃的票 |
+| 404 | `not_found` | 帖子、评论父楼、用户、漂流瓶、漂流瓶对话或起床铃一轮不存在 |
 | 409 | `email_taken` | 注册邮箱已被占用 |
 | 409 | `sync_in_progress` | CJ 同步已经在进行，本次不开始第二次 |
+| 409 | `round_open` | 起床铃已有一轮未截止 |
+| 409 | `track_taken` | 这一轮已经有人加入同一首 QQ 音乐歌曲 |
 | 422 | `validation_error` | 缺必填、超长、非法栏目、非法配图、非校内邮箱后缀、验证码无效或过期、注册时 `accept_terms` 不是 `true` |
 | 503 | `storage_unavailable` | 存储写入失败，或作业照片识别调用失败；不得返回成功或半截资源 |
 | 503 | `service_unavailable` | CJ 课表同步未配置密钥，或课表接口 / DeepSeek 调用失败；不改已有 CJ 行 |
+| 503 | `qq_unavailable` | 起床铃搜索、加歌或取封面时 QQ 音乐调用失败；不新增候选 |
 
 成功响应不包 `{ "data": ... }` 中间层：对象或列表字段直接放在 JSON 根上。
 
@@ -398,8 +401,8 @@ Content-Type: application/json
 
 #### `GET /api/v1/posts`
 
-- **鉴权：** 否。`feed=mine` 需要登录。
-- **职责：** 列出已发布帖。无 `category` 时供首页近期露出，**只含** `news`，不含 Forum，不含尚无已同意板块的 News 草稿。有 `category` 时只返回该栏目。
+- **鉴权：** `category=forum`（含全部 `feed`）需要登录。无 `category` 或 `category=news` 不要求登录。
+- **职责：** 列出已发布帖。无 `category` 时供首页近期露出，**只含** `news`，不含 Forum，不含尚无已同意板块的 News 草稿。有 `category` 时只返回该栏目。未登录请求 Forum 列表不返回帖子。
 
 **Query**
 
@@ -415,7 +418,7 @@ Content-Type: application/json
 
 - `200` `{ items: PostSummary[], page, page_size, total }`
 - `400` `bad_request`（`page` / `page_size` 非法）
-- `401` `unauthenticated`（`feed=mine` 且无会话）
+- `401` `unauthenticated`（`category=forum` 且无会话，含 `feed=mine`）
 - `422` `validation_error`（`category` 有值但不在枚举内；`feed` 非法，或与非 `forum` 栏目同时出现；`q` 与非 `forum` 栏目同时出现，或去掉空白后超过 80 字；`recommended` / `latest` 的 `page` 大于 1）
 
 `feed=recommended`：分数为 `0.6 × like_count + 0.4 × reply_count`（`reply_count` 只计主评论），降序，分数相同则 `created_at` 降序，最多 10 条，`total` 不超过 10。`feed=latest`：按 `created_at` 降序，最多 10 条，`total` 不超过 10。`feed=all`：按 `created_at` 降序并分页。`feed=mine`：当前用户已发布的 Forum 帖，按 `created_at` 降序并分页，不含 News、不含他人的帖。
@@ -429,8 +432,8 @@ Content-Type: application/json
 
 #### `GET /api/v1/posts/{post_id}`
 
-- **鉴权：** 否
-- **职责：** 已发布帖详情（含完整 `body` 与 `blocks`）。News 草稿返回 `404`。
+- **鉴权：** Forum 帖需要登录。News 不要求登录。
+- **职责：** 已发布帖详情（含完整 `body` 与 `blocks`）。News 草稿返回 `404`。未登录读取 Forum 帖返回 `401`，不返回标题、正文、摘要、评论预览或配图。
 
 **路径参数**
 
@@ -442,6 +445,7 @@ Content-Type: application/json
 
 - `200` + `PostDetail`
 - `400` `bad_request`（`post_id` 不是 UUID）
+- `401` `unauthenticated`（帖子是 Forum 且无会话）
 - `404` `not_found`
 - `503` `storage_unavailable`
 
@@ -550,8 +554,8 @@ Content-Type: application/json
 
 #### `GET /api/v1/posts/{post_id}/comments`
 
-- **鉴权：** 否
-- **职责：** 列出 Forum 帖下的评论。分页作用在直接挂在帖上的评论。旧数据里若已有楼中楼，仍出现在对应评论的 `replies` 中；新写入不再产生楼层或楼中楼。
+- **鉴权：** 是
+- **职责：** 列出 Forum 帖下的评论。分页作用在直接挂在帖上的评论。旧数据里若已有楼中楼，仍出现在对应评论的 `replies` 中；新写入不再产生楼层或楼中楼。未登录不返回评论。
 
 **Query：** `page`、`page_size`（同通用分页）。
 
@@ -559,6 +563,7 @@ Content-Type: application/json
 
 - `200` `{ items: CommentFloor[], page, page_size, total }`（`total` 为直接挂在帖上的评论数）
 - `400` `bad_request`（非法 `post_id` 或分页）
+- `401` `unauthenticated`（Forum 帖且无会话）
 - `404` `not_found`（帖不存在）
 - `422` `validation_error`（帖存在但不是 Forum）
 - `503` `storage_unavailable`
@@ -923,7 +928,7 @@ News 文章仍使用 `Post(category="news")`，每篇文章只有一个内容板
 - `super_admin`：读取和修改全部 CJ 与考试，并可从课表接口提取。
 - `editor` / 普通 `admin`：无 CJ 接口权限。
 
-配置了 `CJ_JOURNAL_BASE_URL` 后，学生端仍用原来的学科目录选课，不再灌入示例作业。提取窗口是上海时区本周一到下周五。课表课程按名称对上目录里的学科。Chinese、AP Lang、AP Euro、AP Calculus 会同时写到 11Ac 和 11Mc；两个班同一天都有内容时各留各的，空字段用另一个班同一天的内容补上。不新建学科，也不改学科的节次和班级。对不上的课程跳过。DeepSeek 只清洗和补全非空文字，不把文字从一个字段搬到另一个字段。模型或课表接口失败时不改已有 CJ 行。窗口内某天变空，则清空该天已有条目的 IC / HW / 通知。窗口外的记录不动。
+配置了 `CJ_JOURNAL_BASE_URL` 后，学生端仍用原来的学科目录选课，不再灌入示例作业。提取窗口是上海时区本周一到下周五。课表课程按名称对上目录里的学科。名称里带间隔点的十一年级课程（Morning Advisory、Chinese、AP Lang、AP Euro、Lunch、AE、AP Calculus）两个班是同一份 CJ，写入 11Ac 和 11Mc。没有写出班级时也写入这两个班。两个班同一字段都有文字时，两边都保存这两段。已经只写在一个班上的 AP Euro，下一次成功提取时补到另一个班。不新建学科，也不改学科的节次和班级。对不上的课程跳过。DeepSeek 只清洗和补全非空文字，不把文字从一个字段搬到另一个字段。模型或课表接口失败时不改已有 CJ 行。窗口内某天变空，则清空该天已有条目的 IC / HW / 通知。窗口外的记录不动。
 
 学科目录由服务端准备。学生把学科放进 Period 1–8 的选择只留在浏览器，不写入本接口。
 
@@ -1026,7 +1031,7 @@ News 文章仍使用 `Post(category="news")`，每篇文章只有一个内容板
 
 #### `POST /api/v1/cj/sync`
 
-仅 `super_admin`。立刻按同一窗口提取：请求 `GET {CJ_JOURNAL_BASE_URL}/public/journal?from=&to=`，头 `Authorization: Bearer <CJ_JOURNAL_API_KEY>`。非空 IC / HW / AN 交给 DeepSeek 清洗后，按课程名称写入已有学科的 `cj_entries`。同一门成对课程写入 11Ac 和 11Mc 两边。对不上目录的课程不写入。进程在配置了课表地址后也会自行调用这一次，之后每 60 分钟一次。已有一次在跑时返回 `409`。
+仅 `super_admin`。立刻按同一窗口提取：请求 `GET {CJ_JOURNAL_BASE_URL}/public/journal?from=&to=`，头 `Authorization: Bearer <CJ_JOURNAL_API_KEY>`。非空 IC / HW / AN 交给 DeepSeek 清洗后，按课程名称写入已有学科的 `cj_entries`。同一门成对课程在 11Ac 和 11Mc 上写入同一份 IC / HW / AN。带间隔点的十一年级课程（Morning Advisory、Chinese、AP Lang、AP Euro、Lunch、AE、AP Calculus）没有班级时同样写入这两个班；提取成功时，只存在于一个班的 AP Euro 会补到另一个班。对不上目录的课程不写入。进程在配置了课表地址后也会自行调用这一次，之后每 60 分钟一次。已有一次在跑时返回 `409`。
 
 **Response**
 
@@ -1342,6 +1347,170 @@ Forum 右侧入口进入 `/play`。不是帖子栏目。全部 HTTP 与 WebSocke
 - `WS /{code}/ws?token=`。未登录或 token 对不上则关闭。消息 `{ "type": "move", ... }`、`resign`、`restart`。五子棋走子带 `row` `col`。国际象棋走子带 `uci`。状态广播含 `black_name` 与 `white_name`。
 
 成功时 HTTP 体为 `{ "status": "success", "error_message": "", "code", "seat", "token", ...局面字段, "black_name", "white_name" }`。失败时 HTTP 仍是 `200`，`status` 为 `error`。未登录是 `401`。
+
+### 1.10 Bell
+
+起床铃在 `/bell`。不是帖子栏目。全部接口要求 `scoop_session`。未登录为 `401`，响应不含歌名、演唱者或票数。同时只有一轮 `open`。只有邮箱等于 `ADMIN_EMAIL` 的账号可以填写 `starts_at` 与 `ends_at` 并开放，也可以删歌和提前截止。已登录用户都可以加歌。普通用户每人每轮一首，该账号可以加入多首。加入时若今天还没有票，这一票记在新歌上。投票开放期间每人每个上海日一票。上海时间 00:00 后可以再投，之前的票留在原来的歌上，榜上的票数是这些天加在一起。同一天内已经投过再投另一首则要先撤回，撤回只去掉今天这一票。`my_vote_track_id` 只表示今天投的那一首。到 `ends_at` 后读或写都会把该轮标成 `closed`。截止后的名次、票数和放歌资格留在榜上，直到下一轮开始。开放下一轮时删掉此前每一轮，以及那些轮的歌曲、票和排名。截止后不能加歌、投票、撤回或删歌。未到 `starts_at` 可以看榜和加歌；投票接口和撤回仍不可用。
+
+被禁言可以 `GET /api/v1/bell` 和搜索，不能加歌、投票或撤回（`403` `account_muted`）。同学看不到投票人。提交者只返回 `display_name`，不返回邮箱。
+
+曲目由服务端向 QQ 音乐核对。浏览器只提交 `song_id`，这是 14 位曲目 mid。写入的链接必须是 `https://y.qq.com/n/ryqq/songDetail/{song_id}`。专辑封面写入 `cover_url`，没有专辑 mid 时为空字符串。浏览器不直接请求这个地址。页面用 `GET /api/v1/bell/covers/{album_mid}` 显示图片，由服务端向 QQ 音乐取图。不需要密钥。调用失败为 `503` `qq_unavailable`，不新增候选；已有候选仍由 `GET /api/v1/bell` 返回。站内不返回音频，也不嵌播放器。QQ 音乐的公开搜索不提供单独的热度数字，结果按 QQ 音乐返回的先后取最多 5 首。
+
+一轮对象：
+
+```json
+{
+  "id": "8f2a1c6e-4b90-4d3a-9e1f-2c7b0d84a511",
+  "status": "open",
+  "starts_at": "2026-11-01T00:00:00Z",
+  "ends_at": "2026-11-02T00:00:00Z",
+  "closed_at": null,
+  "qualified_track_ids": []
+}
+```
+
+`status` 为 `open` | `closed`。`qualified_track_ids` 在未截止时是空数组。截止后是名次前四的候选 id，不足四首则有几首放几首。
+
+候选：
+
+```json
+{
+  "id": "c3d9e0a4-1f27-4b8c-a056-9e4d2b71c880",
+  "song_id": "0039MnYb0qxYhV",
+  "title": "晴天",
+  "artists": "周杰伦",
+  "external_url": "https://y.qq.com/n/ryqq/songDetail/0039MnYb0qxYhV",
+  "cover_url": "https://y.qq.com/music/photo_new/T002R300x300M000002abc123def.jpg",
+  "vote_count": 1,
+  "rank": 1,
+  "qualified": false,
+  "nominated_by": { "display_name": "Jordan Hale" },
+  "mine": false
+}
+```
+
+列表按 `vote_count` 从高到低，相同则 `created_at` 从早到晚。`rank` 从 1 开始，不并列。`qualified` 只在该轮 `closed` 且 `rank` 为 1 到 4 时为 true。
+
+当前一轮响应（`GET`、加歌 `201`、投票 `200`、撤回 `200`、删歌 `200`、开放 `201`、关闭 `200` 都是这个形状）：
+
+```json
+{
+  "round": null,
+  "tracks": [],
+  "my_track_id": null,
+  "my_vote_track_id": null,
+  "can_manage": false,
+  "history": []
+}
+```
+
+没有一轮时 `round` 为 `null`。有一轮时 `round` 为上面的一轮对象。`my_track_id` 是当前用户在这一轮加入过的一首候选 id；该账号加入多首时，取当前排序里的最后一首。没有则为 `null`。`my_vote_track_id` 是当前用户今天（上海日期）投的那一首；今天还没投则为 `null`。昨天的票仍计入 `vote_count`。`can_manage` 只在当前用户邮箱等于 `ADMIN_EMAIL` 时为 true。加入歌曲时，若该用户今天还没有票，则写入他投给这首歌的一票。`history` 在 `can_manage` 为 false 时是 `[]`。为 true 时按 `created_at` 从新到旧列出还留着的轮次，每项为 `{ "id", "status", "starts_at", "ends_at", "closed_at" }`。未截止的 `closed_at` 为 `null`。不含歌名、票数或投票人。开放新一轮之后，上一轮不再出现在 `history` 里。
+
+#### `GET /api/v1/bell`
+
+- **鉴权：** 是
+- **职责：** 返回当前 `open` 一轮；没有则返回最近一轮 `closed`，排名仍按票数排好；都没有则 `round` 为 `null`。已过 `ends_at` 的 `open` 先标成 `closed`。
+
+- `401` `unauthenticated`
+
+#### `GET /api/v1/bell/search?q=`
+
+- **鉴权：** 是。被禁言仍可搜索
+- **职责：** `q` 去掉空白后 1–80 字。向 QQ 音乐取最多 30 首，按返回先后留下最多 5 首。每首含 `song_id`、`title`、`artists`、`external_url`、`cover_url`。没有专辑图时 `cover_url` 为 `""`。不返回音频地址。
+
+**Response `200`：** `{ "items": [ ... ] }`
+
+- `401` `unauthenticated`
+- `422` `validation_error`（`q`）
+- `503` `qq_unavailable`
+
+#### `GET /api/v1/bell/covers/{album_mid}`
+
+- **鉴权：** 是。被禁言仍可读取
+- **职责：** `album_mid` 为 1–32 位字母或数字。服务端向 `https://y.qq.com/music/photo_new/T002R300x300M000{album_mid}.jpg` 取图，并返回图片字节。页面的 `<img>` 使用这个地址。没有对应图片时不在列表里放图。
+
+**Response `200`：** `Content-Type` 为 `image/jpeg` 或其他 `image/*`。`Cache-Control` 为 `private, max-age=86400`。
+
+- `401` `unauthenticated`
+- `404` `not_found`（`album_mid` 非法）
+- `503` `qq_unavailable`
+
+#### `POST /api/v1/bell/tracks`
+
+- **鉴权：** 是。被禁言为 `403` `account_muted`
+- **职责：** Body `{ "song_id" }`。服务端向 QQ 音乐核对后写入歌名、演唱者、链接和专辑封面 `cover_url`。没有专辑图时 `cover_url` 为 `""`。同一轮同一首歌只出现一次。普通用户每人每轮最多一首。邮箱等于 `ADMIN_EMAIL` 的账号可以加入多首。加入时若该用户今天还没有票，则把这一票记在新歌上，包括未到 `starts_at` 的时候。今天已经把票投在别的歌上时，普通用户要先撤回。不给管理员的后续歌曲再记一票。
+
+**Response `201`：** 当前一轮响应。`my_vote_track_id` 在这次写入了票时是新歌的 id。
+
+- `401` `unauthenticated`
+- `403` `account_muted`
+- `404` `not_found`（还没有过一轮）
+- `409` `track_taken`。`fields` 为 `[{ "field": "song_id", "message": "<已有候选的 id>" }]`
+- `422` `validation_error`（曲目 id 非法、QQ 音乐没有这首、该用户这一轮已经加过一首、已经投过需要先撤回，或这一轮已截止）
+- `503` `qq_unavailable`（不新增候选）
+
+#### `DELETE /api/v1/bell/tracks/{id}`
+
+- **鉴权：** 是。邮箱等于 `ADMIN_EMAIL` 的账号可以删任意一首。其他用户只能删自己加入的那一首。被禁言的提交者为 `403` `account_muted`
+- **职责：** 删掉当前 `open` 一轮里的一首歌，以及投给它的票。提交者可以再加入一首。投过它的人可以再投。
+
+**Response `200`：** 当前一轮响应。
+
+- `400` `bad_request`（路径 `id` 不是 UUID）
+- `401` `unauthenticated`
+- `403` `forbidden`（不是提交者，也不是 `ADMIN_EMAIL` 对应账号）
+- `403` `account_muted`
+- `404` `not_found`
+- `422` `validation_error`（这一轮已截止）
+
+#### `POST /api/v1/bell/votes`
+
+- **鉴权：** 是。被禁言为 `403` `account_muted`
+- **职责：** Body `{ "track_id" }`。该候选必须属于当前 `open` 一轮，且现在处于 `starts_at` 与 `ends_at` 之间。每人每个上海日一票。今天已经有票再投另一首则 `422`，不改原来的票。上海时间 00:00 之后可以再投，昨天的票仍留在原歌上。
+
+**Response `200`：** 当前一轮响应。
+
+- `400` `bad_request`（`track_id` 不是 UUID）
+- `401` `unauthenticated`
+- `403` `account_muted`
+- `404` `not_found`（没有过任何一轮，或 `track_id` 不属于当前一轮）
+- `422` `validation_error`（投票尚未开始、这一轮已截止，或已经投过需要先撤回）
+
+#### `DELETE /api/v1/bell/votes`
+
+- **鉴权：** 是。被禁言为 `403` `account_muted`
+- **职责：** 撤回当前用户今天的那一票。昨天的票不动。今天没有票时仍返回当前一轮，`my_vote_track_id` 为 `null`。撤回后截止前今天可以再投。
+
+**Response `200`：** 当前一轮响应。
+
+- `401` `unauthenticated`
+- `403` `account_muted`
+- `404` `not_found`（还没有过一轮）
+- `422` `validation_error`（投票尚未开始，或这一轮已截止）
+
+#### `POST /api/v1/bell/rounds`
+
+- **鉴权：** 是。仅邮箱等于 `ADMIN_EMAIL` 的账号
+- **职责：** Body `{ "starts_at", "ends_at" }`，UTC，形如 `2026-11-01T00:00:00Z`。两个时间都必须晚于现在，且 `ends_at` 晚于 `starts_at`。已有 `open` 一轮则 `409` `round_open`。写入新一轮后，删掉此前每一轮及其歌曲、票和排名。新一轮的榜是空的。
+
+**Response `201`：** 当前一轮响应。
+
+- `401` `unauthenticated`
+- `403` `forbidden`
+- `409` `round_open`
+- `422` `validation_error`（`starts_at` 或 `ends_at`）
+
+#### `POST /api/v1/bell/rounds/{id}/close`
+
+- **鉴权：** 是。仅邮箱等于 `ADMIN_EMAIL` 的账号
+- **职责：** 把该轮标成 `closed` 并写入 `closed_at`。已经关闭则仍返回当前一轮。
+
+**Response `200`：** 当前一轮响应。
+
+- `400` `bad_request`（路径 `id` 不是 UUID）
+- `401` `unauthenticated`
+- `403` `forbidden`
+- `404` `not_found`
 
 ---
 

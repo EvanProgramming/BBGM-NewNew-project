@@ -10,6 +10,8 @@ from datetime import timedelta, timezone
 
 from models import (
     AuditEvent,
+    BellTrack,
+    BellVote,
     Bottle,
     BottleMessage,
     BottlePick,
@@ -212,6 +214,11 @@ def delete_user_account(core: Session, content: Session, user: User) -> list[str
         content.execute(delete(AuditEvent).where(AuditEvent.actor_id == user_id))
         content.execute(delete(ForumActivitySeen).where(ForumActivitySeen.user_id == user_id))
         delete_user_bottles(content, user_id)
+        content.execute(delete(BellVote).where(BellVote.user_id == user_id))
+        track_ids = list(content.scalars(select(BellTrack.id).where(BellTrack.author_id == user_id)).all())
+        if track_ids:
+            content.execute(delete(BellVote).where(BellVote.track_id.in_(track_ids)))
+            content.execute(delete(BellTrack).where(BellTrack.id.in_(track_ids)))
         core.execute(delete(CJTeacherSubject).where(CJTeacherSubject.user_id == user_id))
         core.execute(delete(SessionRecord).where(SessionRecord.user_id == user_id))
         core.delete(user)

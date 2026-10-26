@@ -14,6 +14,7 @@ from errors import register_exception_handlers
 from models import init_content_db, init_core_db, make_engine, make_session_factory
 from routers.admin import router as admin_router
 from routers.auth import router as auth_router
+from routers.bell import router as bell_router
 from routers.bottles import router as bottles_router
 from routers.games import router as games_router
 from routers.cj import router as cj_router
@@ -85,6 +86,7 @@ def create_app() -> FastAPI:
     register_exception_handlers(app)
     app.include_router(auth_router, prefix="/api/v1")
     app.include_router(posts_router, prefix="/api/v1")
+    app.include_router(bell_router, prefix="/api/v1")
     app.include_router(bottles_router, prefix="/api/v1")
     app.include_router(games_router, prefix="/api/v1")
     app.include_router(gomoku_room_router)

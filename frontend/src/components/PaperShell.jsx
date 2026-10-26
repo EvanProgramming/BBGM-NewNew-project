@@ -39,6 +39,7 @@ function BarMenu({ label, open, onToggle, children }) {
 
 const NAV_KEYS = {
   "/forum": "nav.forum",
+  "/bell": "nav.bell",
   "/bottles": "nav.bottles",
   "/cj": "nav.cj",
   "/opinion": "nav.opinion",
@@ -275,7 +276,7 @@ export default function PaperShell() {
           ))}
         </nav>
 
-        {location.pathname === "/forum" || location.pathname.startsWith("/forum/") ? (
+        {user && (location.pathname === "/forum" || location.pathname.startsWith("/forum/")) ? (
           <nav
             className="flex flex-wrap items-center justify-center gap-x-2 gap-y-1 border-b border-neutral-300 py-3"
             aria-label="Forum"
@@ -308,11 +309,7 @@ export default function PaperShell() {
         <Outlet />
 
         <p className="mt-16 border-t border-neutral-300 pt-5 font-sans text-[13px] font-medium leading-6 text-neutral-600">
-          {t("shell.founders")}
-          <br />
-          {t("shell.builders")}
-          <br />
-          {t("shell.newsletter")}
+          {t("shell.footer")}
         </p>
       </div>
       {termsOpen ? <TermsDialog onClose={() => setTermsOpen(false)} /> : null}

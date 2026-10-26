@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { api } from "../api";
 import { useAuth } from "../auth";
 import { CommunityCard, CommunityCardSkeleton } from "../components/CommunityCard";
@@ -91,6 +91,7 @@ function placePublished(current, post, feed) {
 export default function Category({ category, title, feed }) {
   const { user, ready: authReady } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
   const { t } = useI18n();
   const heading = category === "forum" ? t("nav.forum") : title;
   const [items, setItems] = useState([]);
@@ -119,12 +120,14 @@ export default function Category({ category, title, feed }) {
   }
 
   useEffect(() => {
-    if (!searchReady) return undefined;
-    if (feed === "mine" && !authReady) return undefined;
-    if (feed === "mine" && !user) {
-      navigate("/sign-in?next=/forum/mine", { replace: true });
-      return undefined;
+    if (isForum && authReady && !user) {
+      navigate(`/sign-in?next=${encodeURIComponent(location.pathname)}`, { replace: true });
     }
+  }, [authReady, isForum, location.pathname, navigate, user]);
+
+  useEffect(() => {
+    if (!searchReady) return undefined;
+    if (isForum && (!authReady || !user)) return undefined;
     let cancelled = false;
     setLoading(true);
     setReady(false);
@@ -154,7 +157,7 @@ export default function Category({ category, title, feed }) {
     return () => {
       cancelled = true;
     };
-  }, [authReady, category, feed, keyword, navigate, searchReady, user]);
+  }, [authReady, category, feed, isForum, keyword, searchReady, user]);
 
   const refreshList = useCallback(
     () =>
@@ -167,7 +170,7 @@ export default function Category({ category, title, feed }) {
     [category, feed, keyword, pageSize],
   );
 
-  useLiveRefresh(ready && (feed !== "mine" || Boolean(user)), refreshList);
+  useLiveRefresh(ready && (!isForum || Boolean(user)), refreshList);
 
   useEffect(() => {
     if (!writing) return undefined;
@@ -229,12 +232,17 @@ export default function Category({ category, title, feed }) {
   const hasOlder = feed === "all" && total > page * pageSize;
   const column = isForum ? "mx-auto w-full max-w-[42rem]" : "";
 
+  if (isForum && !user) return null;
+
   return (
     <div className="mt-8">
       <FrontPageLink />
       <div className={isForum ? "relative" : ""}>
       <div className={column}>
       <SectionRule>{heading}</SectionRule>
+      {isForum ? (
+        <p className="mb-4 font-sans text-sm leading-6">{t("forum.english")}</p>
+      ) : null}
       {isForum ? (
         <Link
           to="/play"

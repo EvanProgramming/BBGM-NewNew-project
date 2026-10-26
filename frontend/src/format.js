@@ -5,6 +5,7 @@ export const CATEGORY_LABELS = {
 
 export const CATEGORY_ROUTES = [
   { to: "/forum", label: "FORUM", category: "forum" },
+  { to: "/bell", label: "BELL", category: null },
   { to: "/bottles", label: "BOTTLES", category: null },
   { to: "/cj", label: "CJ", category: null },
   { to: "/opinion", label: "OPINION", category: null },

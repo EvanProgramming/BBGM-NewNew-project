@@ -10,6 +10,7 @@ export default function About() {
       <p className="font-serif text-3xl leading-snug">{t("about.lead")}</p>
       <p className="mt-4 font-sans text-[15px] leading-7">{t("about.body")}</p>
       <p className="mt-4 font-sans text-[15px] leading-7">{t("about.newsletter")}</p>
+      <p className="mt-4 font-sans text-[15px] leading-7">{t("about.adviser")}</p>
       <p className="mt-4 font-sans text-[15px] leading-7 text-neutral-500">{t("about.not")}</p>
     </div>
   );

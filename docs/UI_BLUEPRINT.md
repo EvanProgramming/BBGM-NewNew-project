@@ -18,16 +18,17 @@
 | `/news/review` | News 审核 | 仅 `super_admin` | 待审队列；在独立预览窗批准发布或退回 |
 | `/news/articles/:id` | News 文章详情 | 公开 | `GET /api/v1/news/articles/{id}` |
 | `/sports` | 旧路径 | — | 重定向到 `/` |
-| `/forum` | Forum 推荐 | 公开 | `GET /api/v1/posts?category=forum&feed=recommended`。分数 `0.6 × 赞 + 0.4 × 评论`，取前 10。该读者若有关键词则再带 `q`，命中在前。绑 `author.avatar` `title` `author.display_name` `excerpt` `created_at` `images[0]` `reply_count` `reply_preview`（最多 2） `like_count` `liked` |
-| `/forum/latest` | Forum 最新 | 公开 | `feed=latest`。按时间前 10 |
-| `/forum/all` | Forum 所有 | 公开 | `feed=all`。按时间分页 |
-| `/forum/mine` | Forum 我的 | 需登录 | `feed=mine`。只列当前用户已发布的 Forum 帖。未登录去 `/sign-in?next=/forum/mine`。作者可在卡片和详情删除自己的帖 |
-| `/bottles` | 漂流瓶 | 需登录 | `GET /api/v1/bottles/mine`。未登录去 `/sign-in?next=/bottles`。扔、捞、我扔的、我捞的。`admin` / `super_admin` 另见被举报 |
+| `/forum` | Forum 推荐 | 需登录 | 未登录去 `/sign-in?next=/forum`，不请求列表，不渲染帖子、评论预览、配图、搜索、下棋入口或发帖按钮。已登录：`GET /api/v1/posts?category=forum&feed=recommended`。分数 `0.6 × 赞 + 0.4 × 评论`，取前 10。该读者若有关键词则再带 `q`，命中在前。绑 `author.avatar` `title` `author.display_name` `excerpt` `created_at` `images[0]` `reply_count` `reply_preview`（最多 2） `like_count` `liked` |
+| `/forum/latest` | Forum 最新 | 需登录 | 未登录去 `/sign-in?next=/forum/latest`，页面不渲染 Forum 内容。已登录：`feed=latest`。按时间前 10 |
+| `/forum/all` | Forum 所有 | 需登录 | 未登录去 `/sign-in?next=/forum/all`，页面不渲染 Forum 内容。已登录：`feed=all`。按时间分页 |
+| `/forum/mine` | Forum 我的 | 需登录 | `feed=mine`。只列当前用户已发布的 Forum 帖。未登录去 `/sign-in?next=/forum/mine`，不渲染帖子。作者可在卡片和详情删除自己的帖 |
+| `/bell` | 起床铃 | 需登录 | 未登录去 `/sign-in?next=/bell`，不请求列表。已登录读当前一轮：排行榜在上，搜索在下。已登录用户都可以搜索并点选加入，按 QQ 音乐返回的先后最多五首；加入后这一票记在这首歌上，蓝色「Voted」出现。普通用户每人一轮一首。响应里 `can_manage` 为 true 的账号（邮箱等于 `ADMIN_EMAIL`）可以加入多首，也可在右侧小窗填写开始和结束时间开放一轮，截止前可删歌，也可提前截止。该小窗只对这个账号出现，并按时间从新到旧列出还留着的轮次的开始、结束、状态和截止时间。截止后的排名留在主榜上，直到下一轮开始；开放下一轮时删掉上一轮。窄屏时小窗改到标题下，不盖住榜单。每首显示名次、专辑封面 `cover_url`、歌名、演唱者、票数、提交者 `display_name` 和 `external_url`（新标签打开 `y.qq.com`）。没有封面就不显示图。投票开放期间每人每个上海日一票，午夜后可以再投，之前的票仍计入票数。名次 1 到 4 分别用金、银、铜和蓝色。不嵌播放器 |
+| `/bottles` | 漂流瓶 | 需登录 | `GET /api/v1/bottles/mine`。未登录去 `/sign-in?next=/bottles`。标题下说明：别的同学随机捞到，只跟你回复，互相看不到名字，捞不到自己扔的，每天最多扔 3 枚、捞 5 枚，北京时间 08:00 重新计数。扔、捞、我扔的、我捞的。`admin` / `super_admin` 另见被举报 |
 | `/play` | 下棋 | 需登录 | 先选五子棋或国际象棋，再选人机或房间码。未登录去 `/sign-in?next=/play`。棋盘在报头下，不嵌进帖子列表 |
 | `/bottles/picks/:pickId` | 漂流瓶对话 | 需登录 | `GET /api/v1/bottles/picks/{pick_id}`。同学之间不显示名字和头像。打开时 `POST .../read` |
 | `/cj` | 按角色进入 | 需登录 | `super_admin` 去 `/cj/admin`；`student` 或仅 `teacher` 去学生端只读周视图 |
 | `/cj/student` | 学生端月历 | 需 `student` 或 `teacher` | 每一行整周链到 `/cj/student/week?start=`；Period 选择存在浏览器本地 |
-| `/cj/student/week` | 学生端周视图 | 需 `student` 或 `teacher` | `GET /api/v1/cj?week_start=`。课表仍是原来的学科目录，选择存在浏览器本地。同步来的 IC / HW / A 显示在学生选中的对应学科上。11Ac 与 11Mc 的同一门课两个班都能看到 |
+| `/cj/student/week` | 学生端周视图 | 需 `student` 或 `teacher` | `GET /api/v1/cj?week_start=`。课表仍是原来的学科目录，选择存在浏览器本地。同步来的 IC / HW / AN 显示在学生选中的对应学科上。11Ac 与 11Mc 带间隔点的同一门课两个班看到同一份 IC / HW / AN |
 | `/cj/student/day` | 学生端旧单日页 | 需 `student` 或 `teacher` | 保留旧链接兼容，不作为月历主入口 |
 | `/cj/admin` | CJ 完整管理端 | 仅 `super_admin` | 管理全部 CJ 与考试。顶部「提取课程信息」调用 `POST /api/v1/cj/sync`。未按按钮时服务端每小时也会提取一次。打开页面时 `GET /api/v1/cj/sync` 显示上次结果。手改会在下一次成功提取时被窗口内的新内容覆盖。不再分配老师学科 |
 | `/cj/admin/student-preview` | 学生端只读预览 | 仅 `super_admin` | 与学生周视图读取同一份 CJ，供管理端在独立标签页验证保存结果；不放宽学生端路由权限 |
@@ -35,7 +36,7 @@
 | `/opinion` | 栏目占位 | 公开 | **不请求** `category=opinion`（枚举外会 422）。固定空态。 |
 | `/community` `/submit` | 旧路径 | — | 重定向到 `/forum` |
 | `/dorm-life` `/events` `/photo` | 旧路径 | — | 重定向到 `/` |
-| `/posts/:postId` | 帖子详情 | 公开 | `GET /api/v1/posts/{post_id}`；Forum 另 `GET .../comments` |
+| `/posts/:postId` | 帖子详情 | News 公开；Forum 需登录 | News：`GET /api/v1/posts/{post_id}`。Forum：未登录去 `/sign-in?next=/posts/:postId`，不渲染标题、正文、评论或配图。已登录另 `GET .../comments` |
 | `/me/posts` | 我的帖子 | 需登录 | `GET /api/v1/me/posts` |
 | `/me/avatar` | 选/上传头像 | 需登录 | `PUT` / `POST /api/v1/me/avatar` |
 | `/me/password` | 修改密码 | 需登录 | `PUT /api/v1/me/password`（`current_password` `password`） |
@@ -45,9 +46,9 @@
 | `/sign-in` | 登录 | 访客 | `POST /api/v1/auth/login` |
 | `/register` | 注册 | 访客 | `POST /api/v1/auth/email-codes`（`purpose=register`）后 `POST /api/v1/auth/register` |
 | `/reset-password` | 找回密码 | 访客 | `POST /api/v1/auth/email-codes`（`purpose=reset`）后 `POST /api/v1/auth/password-reset` |
-| `/about` | 静态稿。写明创始人 Tori Zhao、Jason Fang；搭建者 Leo Gao、Ben Lyu、Dewey Peng、Tori Zhao；校报由 Media Club 供稿 | 公开 | 无 API |
+| `/about` | 静态稿。写明创始人 Tori Zhao、Jason Fang；搭建者 Leo Gao、Ben Lyu、Dewey Peng、Tori Zhao；校报由 Media Club 供稿；指导教师 Brandon Xue | 公开 | 无 API |
 | `/contact` | 静态稿。Write to BBGM Vibe Coding Club. | 公开 | 无 API |
-| `/terms` | 用户协议 | 公开 | 无 API。中英跟 System 菜单里的总开关走，本页没有单独的语言按钮。直接打开此地址是整页。站内顶栏与注册勾选不跳到本页，改为当前页浮层 |
+| `/terms` | 用户协议 | 公开 | 无 API。写明此论坛为英文论坛，请在 Forum 使用英文。中英跟 System 菜单里的总开关走，本页没有单独的语言按钮。直接打开此地址是整页。站内顶栏与注册勾选不跳到本页，改为当前页浮层 |
 
 **全局壳 `PaperShell`**
 
@@ -56,10 +57,10 @@
 - 列表同步：首页 / Forum / 帖详情已 live refresh。`/admin/users`、`/news/drafts` 列表、`/system`、`/me/posts` 同样轮询，超管或其他人刚做的改动会进当前页。打开中的草稿编辑框不自动覆盖，以免冲掉未保存正文。
 - 报头：无搜索框。中：斜体衬线字标 `Elegram` 链回 `/`。右：静态「FOUNDERS / Tori Zhao, Jason Fang」。字标仍在版心居中。
 - 标语静态：`YOUR STORIES. YOUR VOICE. YOUR PAGE.`
-- 导航：`NEWS`（`/`）`FORUM` `BOTTLES` `CJ` `OPINION`。`BOTTLES` 在 `FORUM` 与 `CJ` 之间，链到 `/bottles`。`CJ` 与 `FORUM` 同一行，链到 `/cj`。`roles` 含 `editor` 或 `super_admin` 时，在 NEWS 之后另见 `DRAFT`（`/news/submit`）。`DESIGN`（`/news/design`）只在 `roles` 含 `super_admin` 时出现。超级管理员从 Design 进入审核队列或直接发布。当前路由下划黑线。无 `SUBMIT`，无单独的 News 列表项。分板块草稿页仍是 `/news/drafts`，不放在主导航。旧 `/news` 重定向至首页。Forum 发帖在栏目页内。已登录时约每 4 秒 `GET /api/v1/me/forum-activity` 与 `GET /api/v1/me/bottle-activity`（页签隐藏暂停）。`unread` 为 `1` 时，对应的 `FORUM` 或 `BOTTLES` 文字旁有一个红底白字的 `1`。未登录不请求、不显示。请求失败不盖错误条，保留上一次的红点。漂流瓶红点只在打开那条对话并标成已读后消失；别处还有未读时仍是 `1`。
+- 导航：`NEWS`（`/`）`FORUM` `BELL` `BOTTLES` `CJ` `OPINION`。`BELL` 链到 `/bell`，未登录去登录页。`BOTTLES` 在 `BELL` 与 `CJ` 之间，链到 `/bottles`。`CJ` 与 `FORUM` 同一行，链到 `/cj`。`roles` 含 `editor` 或 `super_admin` 时，在 NEWS 之后另见 `DRAFT`（`/news/submit`）。`DESIGN`（`/news/design`）只在 `roles` 含 `super_admin` 时出现。超级管理员从 Design 进入审核队列或直接发布。当前路由下划黑线。无 `SUBMIT`，无单独的 News 列表项。分板块草稿页仍是 `/news/drafts`，不放在主导航。旧 `/news` 重定向至首页。Forum 发帖在栏目页内。未登录打开 `/forum`、`/forum/latest`、`/forum/all`、`/forum/mine` 时不渲染 Forum 子导航和帖子，并去登录页。已登录时约每 4 秒 `GET /api/v1/me/forum-activity` 与 `GET /api/v1/me/bottle-activity`（页签隐藏暂停）。`unread` 为 `1` 时，对应的 `FORUM` 或 `BOTTLES` 文字旁有一个红底白字的 `1`。未登录不请求、不显示。请求失败不盖错误条，保留上一次的红点。漂流瓶红点只在打开那条对话并标成已读后消失；别处还有未读时仍是 `1`。
 - CJ 欢迎屏：`/cj` 按角色跳到学生或管理页。只有老师身份的账号进入学生只读页。跳转之后，若这次登录还没看过欢迎屏，内容区左上角显示大号衬线 “Welcome, {display_name}”（中文 “欢迎，{display_name}”），约 1.8 秒淡入，淡入结束后再停一会儿，大约 3.2 秒后才渲染课表。标记在 `localStorage`，键带用户 `id`。重新登录或退出时清除。淡入结束前离开 CJ 不写入标记。已在 CJ 内换日期或课程不再播放。
 - 会等待接口的按钮：请求从发出到返回期间，按钮文字旁显示转圈，并且不可再点。页面初次加载仍用原来的“正在读取”文案，不盖整页。
-- 页脚声明（非 schema）：创始人 Tori Zhao、Jason Fang。网站由 Leo Gao、Ben Lyu、Dewey Peng、Tori Zhao 搭建。校报由 Media Club 供稿。
+- 页脚声明（非 schema）：`this website is own by bbgm vibe coding club.`
 
 **栏目枚举 → 导航文案（展示层，不是新字段）**
 
@@ -139,8 +140,8 @@
 | --- | --- |
 | 加载 | 栏目大标题+黑线先出；下列三行图框+横线。 |
 | 成功 | 校报 `items[]` 逐行：`category` `title` `excerpt`。`total > page * page_size` 时底栏 `Older stories` 请求 `page+1`。 |
-| Forum | **不用 StoryRow**。列表列宽 `max-w-[42rem]`，居中，与详情同宽。每条独立模块卡：`author.avatar`、`author.display_name`、`created_at`、`title`（链详情）、`excerpt`、有则 `images[0]`。标题和摘要按卡片宽度换行，长串不撑出灰色卡片。底栏：气泡图标 + `reply_count`（链 `/posts/{id}`）；拇指图标 + `like_count`（已登录切换赞；游客去 `/sign-in?next=/forum`）。底栏下展示 `reply_preview` 最多 2 条：`author.avatar`、`author.display_name`、`body`。没有评论不留空行。预览作者是当前用户时，该条旁有「撤回」。`roles` 含 `admin` 或 `super_admin` 时，别人的评论旁有 `Delete`，每张卡片上也有 `Delete`。确认后 `DELETE` 对应的帖或评论。删掉的评论从卡片消失，气泡数字减 1。删掉的帖整张卡片消失。 |
-| 发帖 | Forum：右下角固定蓝色圆形加号。已登录点开浮层表单；未登录加号去 `/sign-in?next=/forum`。`opinion` 无发帖。News 不在本页发稿。独立投稿在导航 `DRAFT` / `DESIGN`，分板块草稿在 `/news/drafts`。 |
+| Forum | **不用 StoryRow**。栏目标题下有一行提醒：此论坛为英文论坛，请使用英文。列表列宽 `max-w-[42rem]`，居中，与详情同宽。每条独立模块卡：`author.avatar`、`author.display_name`、`created_at`、`title`（链详情）、`excerpt`、有则 `images[0]`。标题和摘要按卡片宽度换行，长串不撑出灰色卡片。底栏：气泡图标 + `reply_count`（链 `/posts/{id}`）；拇指图标 + `like_count`（已登录切换赞；游客去 `/sign-in?next=/forum`）。底栏下展示 `reply_preview` 最多 2 条：`author.avatar`、`author.display_name`、`body`。没有评论不留空行。预览作者是当前用户时，该条旁有「撤回」。`roles` 含 `admin` 或 `super_admin` 时，别人的评论旁有 `Delete`，每张卡片上也有 `Delete`。确认后 `DELETE` 对应的帖或评论。删掉的评论从卡片消失，气泡数字减 1。删掉的帖整张卡片消失。 |
+| 发帖 | Forum：右下角固定蓝色圆形加号。已登录点开浮层表单。未登录不渲染 Forum 页，去登录。`opinion` 无发帖。News 不在本页发稿。独立投稿在导航 `DRAFT` / `DESIGN`，分板块草稿在 `/news/drafts`。 |
 | 空 | `items.length === 0`：图框保留，“No stories in {栏目名} yet.” 不链独立发帖页。 |
 | 栏目 | Forum 主导航下：推荐、最新、所有、我的。当前项字色 `#1A4FBF` 并带下划线。推荐与最新不显示 Older stories。我的需要登录，卡片上作者可删除该帖，确认后该卡消失。`admin` 与 `super_admin` 在推荐、最新、所有里也能删除别人的帖。`unread` 为 `1` 且当前不在 `/forum/mine` 时，「我的」文字旁有一个红底白字的 `1`，与主导航 `FORUM` 同时出现。进入 `/forum/mine` 后 `POST /api/v1/me/forum-activity/read`，两处红点消失。人还停在「我的」时，新的赞或评论随这次刷新标成已读，红点不留在当前这一栏。 |
 | 搜索 | 栏目标题下一条下划线关键词框。回车提交。去掉空白后的词写入 `localStorage`：登录用户键 `elegram_forum_q:{id}`，访客键 `elegram_forum_q:guest`。随后该读者的推荐、最新、所有、我的都带同一个 `q`。命中帖在前，未命中的仍在。清除后删掉键，顺序回到该栏默认。换账号用各自的键，不改其他用户看到的顺序。 |
@@ -150,7 +151,7 @@
 
 ### 3.2b 漂流瓶 `/bottles`
 
-栏宽 `max-w-[42rem]`，居中。未登录去 `/sign-in?next=/bottles`。
+栏宽 `max-w-[42rem]`，居中。未登录去 `/sign-in?next=/bottles`。标题下有一段说明：扔出去后别的同学随机捞到，并且只跟你回复；互相看不到名字；捞不到自己扔的；每天最多扔 3 枚、捞 5 枚，北京时间 08:00 重新计数。
 
 | 状态 | 表现 |
 | --- | --- |
@@ -158,9 +159,22 @@
 | 捞 | 「捞一个」。`POST /api/v1/bottles/pick`。`pick` 有 `id` 时去 `/bottles/picks/{id}`。`pick` 为 `null` 时留在本页，写明海里现在没有新瓶子。 |
 | 我扔的 / 我捞的 | `GET /api/v1/bottles/mine` 的 `thrown` 与 `picked`。每行用 `excerpt`、`created_at`、`reply_count`、`unread`。有 `pick_id` 的行链到对话。还没有人捞到的瓶子没有对话链，作者可删除。停留时约每 4 秒再请求。 |
 | 被举报 | 仅 `roles` 含 `admin` 或 `super_admin`。`GET /api/v1/bottles/reports`。行链到该 `pick_id`。 |
-| 对话 | 瓶子正文和 `messages[]`。同学之间用「我」和「有人」，不显示 `display_name` 或头像。打开时 `POST .../read`。回复框 `POST .../messages`。自己的回复可撤回。管理员查看别人的对话时看到 `thrower` 与 `picker` 的 `display_name` 和 `email`。对话参与者看不到对方邮箱。管理员可删除瓶子或回复。任一方可举报。输入框内容不因刷新丢失。 |
+| 对话 | 瓶子正文和 `messages[]`。同学之间用「我」和「有人」，不显示 `display_name` 或头像。参与者在对话顶看到一句：这段对话是私密的，对方看不到你的名字。管理员查看别人的对话时不显示这句，并看到 `thrower` 与 `picker` 的 `display_name` 和 `email`。打开时 `POST .../read`。回复框 `POST .../messages`。自己的回复可撤回。对话参与者看不到对方邮箱。管理员可删除瓶子或回复。任一方可举报。输入框内容不因刷新丢失。 |
 | 空 | 我扔的、我捞的、被举报各自有空态句。 |
 | 错误 | `ErrorBanner` ← `error.message`。`401` 去登录。对话 `404` 写明找不到。 |
+
+### 3.2c 起床铃 `/bell`
+
+栏宽 `max-w-[42rem]`，居中。未登录去 `/sign-in?next=/bell`，不渲染歌名或票数。必须登录后 `GET /api/v1/bell`。
+
+| 状态 | 表现 |
+| --- | --- |
+| 无一轮 | 说明现在没有开放的一轮。仅 `can_manage` 为 true 时看到开始时间和结束时间并 `POST /api/v1/bell/rounds`。 |
+| 未开始 | 显示开始时间和结束时间。排行榜在上，搜索框在榜下。可以搜索并 `POST /api/v1/bell/tracks`。结果最多五首，按 QQ 音乐返回的先后。加入后票数是 1，并显示蓝色「Voted」。名次 1 到 4 分别用金、银、铜和蓝色标出，第一名更大。不显示投票或撤回按钮。 |
+| 投票中 | 排行榜在上，搜索框在下。每行左侧是大号名次，第一名更大。名次 1 到 4 分别是金、银、铜、蓝，第五名及以后是黑框。有 `cover_url` 时名次和歌名之间显示专辑封面，图片从 `GET /api/v1/bell/covers/{album_mid}` 加载。已有曲目显示票数和「投票」，`POST /api/v1/bell/votes`。自己今天的那一票显示蓝色的「Voted」，刚投出或刚加入时有一段放大进入的动画，旁边仍可「撤回」。今天已经投过再投另一首或再加入一首时，提示先撤回。上海时间午夜后可以再投，昨天的票还在。普通用户每人一轮一首，自己加入的那一行也有「删除」。`can_manage` 为 true 时每一行都有「删除」，`DELETE /api/v1/bell/tracks/{id}`，并且可以继续加入。搜索提交 `GET /api/v1/bell/search?q=`，按 QQ 音乐返回的先后最多五首，列出封面、歌名、演唱者和听歌链接。点选后 `POST /api/v1/bell/tracks`。听歌链接 `target=_blank`，地址为 `external_url`。停留时约每 4 秒再请求当前一轮。 |
+| 已截止 | 排名留在榜上，直到下一轮开始。不再显示搜索、投票、撤回或删除。名次前四仍用金、银、铜、蓝，并标成放歌资格。不足四首时有几首标几首。`can_manage` 为 true 时可 `POST /api/v1/bell/rounds/{id}/close` 提前截止，也可填写下一轮的开始和结束时间。下一轮 `POST /api/v1/bell/rounds` 成功后，上一轮的歌、票和排名消失，榜上换成空的新一轮。 |
+| 重复 | `409 track_taken` 时留在列表，提示改为给已有的那一首投票。自己已加过一首则 `422` 写在搜索下。 |
+| 错误 | `401` 去登录。禁言加歌、投票或撤回显示 `error.message`。`503 qq_unavailable` 用 `ErrorBanner`，已列出的歌仍留在页面。 |
 
 ### 3.3 详情 `/posts/:postId`
 
@@ -169,7 +183,7 @@
 | 加载 | 图框+标题横线。 |
 | 成功 | kicker←`category`；标题←`title`；byline←`author.display_name`、`created_at`。Forum 正文←`body`。News 按 `blocks[]` 分段渲染 `heading` 与 `body`，不展示未同意板块。 |
 | 返回 | 详情顶上的返回链：News 回 `/`。Forum 回进入时的列表（`/forum`、`/forum/latest`、`/forum/all`、`/forum/mine`）；直接打开则回 `/forum`。发完评论后仍停在详情，点返回进 Forum，不回首页。 |
-| Forum | `category===forum` 时正文放在与列表相同的灰色卡片里，按卡片宽度换行，长串不撑出卡片。正文下有与列表相同的拇指（`like_count` / `liked`；未登录去登录），并请求 `GET /comments`。楼主与每条评论显示 `author.avatar`。有 `images[]` 则在正文下展示实图，不用校报占位图框。评论显示 `author.display_name`、`body`，同样按栏宽换行。不显示楼号，没有「新楼层」，也不能回复某一条评论。当前用户自己的评论旁有「撤回」。`roles` 含 `admin` 或 `super_admin` 时，别人的评论旁有 `Delete`。确认后该条消失。已登录显示评论框；未登录显示去登录。校报详情**不**请求评论、不加拇指，图框仍是 CSS 占位。停留时约每 4 秒再请求详情与已加载的评论页；有新评论则追加。输入框内容不丢。后台失败不盖错误条。精选表不在本页。 |
+| Forum | 未登录打开 Forum 帖详情时去登录，不渲染标题、正文、评论或配图。已登录且 `category===forum` 时正文放在与列表相同的灰色卡片里，按卡片宽度换行，长串不撑出卡片。正文下有与列表相同的拇指（`like_count` / `liked`），并请求 `GET /comments`。楼主与每条评论显示 `author.avatar`。有 `images[]` 则在正文下展示实图，不用校报占位图框。评论显示 `author.display_name`、`body`，同样按栏宽换行。不显示楼号，没有「新楼层」，也不能回复某一条评论。当前用户自己的评论旁有「撤回」。`roles` 含 `admin` 或 `super_admin` 时，别人的评论旁有 `Delete`。确认后该条消失。已登录显示评论框。校报详情**不**请求评论、不加拇指，图框仍是 CSS 占位，未登录仍可阅读。停留时约每 4 秒再请求详情与已加载的评论页；有新评论则追加。输入框内容不丢。后台失败不盖错误条。精选表不在本页。 |
 | 删帖 | `roles` 含 `admin` 或 `super_admin` 时显示 `Delete`。Forum 帖的作者在自己的详情也显示 `Delete`。确认后 `DELETE /api/v1/posts/{id}`。管理员删 News 回 `/`，删他人的 Forum 回 `/forum`；作者删自己的 Forum 回 `/forum/mine`。`403` 用 `ErrorBanner`。 |
 | 撤回 News | 已发布且带 `news_categories` 的文章，`roles` 含 `admin` 或 `super_admin` 时另显示 `Withdraw`。确认后 `POST /api/v1/news/submissions/{id}/withdraw`，成功回首页。文章不再公开，原稿回到 Draft。`403` 用 `ErrorBanner`。 |
 | 空 / 404 | `error.code === not_found`：衬线 “Story not found.” 无假文。 |
@@ -290,7 +304,7 @@
   - `<Tagline>` 静态
   - `<SectionNav>` NEWS（`/`）/ DRAFT（`editor` 或 `super_admin`，`/news/submit`）/ DESIGN（仅 `super_admin`，`/news/design`）/ FORUM / BOTTLES（`/bottles`）/ CJ（`/cj`）/ OPINION
   - `<Outlet>` 下列页面之一
-  - `<Disclaimer>` 创始人 Tori Zhao、Jason Fang。网站由 Leo Gao、Ben Lyu、Dewey Peng、Tori Zhao 搭建。校报由 Media Club 供稿。
+  - `<Disclaimer>` `this website is own by bbgm vibe coding club.`
 
 - `<Page: Home>`
   - `<ErrorBanner>` ← `error.code` `error.message`（仅列表失败）
@@ -316,7 +330,7 @@
 
 - `<Page: Category>`
   - `<SectionRule>` 栏目名
-  - Forum：右下角蓝色圆形 `<ComposeFab>`；打开后浮层 `<ComposeForm>`；未登录加号去登录
+  - Forum：右下角蓝色圆形 `<ComposeFab>`；打开后浮层 `<ComposeForm>`。未登录不渲染这一页
   - `<ErrorBanner>` ← `error.message`
   - Forum：列宽 `max-w-[42rem]`。`<ForumSearch>` 提交 `q`（按当前用户记在本地）。`<CommunityCard>` ← `items[]`：头像、名、时间、标题、excerpt、图、底栏气泡与拇指，其下最多 2 条 `reply_preview`
   - 校报：`<StoryRowList>` ← `items[]`
