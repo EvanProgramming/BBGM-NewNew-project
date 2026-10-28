@@ -201,6 +201,11 @@ export default function PaperShell() {
                       {t("shell.users")}
                     </Link>
                   ) : null}
+                  {hasRole(user, "super_admin") ? (
+                    <Link role="menuitem" to="/admin/forum-agents" className={menuItemClass}>
+                      {t("shell.forumAgents")}
+                    </Link>
+                  ) : null}
                 </BarMenu>
               ) : null}
               {user ? (

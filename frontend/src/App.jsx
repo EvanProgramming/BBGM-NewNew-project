@@ -7,6 +7,7 @@ import Bell from "./pages/Bell";
 import BottleThread from "./pages/BottleThread";
 import Bottles from "./pages/Bottles";
 import AdminUsers from "./pages/AdminUsers";
+import ForumAgents from "./pages/ForumAgents";
 import AvatarSettings from "./pages/AvatarSettings";
 import ChangePassword from "./pages/ChangePassword";
 import Category, { StaticCategory } from "./pages/Category";
@@ -81,6 +82,7 @@ export default function App() {
             <Route path="/me/avatar" element={<AvatarSettings />} />
             <Route path="/me/password" element={<ChangePassword />} />
             <Route path="/admin/users" element={<AdminUsers />} />
+            <Route path="/admin/forum-agents" element={<ForumAgents />} />
             <Route path="/paper" element={<Navigate to="/" replace />} />
             <Route path="/system" element={<SystemNotices />} />
             <Route path="/sign-in" element={<SignIn />} />

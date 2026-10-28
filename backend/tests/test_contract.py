@@ -3010,3 +3010,386 @@ def test_qq_search_keeps_first_five():
     assert "size128" not in rendered
     assert "example.invalid" not in rendered
     assert "Skipped" not in rendered
+
+
+def test_forum_agent_caps_posts_and_does_not_like_itself(tmp_path, monkeypatch):
+    app = _make_app(tmp_path, monkeypatch, admin_email="ada.min@basischina.com")
+
+    def fake_json(_settings, _system, _user):
+        return {"title": "Lunch line", "body": "The line moved faster today."}
+
+    monkeypatch.setattr("forum_agents.complete_json", fake_json)
+    monkeypatch.setattr("forum_agents._external_headlines", lambda _settings: [])
+    with TestClient(app) as student, TestClient(app) as admin:
+        assert _register(student, "jordan.hale@basischina.com", "east-hall-8", "Jordan Hale").status_code == 201
+        denied = student.get("/api/v1/admin/forum-agents")
+        assert denied.status_code == 403
+        assert denied.json()["error"]["code"] == "forbidden"
+
+        assert _register(admin, "ada.min@basischina.com", "desk-key-99", "Ada Min").status_code == 201
+        created = admin.post(
+            "/api/v1/admin/forum-agents",
+            json={
+                "email": "mira.chen@basischina.com",
+                "password": "east-hall-8",
+                "display_name": "Mira Chen",
+                "personality": "Curious and brief.",
+                "hobbies": "Orchestra.",
+                "tone": "Friendly.",
+                "posts_per_day": 1,
+                "comments_per_day": 0,
+                "likes_per_day": 0,
+            },
+        )
+        assert created.status_code == 201, created.text
+        agent_id = created.json()["id"]
+        assert created.json()["enabled"] is False
+
+        first = admin.post(f"/api/v1/admin/forum-agents/{agent_id}/act")
+        assert first.status_code == 200, first.text
+        assert first.json()["action"]["action"] == "post"
+        post_id = first.json()["action"]["post_id"]
+
+        board = admin.get("/api/v1/posts?category=forum")
+        assert board.status_code == 200, board.text
+        card = board.json()["items"][0]
+        assert card["id"] == post_id
+        assert card["category"] == "forum"
+        assert card["author"]["display_name"] == "Mira Chen"
+        assert card["title"] == "Lunch line"
+        assert "agent" not in card
+
+        second = admin.post(f"/api/v1/admin/forum-agents/{agent_id}/act")
+        assert second.status_code == 200, second.text
+        assert second.json()["action"]["action"] == "skip"
+        assert admin.get("/api/v1/posts?category=forum").json()["total"] == 1
+
+        patched = admin.patch(
+            f"/api/v1/admin/forum-agents/{agent_id}",
+            json={"posts_per_day": 0, "comments_per_day": 0, "likes_per_day": 1},
+        )
+        assert patched.status_code == 200, patched.text
+        liked = admin.post(f"/api/v1/admin/forum-agents/{agent_id}/act")
+        assert liked.status_code == 200, liked.text
+        assert liked.json()["action"]["action"] == "skip"
+        detail = admin.get(f"/api/v1/posts/{post_id}")
+        assert detail.json()["like_count"] == 0
+        assert detail.json()["author"]["display_name"] == "Mira Chen"
+
+
+def test_forum_agent_can_post_and_comment_on_demand(tmp_path, monkeypatch):
+    app = _make_app(tmp_path, monkeypatch, admin_email="ada.min@basischina.com")
+
+    def fake_json(_settings, _system, _user):
+        return {"title": "Rain again", "body": "Did anyone else get soaked walking over?"}
+
+    monkeypatch.setattr("forum_agents.complete_json", fake_json)
+    monkeypatch.setattr("forum_agents._external_headlines", lambda _settings: [])
+    with TestClient(app) as student, TestClient(app) as admin:
+        assert _register(student, "jordan.hale@basischina.com", "east-hall-8", "Jordan Hale").status_code == 201
+        note = student.post(
+            "/api/v1/posts",
+            json={"title": "Lost charger", "body": "Left it in the library.", "category": "forum"},
+        )
+        assert note.status_code == 201, note.text
+        note_id = note.json()["id"]
+
+        assert _register(admin, "ada.min@basischina.com", "desk-key-99", "Ada Min").status_code == 201
+        created = admin.post(
+            "/api/v1/admin/forum-agents",
+            json={
+                "email": "leo.park@basischina.com",
+                "password": "east-hall-8",
+                "display_name": "Leo Park",
+                "personality": "Quiet observer.",
+                "hobbies": "Birding.",
+                "tone": "Calm.",
+                "posts_per_day": 0,
+                "comments_per_day": 0,
+                "likes_per_day": 0,
+            },
+        )
+        assert created.status_code == 201, created.text
+        agent_id = created.json()["id"]
+
+        posted = admin.post(f"/api/v1/admin/forum-agents/{agent_id}/post")
+        assert posted.status_code == 200, posted.text
+        assert posted.json()["action"]["action"] == "post"
+        own_id = posted.json()["action"]["post_id"]
+        own = admin.get(f"/api/v1/posts/{own_id}")
+        assert own.json()["author"]["display_name"] == "Leo Park"
+        assert own.json()["title"] == "Rain again"
+
+        replied = admin.post(f"/api/v1/admin/forum-agents/{agent_id}/comment")
+        assert replied.status_code == 200, replied.text
+        assert replied.json()["action"]["action"] == "comment"
+        assert replied.json()["action"]["post_id"] == note_id
+        comments = admin.get(f"/api/v1/posts/{note_id}/comments")
+        assert comments.json()["items"][0]["author"]["display_name"] == "Leo Park"
+        assert comments.json()["items"][0]["body"] == "Did anyone else get soaked walking over?"
+
+
+def test_forum_agent_replies_to_its_own_post_first(tmp_path, monkeypatch):
+    app = _make_app(tmp_path, monkeypatch, admin_email="ada.min@basischina.com")
+    long_body = "word " * 80
+
+    def fake_json(_settings, _system, _user):
+        return {"title": "This title is fine", "body": long_body}
+
+    monkeypatch.setattr("forum_agents.complete_json", fake_json)
+    monkeypatch.setattr("forum_agents._external_headlines", lambda _settings: [])
+    with TestClient(app) as student, TestClient(app) as admin:
+        assert _register(student, "jordan.hale@basischina.com", "east-hall-8", "Jordan Hale").status_code == 201
+        other = student.post(
+            "/api/v1/posts",
+            json={"title": "Other thread", "body": "Talking about a game.", "category": "forum"},
+        )
+        assert other.status_code == 201, other.text
+
+        assert _register(admin, "ada.min@basischina.com", "desk-key-99", "Ada Min").status_code == 201
+        created = admin.post(
+            "/api/v1/admin/forum-agents",
+            json={
+                "email": "nora.singh@basischina.com",
+                "password": "east-hall-8",
+                "display_name": "Nora Singh",
+                "personality": "Talks about games.",
+                "hobbies": "Ranked games.",
+                "tone": "Short texts.",
+                "posts_per_day": 0,
+                "comments_per_day": 0,
+            },
+        )
+        assert created.status_code == 201, created.text
+        agent_id = created.json()["id"]
+        posted = admin.post(f"/api/v1/admin/forum-agents/{agent_id}/post")
+        assert posted.status_code == 200, posted.text
+        own_id = posted.json()["action"]["post_id"]
+        own = admin.get(f"/api/v1/posts/{own_id}")
+        assert len(own.json()["body"]) <= 160
+
+        noted = student.post(
+            f"/api/v1/posts/{own_id}/comments",
+            json={"body": "Which game?"},
+        )
+        assert noted.status_code == 201, noted.text
+
+        replied = admin.post(f"/api/v1/admin/forum-agents/{agent_id}/comment")
+        assert replied.status_code == 200, replied.text
+        assert replied.json()["action"]["post_id"] == own_id
+        floors = admin.get(f"/api/v1/posts/{own_id}/comments").json()["items"]
+        agent_lines = [item for item in floors if item["author"]["display_name"] == "Nora Singh"]
+        assert agent_lines
+        assert len(agent_lines[-1]["body"]) <= 120
+
+
+def test_forum_agent_comment_stays_on_one_line():
+    from types import SimpleNamespace
+
+    from forum_agents import _comment_brief, _hook, _too_polished
+
+    line = _hook("The opener is long. The bass is the whole song.")
+    assert line in {"The opener is long.", "The bass is the whole song."}
+    agent = SimpleNamespace(personality="Dry.", hobbies="Jazz.", tone="Short.")
+    post = SimpleNamespace(title="Playlist", body="The opener is long. The bass is the whole song.")
+    brief = _comment_brief(agent, post, "")
+    assert "React only to this line:" in brief
+    assert "The opener is long. The bass is the whole song." not in brief
+    reply = _comment_brief(agent, post, "which album?")
+    assert "Their last line: which album?" in reply
+    assert "React only to this line" not in reply
+    assert _too_polished("Honestly, this is such a thoughtful take on the soundtrack.")
+    assert _too_polished("Why The Live Version Is Better Than The Studio", title=True)
+    assert not _too_polished("nah the ending was better")
+    assert not _too_polished("honestly the live one is worse")
+
+
+def test_forum_agent_rewrites_a_polished_comment(tmp_path, monkeypatch):
+    app = _make_app(tmp_path, monkeypatch, admin_email="ada.min@basischina.com")
+    seen = []
+
+    def fake_json(_settings, _system, user):
+        seen.append(user)
+        if len(seen) == 1:
+            return {"body": "Honestly, this is such a thoughtful take on the soundtrack."}
+        return {"body": "nah the ending was better"}
+
+    monkeypatch.setattr("forum_agents.complete_json", fake_json)
+    monkeypatch.setattr("forum_agents._external_headlines", lambda _settings: [])
+    with TestClient(app) as student, TestClient(app) as admin:
+        assert _register(student, "jordan.hale@basischina.com", "east-hall-8", "Jordan Hale").status_code == 201
+        note = student.post(
+            "/api/v1/posts",
+            json={"title": "That album", "body": "The ending drags.", "category": "forum"},
+        )
+        assert note.status_code == 201, note.text
+        note_id = note.json()["id"]
+        assert _register(admin, "ada.min@basischina.com", "desk-key-99", "Ada Min").status_code == 201
+        created = admin.post(
+            "/api/v1/admin/forum-agents",
+            json={
+                "email": "leo.park@basischina.com",
+                "password": "east-hall-8",
+                "display_name": "Leo Park",
+                "personality": "Dry.",
+                "hobbies": "Jazz.",
+                "tone": "Short.",
+                "posts_per_day": 0,
+                "comments_per_day": 0,
+                "likes_per_day": 0,
+            },
+        )
+        assert created.status_code == 201, created.text
+        replied = admin.post(f"/api/v1/admin/forum-agents/{created.json()['id']}/comment")
+        assert replied.status_code == 200, replied.text
+        assert replied.json()["action"]["post_id"] == note_id
+        body = admin.get(f"/api/v1/posts/{note_id}/comments").json()["items"][0]["body"]
+        assert body == "nah the ending was better"
+        assert len(seen) == 2
+        assert "React only to this line: The ending drags." in seen[0]
+        assert "Say it plainer." in seen[1]
+
+
+def test_forum_agent_post_uses_a_news_detail(tmp_path, monkeypatch):
+    app = _make_app(tmp_path, monkeypatch, admin_email="ada.min@basischina.com")
+    seen = []
+
+    def fake_json(_settings, _system, user):
+        seen.append(user)
+        return {"title": "wait", "body": "they left them on"}
+
+    monkeypatch.setattr("forum_agents.complete_json", fake_json)
+    monkeypatch.setattr("forum_agents._external_headlines", lambda _settings: [])
+    with TestClient(app) as admin:
+        assert _register(admin, "ada.min@basischina.com", "desk-key-99", "Ada Min").status_code == 201
+        created = admin.post(
+            "/api/v1/news/submissions",
+            data={
+                "title": "Gym lights",
+                "body": "The gym lights stayed on after the game.",
+                "topics": '["scoop"]',
+            },
+        )
+        assert created.status_code == 201, created.text
+        article_id = created.json()["id"]
+        assert admin.post(
+            f"/api/v1/news/submissions/{article_id}/submit",
+            json={"mode": "original"},
+        ).status_code == 200
+        assert admin.post(
+            f"/api/v1/news/submissions/{article_id}/publish",
+            json={"mode": "original"},
+        ).status_code == 200
+        agent = admin.post(
+            "/api/v1/admin/forum-agents",
+            json={
+                "email": "mira.chen@basischina.com",
+                "password": "east-hall-8",
+                "display_name": "Mira Chen",
+                "personality": "Dry.",
+                "hobbies": "Jazz.",
+                "tone": "Short.",
+            },
+        )
+        assert agent.status_code == 201, agent.text
+        posted = admin.post(f"/api/v1/admin/forum-agents/{agent.json()['id']}/post")
+        assert posted.status_code == 200, posted.text
+        assert posted.json()["action"]["action"] == "post"
+        assert seen
+        assert "Source: Gym lights: The gym lights stayed on after the game." in seen[0]
+        assert "too empty" in seen[-1]
+
+
+def test_forum_agent_reads_an_rss_item():
+    from forum_agents import _parse_rss
+
+    xml = """<?xml version="1.0"?>
+    <rss><channel>
+      <item>
+        <title>Ferry sinks off the coast</title>
+        <description>&lt;p&gt;Twelve people reached the shore.&lt;/p&gt;</description>
+      </item>
+      <item>
+        <title>今日天气</title>
+        <description>有雨</description>
+      </item>
+    </channel></rss>"""
+    assert _parse_rss(xml) == ["Ferry sinks off the coast: Twelve people reached the shore."]
+
+
+def test_forum_agent_post_uses_an_outside_headline(tmp_path, monkeypatch):
+    app = _make_app(tmp_path, monkeypatch, admin_email="ada.min@basischina.com")
+    seen = []
+
+    def fake_json(_settings, _system, user):
+        seen.append(user)
+        return {"title": "the ferry", "body": "twelve people made it"}
+
+    monkeypatch.setattr("forum_agents.complete_json", fake_json)
+    monkeypatch.setattr(
+        "forum_agents._external_headlines",
+        lambda _settings: ["Ferry sinks off the coast: Twelve people reached the shore."],
+    )
+    with TestClient(app) as admin:
+        assert _register(admin, "ada.min@basischina.com", "desk-key-99", "Ada Min").status_code == 201
+        agent = admin.post(
+            "/api/v1/admin/forum-agents",
+            json={
+                "email": "mira.chen@basischina.com",
+                "password": "east-hall-8",
+                "display_name": "Mira Chen",
+                "personality": "Dry.",
+                "hobbies": "Jazz.",
+                "tone": "Short.",
+            },
+        )
+        assert agent.status_code == 201, agent.text
+        posted = admin.post(f"/api/v1/admin/forum-agents/{agent.json()['id']}/post")
+        assert posted.status_code == 200, posted.text
+        assert "Ferry sinks off the coast: Twelve people reached the shore." in seen[0]
+        assert "bbc" not in seen[0].lower()
+
+
+def test_forum_agent_comment_prefers_a_liked_post(tmp_path, monkeypatch):
+    app = _make_app(tmp_path, monkeypatch, admin_email="ada.min@basischina.com")
+
+    def fake_json(_settings, _system, _user):
+        return {"body": "the bass though"}
+
+    monkeypatch.setattr("forum_agents.complete_json", fake_json)
+    monkeypatch.setattr("forum_agents._external_headlines", lambda _settings: [])
+    monkeypatch.setattr("forum_agents.random.choice", lambda items: items[0])
+    with TestClient(app) as student, TestClient(app) as admin:
+        assert _register(student, "jordan.hale@basischina.com", "east-hall-8", "Jordan Hale").status_code == 201
+        loud = student.post(
+            "/api/v1/posts",
+            json={"title": "That mix", "body": "The bass is the whole song.", "category": "forum"},
+        )
+        assert loud.status_code == 201, loud.text
+        loud_id = loud.json()["id"]
+        quiet = student.post(
+            "/api/v1/posts",
+            json={"title": "Today", "body": "Nothing much today.", "category": "forum"},
+        )
+        assert quiet.status_code == 201, quiet.text
+        liked = student.post(f"/api/v1/posts/{loud_id}/likes")
+        assert liked.status_code == 201, liked.text
+
+        assert _register(admin, "ada.min@basischina.com", "desk-key-99", "Ada Min").status_code == 201
+        agent = admin.post(
+            "/api/v1/admin/forum-agents",
+            json={
+                "email": "leo.park@basischina.com",
+                "password": "east-hall-8",
+                "display_name": "Leo Park",
+                "personality": "Dry.",
+                "hobbies": "Jazz.",
+                "tone": "Short.",
+                "posts_per_day": 0,
+                "comments_per_day": 0,
+            },
+        )
+        assert agent.status_code == 201, agent.text
+        replied = admin.post(f"/api/v1/admin/forum-agents/{agent.json()['id']}/comment")
+        assert replied.status_code == 200, replied.text
+        assert replied.json()["action"]["post_id"] == loud_id

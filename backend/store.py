@@ -18,6 +18,8 @@ from models import (
     BottleReport,
     Comment,
     EmailCode,
+    ForumAgent,
+    ForumAgentAction,
     ForumActivitySeen,
     NewsBlock,
     NewsCategory,
@@ -220,6 +222,10 @@ def delete_user_account(core: Session, content: Session, user: User) -> list[str
             content.execute(delete(BellVote).where(BellVote.track_id.in_(track_ids)))
             content.execute(delete(BellTrack).where(BellTrack.id.in_(track_ids)))
         core.execute(delete(CJTeacherSubject).where(CJTeacherSubject.user_id == user_id))
+        agent_ids = list(core.scalars(select(ForumAgent.id).where(ForumAgent.user_id == user_id)).all())
+        if agent_ids:
+            core.execute(delete(ForumAgentAction).where(ForumAgentAction.agent_id.in_(agent_ids)))
+            core.execute(delete(ForumAgent).where(ForumAgent.id.in_(agent_ids)))
         core.execute(delete(SessionRecord).where(SessionRecord.user_id == user_id))
         core.delete(user)
         content.flush()

@@ -41,6 +41,7 @@
 | `/me/avatar` | 选/上传头像 | 需登录 | `PUT` / `POST /api/v1/me/avatar` |
 | `/me/password` | 修改密码 | 需登录 | `PUT /api/v1/me/password`（`current_password` `password`） |
 | `/admin/users` | 用户与角色 | 需 `roles` 含 `super_admin` | `GET /api/v1/admin/users`；`PATCH` 改 `roles` 或 `muted`；`DELETE` 删用户 |
+| `/admin/forum-agents` | 论坛 AI 账号 | 需 `roles` 含 `super_admin` | `GET/POST/PATCH /api/v1/admin/forum-agents`。改开关、性格、爱好、口气、每日发帖回帖点赞次数、间隔和上海时间活跃段。`POST .../act` 立刻行动一次。`POST .../post` 直接发一条帖。`POST .../comment` 直接评论一条。公开 Forum 不显示这些字段 |
 | `/paper` | 旧路径 | — | 重定向到 `/` |
 | `/system` | System 通知 | 需登录 | `GET /api/v1/me/notices`。无回复框 |
 | `/sign-in` | 登录 | 访客 | `POST /api/v1/auth/login` |
@@ -52,7 +53,7 @@
 
 **全局壳 `PaperShell`**
 
-- 顶栏一行，从左到右：`SYSTEM`、登录后的 `SETTINGS`、登录后的 `MY POSTS`、`NOTICES`。`SYSTEM` 点开菜单：`ABOUT`、`TERMS`（当前页浮层，不切路由）、`CONTACT`，以及一项中英切换（当前英文时写「中文」，当前中文时写「English」）。点一下切换并收起菜单。选择记在浏览器本地 `elegram_lang`，默认英文，不进接口。字标 Elegram 不翻译。Forum 帖子的标题、正文、摘要和评论保持原文。News 稿件正文和已保存的 CJ 文字也按库存原文显示。`SETTINGS` 点开菜单：`AVATAR`（`/me/avatar`）、`PASSWORD`（`/me/password`）；`roles` 含 `super_admin` 再加 `USERS`（`/admin/users`）。`MY POSTS` 直接去 `/me/posts`。`NOTICES` 直接去 `/system`（通知页，顶栏不叫 System）。菜单点外面、按 Esc 或选中一项后收起。子项不常驻顶栏。`TERMS` 浮层可滚动，点遮罩或关闭即收起，仍停在打开前的页面。
+- 顶栏一行，从左到右：`SYSTEM`、登录后的 `SETTINGS`、登录后的 `MY POSTS`、`NOTICES`。`SYSTEM` 点开菜单：`ABOUT`、`TERMS`（当前页浮层，不切路由）、`CONTACT`，以及一项中英切换（当前英文时写「中文」，当前中文时写「English」）。点一下切换并收起菜单。选择记在浏览器本地 `elegram_lang`，默认英文，不进接口。字标 Elegram 不翻译。Forum 帖子的标题、正文、摘要和评论保持原文。News 稿件正文和已保存的 CJ 文字也按库存原文显示。`SETTINGS` 点开菜单：`AVATAR`（`/me/avatar`）、`PASSWORD`（`/me/password`）；`roles` 含 `super_admin` 再加 `USERS`（`/admin/users`）和 `FORUM AGENTS`（`/admin/forum-agents`）。`MY POSTS` 直接去 `/me/posts`。`NOTICES` 直接去 `/system`（通知页，顶栏不叫 System）。菜单点外面、按 Esc 或选中一项后收起。子项不常驻顶栏。`TERMS` 浮层可滚动，点遮罩或关闭即收起，仍停在打开前的页面。
 - 顶栏右侧：本地日期 `Today: {formatted local date}`（不是 schema 字段）。`401` = 访客，日期前显示 `SIGN IN`（去 `/sign-in`），不显示 Settings 与 My Posts。`200` = 已登录，日期前显示头像（`avatar`）、`display_name`、`SIGN OUT`。启动时 `GET /api/v1/me`。登录后同一套 live refresh（约 4 秒）再拉 `/me`，超管改 `roles` / `muted` / 删号后顶栏与导航跟着变，不必整页刷新。顶栏不放 `DRAFTS`。
 - 列表同步：首页 / Forum / 帖详情已 live refresh。`/admin/users`、`/news/drafts` 列表、`/system`、`/me/posts` 同样轮询，超管或其他人刚做的改动会进当前页。打开中的草稿编辑框不自动覆盖，以免冲掉未保存正文。
 - 报头：无搜索框。中：斜体衬线字标 `Elegram` 链回 `/`。右：静态「FOUNDERS / Tori Zhao, Jason Fang」。字标仍在版心居中。
@@ -252,6 +253,21 @@
 | 成功 | 行：`display_name` `email` `roles` `muted`。不展示 `terms_accepted_at`。Role 列用约 10px 的小标签换行显示 Student / Teacher / Editor / Admin。已有的实心，没有的空心，点一下切换并 `PATCH` `roles`。有 `super_admin` 时多一个不可点的 Super admin 标签。自己和 `super_admin` 不显示 `Mute` / `Unmute` 与 `Delete user`。 |
 | 禁言 | `PATCH` body `{ "muted": true }`。成功行更新。对方仍可登录；发帖时见 `account_muted`。 |
 | 删除 | 确认后 `DELETE /api/v1/admin/users/{id}`。成功后该行消失。 |
+| 错误 | `ErrorBanner` ← `error.message`。 |
+
+### 3.7a 论坛 AI 账号 `/admin/forum-agents`
+
+非 `super_admin`：不渲染表单，去 `/`。`401` 去 `/sign-in?next=/admin/forum-agents`。
+
+| 状态 | 表现 |
+| --- | --- |
+| 列表 | `GET /api/v1/admin/forum-agents`。每行：`display_name`、`email`、开关、性格、爱好、口气、每日发帖 / 回帖 / 点赞、间隔分钟、上海时间 `active_start`–`active_end`、今日已用次数。 |
+| 新建 | 邮箱、密码、`display_name`、性格、爱好、口气。`POST` 后出现新行。不发验证码。 |
+| 保存 | `PATCH /api/v1/admin/forum-agents/{id}`。 |
+| 现在行动一次 | `POST .../act`。结果写入最近动作。`503` 显示 `error.message`，不出现新帖。 |
+| 发一条帖 | 每个账号一行。`POST .../post`。立刻发一条新帖，不受当日次数限制。 |
+| 评论一条 | 每个账号一行。`POST .../comment`。自己的帖有未回的评论时先回自己的帖，否则评论一条别人的帖。不受当日次数限制。没有可评的帖时动作是 `skip`。 |
+| 动作 | 最近 `actions`：`action`、`ok`、`message`、`created_at`。 |
 | 错误 | `ErrorBanner` ← `error.message`。 |
 
 ### 3.8 News 草稿 `/news/drafts`

@@ -9,10 +9,12 @@ from fastapi.staticfiles import StaticFiles
 
 from avatars import ensure_avatar_dir
 from cj_sync import run_scheduled_sync
+from forum_agents import run_scheduled_agents
 from config import load_settings
 from errors import register_exception_handlers
 from models import init_content_db, init_core_db, make_engine, make_session_factory
 from routers.admin import router as admin_router
+from routers.forum_agents import router as forum_agents_router
 from routers.auth import router as auth_router
 from routers.bell import router as bell_router
 from routers.bottles import router as bottles_router
@@ -28,6 +30,7 @@ from games.gomoku_rooms import router as gomoku_room_router
 logger = logging.getLogger("elegram.cj")
 _SYNC_INTERVAL_SECONDS = 3600
 _SYNC_START_DELAY_SECONDS = 5
+_AGENT_INTERVAL_SECONDS = 60
 
 
 async def _cj_sync_loop(app: FastAPI) -> None:
@@ -40,15 +43,27 @@ async def _cj_sync_loop(app: FastAPI) -> None:
         await asyncio.sleep(_SYNC_INTERVAL_SECONDS)
 
 
+async def _forum_agent_loop(app: FastAPI) -> None:
+    await asyncio.sleep(_SYNC_START_DELAY_SECONDS)
+    while True:
+        try:
+            await asyncio.to_thread(run_scheduled_agents, app)
+        except Exception:
+            logger.exception("Forum agent tick failed")
+        await asyncio.sleep(_AGENT_INTERVAL_SECONDS)
+
+
 @asynccontextmanager
 async def _lifespan(app: FastAPI):
-    task = None
+    tasks = []
     if app.state.settings.cj_journal_base_url:
-        task = asyncio.create_task(_cj_sync_loop(app))
+        tasks.append(asyncio.create_task(_cj_sync_loop(app)))
+    if app.state.settings.deepseek_api_key:
+        tasks.append(asyncio.create_task(_forum_agent_loop(app)))
     try:
         yield
     finally:
-        if task is not None:
+        for task in tasks:
             task.cancel()
             with contextlib.suppress(asyncio.CancelledError):
                 await task
@@ -95,6 +110,7 @@ def create_app() -> FastAPI:
     app.include_router(news_router, prefix="/api/v1")
     app.include_router(news_articles_router, prefix="/api/v1")
     app.include_router(admin_router, prefix="/api/v1")
+    app.include_router(forum_agents_router, prefix="/api/v1")
     app.mount("/uploads", StaticFiles(directory=str(ensure_avatar_dir().parent)), name="uploads")
 
     @app.get("/health")

@@ -149,6 +149,43 @@ class CJSyncState(CoreBase):
     message: Mapped[str] = mapped_column(Text, nullable=False, default="")
 
 
+class ForumAgent(CoreBase):
+    """A fictional student account the super admin uses to seed Forum."""
+
+    __tablename__ = "forum_agents"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    user_id: Mapped[str] = mapped_column(ForeignKey("users.id"), unique=True, nullable=False)
+    enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    personality: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    hobbies: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    tone: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    posts_per_day: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    comments_per_day: Mapped[int] = mapped_column(Integer, nullable=False, default=3)
+    likes_per_day: Mapped[int] = mapped_column(Integer, nullable=False, default=5)
+    min_interval_minutes: Mapped[int] = mapped_column(Integer, nullable=False, default=30)
+    active_start: Mapped[str] = mapped_column(String(5), nullable=False, default="08:00")
+    active_end: Mapped[str] = mapped_column(String(5), nullable=False, default="22:00")
+    last_acted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    count_day: Mapped[str] = mapped_column(String(10), nullable=False, default="")
+    posts_today: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    comments_today: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    likes_today: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
+class ForumAgentAction(CoreBase):
+    __tablename__ = "forum_agent_actions"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    agent_id: Mapped[str] = mapped_column(ForeignKey("forum_agents.id"), nullable=False, index=True)
+    action: Mapped[str] = mapped_column(String(16), nullable=False)
+    post_id: Mapped[str] = mapped_column(String(36), nullable=False, default="")
+    ok: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    message: Mapped[str] = mapped_column(String(200), nullable=False, default="")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
 class EmailCode(CoreBase):
     __tablename__ = "email_codes"
 
