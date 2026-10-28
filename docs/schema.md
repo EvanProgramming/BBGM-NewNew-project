@@ -1472,7 +1472,7 @@ Forum 右侧入口进入 `/play`。不是帖子栏目。全部 HTTP 与 WebSocke
 
 ### 1.10 Bell
 
-起床铃在 `/bell`。不是帖子栏目。全部接口要求 `scoop_session`。未登录为 `401`，响应不含歌名、演唱者或票数。同时只有一轮 `open`。只有邮箱等于 `ADMIN_EMAIL` 的账号可以填写 `starts_at` 与 `ends_at` 并开放，也可以删歌和提前截止。已登录用户都可以加歌。普通用户每人每轮一首，该账号可以加入多首。加入时若今天还没有票，这一票记在新歌上。投票开放期间每人每个上海日一票。上海时间 00:00 后可以再投，之前的票留在原来的歌上，榜上的票数是这些天加在一起。同一天内已经投过再投另一首则要先撤回，撤回只去掉今天这一票。`my_vote_track_id` 只表示今天投的那一首。到 `ends_at` 后读或写都会把该轮标成 `closed`。截止后的名次、票数和放歌资格留在榜上，直到下一轮开始。开放下一轮时删掉此前每一轮，以及那些轮的歌曲、票和排名。截止后不能加歌、投票、撤回或删歌。未到 `starts_at` 可以看榜和加歌；投票接口和撤回仍不可用。
+起床铃在 `/bell`。不是帖子栏目。全部接口要求 `scoop_session`。未登录为 `401`，响应不含歌名、演唱者或票数。同时只有一轮 `open`。只有邮箱等于 `ADMIN_EMAIL` 的账号可以填写 `starts_at`、`ends_at` 和一段 `description` 并开放，也可以删歌和提前截止。`starts_at` 可以早于现在。`ends_at` 必须晚于现在。`description` 最多 500 字，可留空，保留换行。有内容时，已登录用户在这一轮上按原段落看到。已登录用户都可以加歌。每人每个上海日只能加一首，或者投一票；加歌就是当天这一票。今天已经有票再加一首则 `422`，包括 `ADMIN_EMAIL` 对应账号。普通用户每人每轮一首。该账号可以在之后的上海日再加一首。投票开放期间每人每个上海日一票。上海时间 00:00 后可以再投，之前的票留在原来的歌上，榜上的票数是这些天加在一起。同一天内已经投过再投另一首则要先撤回，撤回只去掉今天这一票。`my_vote_track_id` 只表示今天投的那一首。到 `ends_at` 后读或写都会把该轮标成 `closed`。截止后的名次、票数和放歌资格留在榜上，直到下一轮开始。开放下一轮时删掉此前每一轮，以及那些轮的歌曲、票和排名。截止后不能加歌、投票、撤回或删歌。未到 `starts_at` 可以看榜和加歌；投票接口和撤回仍不可用。
 
 被禁言可以 `GET /api/v1/bell` 和搜索，不能加歌、投票或撤回（`403` `account_muted`）。同学看不到投票人。提交者只返回 `display_name`，不返回邮箱。
 
@@ -1486,12 +1486,13 @@ Forum 右侧入口进入 `/play`。不是帖子栏目。全部 HTTP 与 WebSocke
   "status": "open",
   "starts_at": "2026-11-01T00:00:00Z",
   "ends_at": "2026-11-02T00:00:00Z",
+  "description": "Friday morning playlist",
   "closed_at": null,
   "qualified_track_ids": []
 }
 ```
 
-`status` 为 `open` | `closed`。`qualified_track_ids` 在未截止时是空数组。截止后是名次前四的候选 id，不足四首则有几首放几首。
+`status` 为 `open` | `closed`。`description` 是这一轮的一段说明，最多 500 字，保留换行，没有则为 `""`。已登录用户都能读到。`qualified_track_ids` 在未截止时是空数组。截止后是名次前四的候选 id，不足四首则有几首放几首。
 
 候选：
 
@@ -1560,7 +1561,7 @@ Forum 右侧入口进入 `/play`。不是帖子栏目。全部 HTTP 与 WebSocke
 #### `POST /api/v1/bell/tracks`
 
 - **鉴权：** 是。被禁言为 `403` `account_muted`
-- **职责：** Body `{ "song_id" }`。服务端向 QQ 音乐核对后写入歌名、演唱者、链接和专辑封面 `cover_url`。没有专辑图时 `cover_url` 为 `""`。同一轮同一首歌只出现一次。普通用户每人每轮最多一首。邮箱等于 `ADMIN_EMAIL` 的账号可以加入多首。加入时若该用户今天还没有票，则把这一票记在新歌上，包括未到 `starts_at` 的时候。今天已经把票投在别的歌上时，普通用户要先撤回。不给管理员的后续歌曲再记一票。
+- **职责：** Body `{ "song_id" }`。服务端向 QQ 音乐核对后写入歌名、演唱者、链接和专辑封面 `cover_url`。没有专辑图时 `cover_url` 为 `""`。同一轮同一首歌只出现一次。普通用户每人每轮最多一首。每人每个上海日只能加一首；加歌把这一票记在新歌上，包括未到 `starts_at` 的时候。今天已经有票再加一首则 `422`，包括邮箱等于 `ADMIN_EMAIL` 的账号。该账号可以在之后的上海日再加一首，那一首用掉那一天的票。先撤回今天的票才能改加。
 
 **Response `201`：** 当前一轮响应。`my_vote_track_id` 在这次写入了票时是新歌的 id。
 
@@ -1613,14 +1614,14 @@ Forum 右侧入口进入 `/play`。不是帖子栏目。全部 HTTP 与 WebSocke
 #### `POST /api/v1/bell/rounds`
 
 - **鉴权：** 是。仅邮箱等于 `ADMIN_EMAIL` 的账号
-- **职责：** Body `{ "starts_at", "ends_at" }`，UTC，形如 `2026-11-01T00:00:00Z`。两个时间都必须晚于现在，且 `ends_at` 晚于 `starts_at`。已有 `open` 一轮则 `409` `round_open`。写入新一轮后，删掉此前每一轮及其歌曲、票和排名。新一轮的榜是空的。
+- **职责：** Body `{ "starts_at", "ends_at", "description" }`。时间是 UTC，形如 `2026-11-01T00:00:00Z`。`starts_at` 可以早于现在。`ends_at` 必须晚于现在，且晚于 `starts_at`。`description` 可缺省，去掉首尾空白后最多 500 字，保留换行，缺省为 `""`。已有 `open` 一轮则 `409` `round_open`。写入新一轮后，删掉此前每一轮及其歌曲、票和排名。新一轮的榜是空的。
 
 **Response `201`：** 当前一轮响应。
 
 - `401` `unauthenticated`
 - `403` `forbidden`
 - `409` `round_open`
-- `422` `validation_error`（`starts_at` 或 `ends_at`）
+- `422` `validation_error`（`starts_at`、`ends_at` 或 `description`）
 
 #### `POST /api/v1/bell/rounds/{id}/close`
 

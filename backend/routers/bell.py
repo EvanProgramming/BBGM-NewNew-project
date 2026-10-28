@@ -68,7 +68,7 @@ def _require_open(db: Session) -> BellRound:
     raise ApiError(404, "not_found", "There is no open round.")
 
 
-def _parse_when(value, field: str) -> datetime:
+def _parse_when(value, field: str, *, future: bool) -> datetime:
     label = "start" if field == "starts_at" else "end"
     if not isinstance(value, str):
         raise validation_error([{"field": field, "message": f"Enter a {label} time."}])
@@ -78,9 +78,22 @@ def _parse_when(value, field: str) -> datetime:
         raise validation_error(
             [{"field": field, "message": "Use a UTC time like 2026-11-01T00:00:00Z."}]
         ) from exc
-    if parsed <= utc_now():
-        raise validation_error([{"field": field, "message": f"The {label} must be in the future."}])
+    if future and parsed <= utc_now():
+        raise validation_error([{"field": field, "message": "The end must be in the future."}])
     return parsed
+
+
+def _description(value) -> str:
+    if value is None:
+        return ""
+    if not isinstance(value, str):
+        raise validation_error([{"field": "description", "message": "Enter a description."}])
+    text = value.replace("\r\n", "\n").replace("\r", "\n").strip()
+    if len(text) > 500:
+        raise validation_error(
+            [{"field": "description", "message": "Keep the description to 500 characters."}]
+        )
+    return text
 
 
 def _vote_day(moment: datetime | None = None) -> str:
@@ -206,6 +219,7 @@ def _board(db: Session, core: Session, user: User, row: BellRound | None, reques
             "status": row.status,
             "starts_at": to_iso(_as_utc(row.starts_at)),
             "ends_at": to_iso(_as_utc(row.ends_at)),
+            "description": row.description or "",
             "closed_at": to_iso(_as_utc(row.closed_at)) if row.closed_at else None,
             "qualified_track_ids": qualified_ids,
         },
@@ -295,7 +309,7 @@ def add_track(
             [{"field": "song_id", "message": existing.id}],
         )
     held = _today_vote(db, row.id, user.id)
-    if held is not None and not manager:
+    if held is not None:
         raise validation_error(_HOLDING_SONG)
     try:
         found = fetch_song(song_id)
@@ -324,17 +338,16 @@ def add_track(
             created_at=utc_now(),
         )
     )
-    if held is None:
-        db.add(
-            BellVote(
-                id=str(uuid4()),
-                round_id=row.id,
-                track_id=track_id,
-                user_id=user.id,
-                vote_day=_vote_day(),
-                created_at=utc_now(),
-            )
+    db.add(
+        BellVote(
+            id=str(uuid4()),
+            round_id=row.id,
+            track_id=track_id,
+            user_id=user.id,
+            vote_day=_vote_day(),
+            created_at=utc_now(),
         )
+    )
     db.flush()
     return _board(db, core, user, row, request)
 
@@ -422,8 +435,8 @@ def open_round(
     if _open_round(db) is not None:
         raise ApiError(409, "round_open", "A round is already open.")
     payload = body if isinstance(body, dict) else {}
-    starts_at = _parse_when(payload.get("starts_at"), "starts_at")
-    ends_at = _parse_when(payload.get("ends_at"), "ends_at")
+    starts_at = _parse_when(payload.get("starts_at"), "starts_at", future=False)
+    ends_at = _parse_when(payload.get("ends_at"), "ends_at", future=True)
     if ends_at <= starts_at:
         raise validation_error([{"field": "ends_at", "message": "The end must be after the start."}])
     row = BellRound(
@@ -431,6 +444,7 @@ def open_round(
         status="open",
         starts_at=starts_at,
         ends_at=ends_at,
+        description=_description(payload.get("description")),
         closed_at=None,
         created_at=utc_now(),
     )

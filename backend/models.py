@@ -358,6 +358,7 @@ class BellRound(ContentBase):
     status: Mapped[str] = mapped_column(String(16), nullable=False)
     starts_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     ends_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    description: Mapped[str] = mapped_column(String(500), nullable=False, default="")
     closed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 
@@ -657,6 +658,10 @@ def migrate_content_schema(engine) -> None:
                 conn.exec_driver_sql(
                     "UPDATE bell_rounds SET starts_at = created_at WHERE starts_at IS NULL"
                 )
+            if round_cols and "description" not in round_cols:
+                conn.exec_driver_sql(
+                    "ALTER TABLE bell_rounds ADD COLUMN description VARCHAR(500) NOT NULL DEFAULT ''"
+                )
     elif engine.dialect.name == "mysql":
         with engine.begin() as conn:
             post_cols = {
@@ -724,6 +729,20 @@ def migrate_content_schema(engine) -> None:
                     conn.exec_driver_sql(
                         "UPDATE bell_rounds SET starts_at = created_at WHERE starts_at IS NULL"
                     )
+                if "description" not in round_cols:
+                    conn.exec_driver_sql(
+                        "ALTER TABLE bell_rounds ADD COLUMN description VARCHAR(500) NOT NULL DEFAULT ''"
+                    )
+                else:
+                    length = conn.exec_driver_sql(
+                        "SELECT CHARACTER_MAXIMUM_LENGTH FROM information_schema.COLUMNS "
+                        "WHERE table_schema = DATABASE() AND table_name = 'bell_rounds' "
+                        "AND column_name = 'description'"
+                    ).scalar()
+                    if length is not None and int(length) < 500:
+                        conn.exec_driver_sql(
+                            "ALTER TABLE bell_rounds MODIFY description VARCHAR(500) NOT NULL DEFAULT ''"
+                        )
     ContentBase.metadata.create_all(engine)
     if engine.dialect.name == "sqlite":
         with engine.begin() as conn:

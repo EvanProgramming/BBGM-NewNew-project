@@ -2619,6 +2619,53 @@ def _window(clock, start_seconds=60, end_hours=4):
     return {"starts_at": iso(start), "ends_at": iso(end)}, start
 
 
+def test_bell_round_accepts_a_past_start_and_a_description(tmp_path, monkeypatch):
+    app = _make_app(tmp_path, monkeypatch, admin_email="ada.min@basischina.com")
+    clock = {"now": datetime(2026, 10, 26, 15, 0, tzinfo=timezone.utc)}
+    monkeypatch.setattr("routers.bell.utc_now", lambda: clock["now"])
+    with TestClient(app) as admin, TestClient(app) as jordan:
+        assert _register(admin, "ada.min@basischina.com", "desk-key-99", "Ada Min").status_code == 201
+        assert _register(jordan, "jordan.hale@basischina.com", "east-hall-8", "Jordan Hale").status_code == 201
+        start = clock["now"] - timedelta(hours=1)
+        end = clock["now"] + timedelta(hours=2)
+        opened = admin.post(
+            "/api/v1/bell/rounds",
+            json={
+                "starts_at": start.strftime("%Y-%m-%dT%H:%M:%SZ"),
+                "ends_at": end.strftime("%Y-%m-%dT%H:%M:%SZ"),
+                "description": "  Starts Friday.\nEnds Saturday.\nMorning playlist.  ",
+            },
+        )
+        assert opened.status_code == 201, opened.text
+        assert opened.json()["round"]["description"] == "Starts Friday.\nEnds Saturday.\nMorning playlist."
+        seen = jordan.get("/api/v1/bell")
+        assert seen.status_code == 200
+        assert seen.json()["round"]["description"] == "Starts Friday.\nEnds Saturday.\nMorning playlist."
+        assert seen.json()["round"]["status"] == "open"
+        closed = admin.post("/api/v1/bell/rounds/" + opened.json()["round"]["id"] + "/close")
+        assert closed.status_code == 200, closed.text
+        too_long = admin.post(
+            "/api/v1/bell/rounds",
+            json={
+                "starts_at": start.strftime("%Y-%m-%dT%H:%M:%SZ"),
+                "ends_at": end.strftime("%Y-%m-%dT%H:%M:%SZ"),
+                "description": "x" * 501,
+            },
+        )
+        assert too_long.status_code == 422
+        assert too_long.json()["error"]["fields"][0]["field"] == "description"
+        past_end = admin.post(
+            "/api/v1/bell/rounds",
+            json={
+                "starts_at": start.strftime("%Y-%m-%dT%H:%M:%SZ"),
+                "ends_at": (clock["now"] - timedelta(minutes=1)).strftime("%Y-%m-%dT%H:%M:%SZ"),
+            },
+        )
+        assert past_end.status_code == 422
+        assert past_end.json()["error"]["fields"][0]["field"] == "ends_at"
+    app.state.engine.dispose()
+
+
 def test_bell_vote_requires_login_one_song_and_one_changeable_vote(tmp_path, monkeypatch):
     _patch_qq(monkeypatch)
     app = _make_app(tmp_path, monkeypatch, admin_email="ada.min@basischina.com")
@@ -2726,6 +2773,13 @@ def test_bell_vote_requires_login_one_song_and_one_changeable_vote(tmp_path, mon
         assert second["external_url"].startswith("https://y.qq.com/n/ryqq/songDetail/")
         assert second["vote_count"] == 1
         assert priya_add.json()["my_vote_track_id"] == second["id"]
+        before_titles = [(item["title"], item["vote_count"]) for item in priya_add.json()["tracks"]]
+        blocked_add = admin.post("/api/v1/bell/tracks", json={"song_id": _FOURTH})
+        assert blocked_add.status_code == 422, blocked_add.text
+        assert blocked_add.json()["error"]["fields"][0]["message"] == "Withdraw your vote before choosing another song."
+        still = admin.get("/api/v1/bell")
+        assert still.status_code == 200
+        assert [(item["title"], item["vote_count"]) for item in still.json()["tracks"]] == before_titles
 
         too_soon = priya.post("/api/v1/bell/votes", json={"track_id": morning["id"]})
         assert too_soon.status_code == 422
@@ -2764,9 +2818,13 @@ def test_bell_vote_requires_login_one_song_and_one_changeable_vote(tmp_path, mon
         assert tied["Second Song"]["vote_count"] == 2
         assert mod.delete(f"/api/v1/bell/tracks/{morning['id']}").status_code == 403
 
-        for song_id in (_FOURTH, _FIFTH, _SIXTH):
+        mina = TestClient(app)
+        noah = TestClient(app)
+        assert _register(mina, "mina.cho@basischina.com", "east-hall-2", "Mina Cho").status_code == 201
+        assert _register(noah, "noah.park@basischina.com", "west-hall-2", "Noah Park").status_code == 201
+        for client, song_id in ((mod, _FOURTH), (mina, _FIFTH), (noah, _SIXTH)):
             clock["now"] = clock["now"] + timedelta(seconds=2)
-            extra = admin.post("/api/v1/bell/tracks", json={"song_id": song_id})
+            extra = client.post("/api/v1/bell/tracks", json={"song_id": song_id})
             assert extra.status_code == 201, extra.text
 
         closed = admin.post(f"/api/v1/bell/rounds/{opened.json()['round']['id']}/close")
@@ -2865,7 +2923,9 @@ def test_bell_vote_requires_login_one_song_and_one_changeable_vote(tmp_path, mon
         assert missed.status_code == 503
         assert missed.json()["error"]["code"] == "qq_unavailable"
         assert leo.post("/api/v1/bell/tracks", json={"song_id": _SECOND}).status_code == 422
-        not_added = admin.post("/api/v1/bell/tracks", json={"song_id": _SECOND})
+        ivy = TestClient(app)
+        assert _register(ivy, "ivy.lin@basischina.com", "north-hall-2", "Ivy Lin").status_code == 201
+        not_added = ivy.post("/api/v1/bell/tracks", json={"song_id": _SECOND})
         assert not_added.status_code == 503
         kept = jordan.get("/api/v1/bell")
         assert kept.status_code == 200

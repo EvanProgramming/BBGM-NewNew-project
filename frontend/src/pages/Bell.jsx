@@ -60,6 +60,7 @@ export default function Bell() {
   const [results, setResults] = useState([]);
   const [starts, setStarts] = useState("");
   const [ends, setEnds] = useState("");
+  const [purpose, setPurpose] = useState("");
   const [error, setError] = useState(null);
   const [fieldError, setFieldError] = useState("");
   const [notice, setNotice] = useState("");
@@ -141,6 +142,7 @@ export default function Bell() {
             fieldMessage(err, "q") ||
             fieldMessage(err, "starts_at") ||
             fieldMessage(err, "ends_at") ||
+            fieldMessage(err, "description") ||
             fieldMessage(err, "track_id") ||
             fieldMessage(err, "round") ||
             err.message,
@@ -209,7 +211,7 @@ export default function Bell() {
       setFieldError(t("bell.timeInvalid"));
       return;
     }
-    if (startsAt <= now || endsAt <= now) {
+    if (endsAt <= now) {
       setFieldError(t("bell.timeFuture"));
       return;
     }
@@ -217,11 +219,12 @@ export default function Bell() {
       setFieldError(t("bell.timeOrder"));
       return;
     }
-    const next = await run(() => api.openBellRound(startsAt, endsAt));
+    const next = await run(() => api.openBellRound(startsAt, endsAt, purpose.trim()));
     if (next) {
       setBoard(next);
       setStarts("");
       setEnds("");
+      setPurpose("");
     }
   }
 
@@ -235,6 +238,9 @@ export default function Bell() {
 
   const tracks = board?.tracks || [];
   const history = board?.history || [];
+  const usedToday = Boolean(board?.my_vote_track_id);
+  const alreadyNominated = Boolean(board?.my_track_id) && !manage;
+  const canAddSong = !usedToday && !alreadyNominated;
 
   const managerCard = manage ? (
     <aside className="order-1 w-full shrink-0 border border-black p-4 lg:order-2 lg:w-72">
@@ -244,6 +250,16 @@ export default function Bell() {
         </button>
       ) : (
         <form className="flex flex-col gap-3" onSubmit={onOpen}>
+          <label className="font-sans text-[12px] uppercase tracking-[0.14em]">
+            {t("bell.description")}
+            <textarea
+              maxLength={500}
+              rows={4}
+              value={purpose}
+              onChange={(event) => setPurpose(event.target.value)}
+              className="mt-1 block w-full border border-black px-2 py-2 font-sans text-sm normal-case tracking-normal"
+            />
+          </label>
           <label className="font-sans text-[12px] uppercase tracking-[0.14em]">
             {t("bell.starts")}
             <input
@@ -302,19 +318,22 @@ export default function Bell() {
       <SectionRule first>{t("bell.title")}</SectionRule>
       <div className="mt-4 flex flex-col gap-8 lg:flex-row lg:items-start">
         <div className="order-2 min-w-0 w-full max-w-[42rem] flex-1 lg:order-1">
-      <p className="font-serif text-[18px] leading-7">{t("bell.lead")}</p>
+      <p className="font-serif text-[15px] leading-6">{t("bell.lead")}</p>
       <ErrorBanner error={error} />
       {notice ? <p className="mt-3 text-sm text-red-700">{notice}</p> : null}
       {loading ? <p className="mt-6 font-sans text-sm">…</p> : null}
 
       {!loading && !round ? <p className="mt-6 font-serif text-[18px]">{t("bell.empty")}</p> : null}
       {round ? (
-        <p className="mt-4 font-sans text-[12px] uppercase tracking-[0.14em]">
+        <p className="mt-4 font-sans text-[16px] uppercase tracking-[0.12em]">
           {t("bell.starts")} {formatWhen(round.starts_at)}
           {" · "}
           {t("bell.ends")} {formatWhen(round.ends_at)}
           {open ? "" : ` · ${t("bell.closed")}`}
         </p>
+      ) : null}
+      {round?.description ? (
+        <p className="mt-2 whitespace-pre-wrap font-serif text-[24px] leading-8">{round.description}</p>
       ) : null}
       {open && !voting ? <p className="mt-2 font-sans text-sm">{t("bell.notStarted")}</p> : null}
 
@@ -435,7 +454,7 @@ export default function Bell() {
                     {t("bell.vote")}
                   </button>
                 ) : null}
-                {!already ? (
+                {!already && canAddSong ? (
                   <button type="button" className={actionClass} disabled={busy} onClick={() => onAdd(item.song_id)}>
                     {t("bell.add")}
                   </button>

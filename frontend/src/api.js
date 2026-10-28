@@ -287,10 +287,10 @@ export const api = {
   withdrawBellVote: () => request("/bell/votes", { method: "DELETE" }),
   deleteBellTrack: (trackId) =>
     request(`/bell/tracks/${encodeURIComponent(trackId)}`, { method: "DELETE" }),
-  openBellRound: (startsAt, endsAt) =>
+  openBellRound: (startsAt, endsAt, description) =>
     request("/bell/rounds", {
       method: "POST",
-      body: JSON.stringify({ starts_at: startsAt, ends_at: endsAt }),
+      body: JSON.stringify({ starts_at: startsAt, ends_at: endsAt, description: description || "" }),
     }),
   closeBellRound: (roundId) =>
     request(`/bell/rounds/${encodeURIComponent(roundId)}/close`, { method: "POST" }),
