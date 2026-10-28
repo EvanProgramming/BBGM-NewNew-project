@@ -79,6 +79,7 @@ export function AuthProvider({ children }) {
       location.pathname === "/me/avatar" ||
       location.pathname === "/me/password" ||
       location.pathname === "/admin/users" ||
+      location.pathname === "/admin/forum-agents" ||
       location.pathname === "/news/drafts" ||
       location.pathname === "/system"
     ) {

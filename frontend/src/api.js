@@ -222,6 +222,20 @@ export const api = {
       body: JSON.stringify({ muted }),
     }),
   deleteUser: (userId) => request(`/admin/users/${encodeURIComponent(userId)}`, { method: "DELETE" }),
+  listForumAgents: () => request("/admin/forum-agents"),
+  createForumAgent: (body) =>
+    request("/admin/forum-agents", { method: "POST", body: JSON.stringify(body) }),
+  patchForumAgent: (id, body) =>
+    request(`/admin/forum-agents/${encodeURIComponent(id)}`, {
+      method: "PATCH",
+      body: JSON.stringify(body),
+    }),
+  actForumAgent: (id) =>
+    request(`/admin/forum-agents/${encodeURIComponent(id)}/act`, { method: "POST" }),
+  postForumAgent: (id) =>
+    request(`/admin/forum-agents/${encodeURIComponent(id)}/post`, { method: "POST" }),
+  commentForumAgent: (id) =>
+    request(`/admin/forum-agents/${encodeURIComponent(id)}/comment`, { method: "POST" }),
   deletePost: (postId) => request(`/posts/${encodeURIComponent(postId)}`, { method: "DELETE" }),
   pinPost: (postId, pinned) =>
     request(`/posts/${encodeURIComponent(postId)}/pin`, {

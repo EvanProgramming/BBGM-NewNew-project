@@ -26,6 +26,7 @@ class Settings:
     cj_journal_api_key: str
     deepseek_api_key: str
     deepseek_model: str
+    news_feed_urls: str
 
 
 def _load_env_file(path: Path) -> None:
@@ -82,4 +83,5 @@ def load_settings() -> Settings:
         cj_journal_api_key=(os.environ.get("CJ_JOURNAL_API_KEY") or "").strip(),
         deepseek_api_key=(os.environ.get("DEEPSEEK_API_KEY") or "").strip(),
         deepseek_model=(os.environ.get("DEEPSEEK_MODEL") or "deepseek-chat").strip() or "deepseek-chat",
+        news_feed_urls=(os.environ.get("NEWS_FEED_URLS") or "").strip(),
     )

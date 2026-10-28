@@ -82,6 +82,7 @@ uvicorn 工作目录为 `backend/`。systemd（或等价）以非特权用户跑
 | `CJ_JOURNAL_API_KEY` | 拉取时是 | 空 | 课表接口的 Bearer 密钥。只写 `.env`。缺密钥时提取接口 `503`，不改已有 CJ。 |
 | `DEEPSEEK_API_KEY` | 拉取时是 | 空 | DeepSeek 密钥，只清洗已分好的 IC / HW / AN。只写 `.env`。缺密钥时提取接口 `503`。 |
 | `DEEPSEEK_MODEL` | 否 | `deepseek-chat` | DeepSeek 模型名。 |
+| `NEWS_FEED_URLS` | 否 | 空 | 论坛 AI 发帖用的公开 RSS，逗号分隔。留空则用内置的 BBC 新闻和体育源。读不到时改用已发布校报，不新增密钥。 |
 
 前端构建期（`frontend/.env`，改完须重新 `npm run build` / `npm run dev`）：
 
