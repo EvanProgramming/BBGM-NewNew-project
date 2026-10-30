@@ -1,6 +1,7 @@
 import html
 import json
 import logging
+import os
 import random
 import re
 import threading
@@ -24,6 +25,7 @@ _CJK = re.compile(r"[\u4e00-\u9fff]")
 _CLOCK = re.compile(r"^([01]\d|2[0-3]):[0-5]\d$")
 _DEEPSEEK_URL = "https://api.deepseek.com/chat/completions"
 _LOG_LIMIT = 200
+_DAILY_ACTION_CAP_DEFAULT = 200
 _THREAD_CAP = 2
 _TITLE_LIMIT = 48
 _POST_LIMIT = 160
@@ -52,16 +54,55 @@ def shanghai_day(moment: datetime | None = None) -> str:
     return current.astimezone(_SHANGHAI).date().isoformat()
 
 
+def daily_action_cap() -> int:
+    """Global daily action budget shared by every forum agent.
+
+    One action = one post, comment, or like. The env override exists so
+    operators can dial the budget down (or up) without a code change;
+    the default of 200 keeps a healthy ceiling on DeepSeek spend.
+    """
+    raw = os.environ.get("FORUM_AGENT_DAILY_ACTIONS", "").strip()
+    if not raw:
+        return _DAILY_ACTION_CAP_DEFAULT
+    try:
+        value = int(raw)
+    except ValueError:
+        return _DAILY_ACTION_CAP_DEFAULT
+    return max(0, value)
+
+
+def actions_today(core: Session) -> int:
+    """Forum agent actions recorded since Shanghai midnight (UTC-naive)."""
+    day = shanghai_day()
+    start = datetime.fromisoformat(day).replace(tzinfo=_SHANGHAI)
+    start_utc = start.astimezone(timezone.utc).replace(tzinfo=None)
+    return int(
+        core.scalar(
+            select(func.count())
+            .select_from(ForumAgentAction)
+            .where(ForumAgentAction.created_at >= start_utc)
+        )
+        or 0
+    )
+
+
 def tick_agents(core: Session, content: Session, settings) -> bool:
     if not settings.deepseek_api_key:
         return False
     if not _LOCK.acquire(blocking=False):
         return False
     try:
+        cap = daily_action_cap()
         agents = list(core.scalars(select(ForumAgent).where(ForumAgent.enabled.is_(True))).all())
         acted = False
         now = utc_now()
         for agent in agents:
+            if actions_today(core) >= cap:
+                logger.warning(
+                    "Forum agents reached the daily action cap (%s). Skipping the rest.",
+                    cap,
+                )
+                break
             if not _in_window(agent, now) or not _due(agent, now):
                 continue
             try:

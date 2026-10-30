@@ -1,4 +1,5 @@
 from uuid import uuid4
+import logging
 
 from fastapi import APIRouter, Depends, File, Request, Response, UploadFile
 from fastapi.responses import JSONResponse
@@ -12,6 +13,7 @@ from avatars import (
     ensure_avatar_dir,
     normalize_avatar,
     preset_avatar,
+    sniff_image,
 )
 from deps import get_core_db, get_current_user, get_db
 from errors import ApiError, StorageError, unauthenticated, validation_error
@@ -30,7 +32,6 @@ from schemas import (
     SetAvatarPresetBody,
     UserPrivate,
 )
-from config import load_settings
 from security import COOKIE_NAME, hash_password, needs_rehash, sign_cookie_value, unsign_cookie_value, verify_password
 from store import (
     apply_admin_email,
@@ -44,6 +45,7 @@ from store import (
     mark_forum_activity_read,
 )
 from identity import dump_roles, primary_role, user_roles
+from ratelimit import email_code_limiter
 from validate import (
     change_password_field_errors,
     email_code_field_errors,
@@ -69,23 +71,37 @@ def _user_private(user: User) -> dict:
     ).model_dump()
 
 
-def _cookie_secure() -> bool:
-    return load_settings().frontend_origin.startswith("https://")
+def _cookie_secure(settings) -> bool:
+    """Explicit COOKIE_SECURE wins; otherwise fall back to the origin scheme.
+
+    The fallback exists for local setups (http://localhost). When it produces
+    an insecure cookie, say so in the logs instead of failing silently.
+    """
+    if settings.cookie_secure is not None:
+        return settings.cookie_secure
+    auto = settings.frontend_origin.startswith("https://")
+    if not auto:
+        logging.getLogger("elegram.cj").warning(
+            "COOKIE_SECURE is not set and FRONTEND_ORIGIN is not https:// — "
+            "session cookies will not carry the Secure flag. Set COOKIE_SECURE=true "
+            "in production."
+        )
+    return auto
 
 
-def _set_session_cookie(response: Response, token: str, secret: str) -> None:
+def _set_session_cookie(response: Response, token: str, secret: str, settings) -> None:
     response.set_cookie(
         key=COOKIE_NAME,
         value=sign_cookie_value(token, secret),
         httponly=True,
         samesite="lax",
-        secure=_cookie_secure(),
+        secure=_cookie_secure(settings),
         path="/",
     )
 
 
-def _clear_session_cookie(response: Response) -> None:
-    response.delete_cookie(key=COOKIE_NAME, path="/", samesite="lax", secure=_cookie_secure())
+def _clear_session_cookie(response: Response, settings) -> None:
+    response.delete_cookie(key=COOKIE_NAME, path="/", samesite="lax", secure=_cookie_secure(settings))
 
 
 @router.post("/auth/email-codes", status_code=204)
@@ -96,18 +112,26 @@ def request_email_code(body: EmailCodeBody, request: Request, db: Session = Depe
 
     email = normalize_email(body.email)
     purpose = body.purpose
+
+    # Bound code requests per client IP and per mailbox so one client cannot
+    # enumerate the school directory or flood the mail server.
+    client_ip = request.client.host if request.client else "unknown"
+    if email_code_limiter.hit(f"ip:{client_ip}") or email_code_limiter.hit(f"mail:{email}"):
+        raise ApiError(
+            429,
+            "too_many_requests",
+            "Too many code requests. Try again later.",
+        )
+
     try:
         user = get_user_by_email(db, email)
         if purpose == "register":
-            if user is not None:
-                raise ApiError(
-                    409,
-                    "email_taken",
-                    "An account with this email already exists.",
-                    [{"field": "email", "message": "This email is already registered."}],
-                )
-            code = issue_email_code(db, email, purpose)
-            send_verification_email(request.app.state.settings, email, code, purpose)
+            # Never reveal whether the account exists: send a code only when
+            # registration could actually succeed, and answer 204 either way
+            # (the reset flow below already behaves like this).
+            if user is None:
+                code = issue_email_code(db, email, purpose)
+                send_verification_email(request.app.state.settings, email, code, purpose)
             return
         if user is not None:
             code = issue_email_code(db, email, purpose)
@@ -128,6 +152,9 @@ def register(body: RegisterBody, request: Request, db: Session = Depends(get_cor
         raise validation_error(fields)
 
     email = normalize_email(body.email)
+    # PBKDF2 is the dominant cost here; run it before the account lookup so
+    # the response time does not reveal whether the email is registered.
+    password_hash = hash_password(body.password)
     consume_email_code(db, email, "register", body.code)
     if get_user_by_email(db, email) is not None:
         raise ApiError(
@@ -144,7 +171,7 @@ def register(body: RegisterBody, request: Request, db: Session = Depends(get_cor
     user = User(
         id=str(uuid4()),
         email=email,
-        password_hash=hash_password(body.password),
+        password_hash=password_hash,
         display_name=body.display_name.strip(),
         role=primary_role(roles),
         roles=dump_roles(roles),
@@ -156,7 +183,7 @@ def register(body: RegisterBody, request: Request, db: Session = Depends(get_cor
     try:
         db.add(user)
         db.flush()
-        token = create_session(db, user.id)
+        token = create_session(db, user.id, request.app.state.settings.session_ttl_hours)
     except IntegrityError as exc:
         db.rollback()
         detail = str(getattr(exc, "orig", None) or exc)
@@ -173,7 +200,7 @@ def register(body: RegisterBody, request: Request, db: Session = Depends(get_cor
         raise StorageError() from exc
 
     response = JSONResponse(status_code=201, content=_user_private(user))
-    _set_session_cookie(response, token, request.app.state.settings.session_secret)
+    _set_session_cookie(response, token, request.app.state.settings.session_secret, request.app.state.settings)
     return response
 
 
@@ -218,13 +245,13 @@ def login(body: LoginBody, request: Request, db: Session = Depends(get_core_db))
         apply_admin_email(user, request.app.state.settings.admin_email)
         if needs_rehash(user.password_hash):
             user.password_hash = hash_password(body.password)
-        token = create_session(db, user.id)
+        token = create_session(db, user.id, request.app.state.settings.session_ttl_hours)
     except SQLAlchemyError as exc:
         db.rollback()
         raise StorageError() from exc
 
     response = JSONResponse(status_code=200, content=_user_private(user))
-    _set_session_cookie(response, token, request.app.state.settings.session_secret)
+    _set_session_cookie(response, token, request.app.state.settings.session_secret, request.app.state.settings)
     return response
 
 
@@ -240,7 +267,7 @@ def logout(request: Request, response: Response, db: Session = Depends(get_core_
     if record is None:
         raise unauthenticated()
     record.revoked_at = utc_now()
-    _clear_session_cookie(response)
+    _clear_session_cookie(response, request.app.state.settings)
 
 
 @router.get("/me")
@@ -323,6 +350,10 @@ async def upload_avatar(
     data = await file.read()
     if not data or len(data) > MAX_AVATAR_BYTES:
         raise validation_error([{"field": "file", "message": "Avatar must be 1–1000000 bytes."}])
+    if not sniff_image(data, ext):
+        raise validation_error(
+            [{"field": "file", "message": "Avatar must be a real jpeg, png, or webp image."}]
+        )
     try:
         folder = ensure_avatar_dir()
         path = folder / f"{user.id}.{ext}"

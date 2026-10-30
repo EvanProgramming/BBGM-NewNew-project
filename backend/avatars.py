@@ -13,6 +13,25 @@ ALLOWED_TYPES = {
     "image/png": "png",
     "image/webp": "webp",
 }
+
+_JPEG_MAGIC = (b"\xff\xd8\xff",)
+_PNG_MAGIC = (b"\x89PNG\r\n\x1a\n",)
+
+
+def sniff_image(data: bytes, ext: str) -> bool:
+    """Check that the file bytes match the declared image format.
+
+    Content-Type headers are client-controlled, so every upload path must
+    verify the actual bytes before writing them to disk or shipping them to
+    a model endpoint.
+    """
+    if ext == "jpg":
+        return any(data.startswith(prefix) for prefix in _JPEG_MAGIC)
+    if ext == "png":
+        return data.startswith(_PNG_MAGIC)
+    if ext == "webp":
+        return len(data) >= 12 and data[:4] == b"RIFF" and data[8:12] == b"WEBP"
+    return False
 MAX_AVATAR_BYTES = 1_000_000
 MAX_POST_IMAGE_BYTES = 2_000_000
 MAX_POST_IMAGES = 4

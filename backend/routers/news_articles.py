@@ -11,7 +11,17 @@ from sqlalchemy import case, select
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
-from avatars import ALLOWED_TYPES, MAX_POST_IMAGE_BYTES, delete_post_image, delete_post_images, dump_images, normalize_avatar, parse_images, save_post_image
+from avatars import (
+    ALLOWED_TYPES,
+    MAX_POST_IMAGE_BYTES,
+    delete_post_image,
+    delete_post_images,
+    dump_images,
+    normalize_avatar,
+    parse_images,
+    save_post_image,
+    sniff_image,
+)
 from deps import get_core_db, get_db, get_moderator, get_newsroom_user, get_super_admin, require_not_muted
 from errors import ApiError, StorageError, forbidden, validation_error
 from models import NewsBlock, NewsCategory, Post, User, to_iso, utc_now
@@ -198,6 +208,8 @@ async def create_submission(
         data = await image.read()
         if ext is None or not data or len(data) > MAX_POST_IMAGE_BYTES:
             fields.append({"field": "images", "message": "Images must be jpeg, png, or webp and at most 2MB each."})
+        elif not sniff_image(data, ext):
+            fields.append({"field": "images", "message": "Images must be real jpeg, png, or webp files."})
         else:
             uploads.append((ext, data))
     if fields:
@@ -282,6 +294,8 @@ async def add_submission_images(
         data = await image.read()
         if ext is None or not data or len(data) > MAX_POST_IMAGE_BYTES:
             fields.append({"field": "images", "message": "Images must be jpeg, png, or webp and at most 2MB each."})
+        elif not sniff_image(data, ext):
+            fields.append({"field": "images", "message": "Images must be real jpeg, png, or webp files."})
         else:
             uploads.append((ext, data))
     if fields:
