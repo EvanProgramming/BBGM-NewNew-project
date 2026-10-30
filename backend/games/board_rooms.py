@@ -7,7 +7,7 @@ import secrets
 import time
 from typing import Literal, Protocol
 
-from fastapi import APIRouter, Depends, WebSocket, WebSocketDisconnect
+from fastapi import APIRouter, Depends, Request, WebSocket, WebSocketDisconnect
 from pydantic import BaseModel, Field
 
 from deps import get_current_user
@@ -381,12 +381,13 @@ def build_board_room_router(rules: BoardRules) -> APIRouter:
     @router.get(prefix + "/{code}", response_model=BoardRoomResponse)
     async def get_room(
         code: str,
-        token: str = "",
+        request: Request,
         _: User = Depends(get_current_user),
     ) -> BoardRoomResponse:
         room = await store.get(code)
         if room is None:
             return _response(None, error="房间不存在或已过期。")
+        token = (request.headers.get("x-room-token") or "").strip()
         seat = room.seat_for(token)
         return _response(room, seat=seat, token=token if seat else "")
 
@@ -415,15 +416,14 @@ def build_board_room_router(rules: BoardRules) -> APIRouter:
         return _response(room, seat=seat, token=token)
 
     @router.websocket(prefix + "/{code}/ws")
-    async def room_socket(websocket: WebSocket, code: str, token: str = "") -> None:
+    async def room_socket(websocket: WebSocket, code: str) -> None:
         if websocket_user(websocket) is None:
             await websocket.accept()
             await websocket.send_json({"type": "error", "message": "请先登录。"})
             await websocket.close()
             return
         room = await store.get(code)
-        seat = room.seat_for(token) if room else ""
-        if room is None or not seat:
+        if room is None:
             await websocket.accept()
             await websocket.send_json(
                 {
@@ -436,6 +436,29 @@ def build_board_room_router(rules: BoardRules) -> APIRouter:
             return
 
         await websocket.accept()
+        # The seat token arrives in the first message instead of the URL so it
+        # never ends up in logs, history, or referrer headers.
+        seat = ""
+        try:
+            hello = await asyncio.wait_for(websocket.receive_json(), timeout=10)
+        except (asyncio.TimeoutError, WebSocketDisconnect, ValueError, TypeError):
+            hello = None
+        if isinstance(hello, dict):
+            seat = room.seat_for(str(hello.get("token") or ""))
+        if not seat:
+            try:
+                await websocket.send_json(
+                    {
+                        "type": "error",
+                        "status": "error",
+                        "error_message": "房间凭证无效或已过期，请重新进入房间。",
+                    }
+                )
+            except Exception:
+                pass
+            await websocket.close()
+            return
+
         room.sockets.add(websocket)
         room.touch()
         await _broadcast(room)

@@ -37,8 +37,8 @@ function roomShareUrl(game, code) {
   return url.toString();
 }
 
-function roomWsUrl(game, code, token) {
-  return roomSocketUrl(game, code, token);
+function roomWsUrl(game, code) {
+  return roomSocketUrl(game, code);
 }
 
 export default function BoardOnline({
@@ -323,9 +323,11 @@ export default function BoardOnline({
         onRoomCode?.(data.code);
         applyStateRef.current?.(data);
 
-        const socket = new WebSocket(roomWsUrl(game, data.code, data.token));
+        const socket = new WebSocket(roomWsUrl(game, data.code));
         socketRef.current = socket;
         socket.onopen = () => {
+          // Authenticate the seat with the first message; never put the token in the URL.
+          socket.send(JSON.stringify({ type: "hello", token: data.token }));
           if (!cancelled) setConnected(true);
         };
         socket.onmessage = (event) => {

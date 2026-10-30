@@ -99,6 +99,13 @@ def create_app() -> FastAPI:
         allow_headers=["*"],
     )
     register_exception_handlers(app)
+
+    @app.middleware("http")
+    async def add_security_headers(request, call_next):
+        response = await call_next(request)
+        response.headers.setdefault("X-Content-Type-Options", "nosniff")
+        return response
+
     app.include_router(auth_router, prefix="/api/v1")
     app.include_router(posts_router, prefix="/api/v1")
     app.include_router(bell_router, prefix="/api/v1")
