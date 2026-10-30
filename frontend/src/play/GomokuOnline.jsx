@@ -62,8 +62,8 @@ function roomShareUrl(code) {
   return url.toString();
 }
 
-function roomWsUrl(code, token) {
-  return roomSocketUrl("gomoku", code, token);
+function roomWsUrl(code) {
+  return roomSocketUrl("gomoku", code);
 }
 
 export default function GomokuOnline({
@@ -229,9 +229,11 @@ export default function GomokuOnline({
         onRoomCode?.(data.code);
         applyStateRef.current?.(data);
 
-        const socket = new WebSocket(roomWsUrl(data.code, data.token));
+        const socket = new WebSocket(roomWsUrl(data.code));
         socketRef.current = socket;
         socket.onopen = () => {
+          // Authenticate the seat with the first message; never put the token in the URL.
+          socket.send(JSON.stringify({ type: "hello", token: data.token }));
           if (!cancelled) setConnected(true);
         };
         socket.onmessage = (event) => {
