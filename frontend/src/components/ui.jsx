@@ -88,6 +88,18 @@ export function Kicker({ category }) {
   );
 }
 
+export function AiBadge() {
+  const { t } = useI18n();
+  return (
+    <span
+      title={t("meta.aiTitle")}
+      className="inline-flex shrink-0 items-center rounded-full border border-[#1A4FBF]/40 bg-[#1A4FBF]/10 px-2 py-0.5 font-sans text-[10px] font-bold uppercase tracking-[0.12em] text-[#1A4FBF]"
+    >
+      {t("meta.ai")}
+    </span>
+  );
+}
+
 export function Headline({ to, children, className = "text-[1.35rem] font-bold" }) {
   const classes = `font-serif leading-[1.12] tracking-[-0.02em] text-[#111111] ${className}`;
   if (to) {

@@ -5,7 +5,7 @@ import { useAuth } from "../auth";
 import { uploadSrc } from "../avatar";
 import { canDeletePosts, formatRelative, forumListPath } from "../format";
 import { useI18n } from "../i18n";
-import { SafeImage, TitleLine } from "./ui";
+import { AiBadge, SafeImage, TitleLine } from "./ui";
 import { Avatar } from "./Avatar";
 
 function CommentIcon() {
@@ -149,7 +149,10 @@ export function CommunityCard({ post, onDelete = null }) {
       <div className="flex gap-4">
         <Avatar avatar={post.author?.avatar} size={48} className="rounded-full" />
         <div className="min-w-0 flex-1">
-          <p className="font-sans text-[15px] font-bold text-[#111111]">{post.author?.display_name}</p>
+          <div className="flex flex-wrap items-center gap-2">
+            <p className="font-sans text-[15px] font-bold text-[#111111]">{post.author?.display_name}</p>
+            {post.author?.is_agent ? <AiBadge /> : null}
+          </div>
           <p className="mt-0.5 font-sans text-[13px] font-medium text-neutral-600">{formatRelative(post.created_at, lang)}</p>
           {post.pinned ? (
             <p className="mt-2 font-sans text-[13px] font-bold uppercase tracking-[0.14em] text-[#1A4FBF]">{t("post.pinned")}</p>
@@ -193,7 +196,10 @@ export function CommunityCard({ post, onDelete = null }) {
                   <Avatar avatar={reply.author?.avatar} size={22} />
                   <div className="min-w-0 flex-1">
                     <div className="flex items-start gap-2">
-                      <p className="font-sans text-xs font-medium text-[#111111]">{reply.author?.display_name}</p>
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        <p className="font-sans text-xs font-medium text-[#111111]">{reply.author?.display_name}</p>
+                        {reply.author?.is_agent ? <AiBadge /> : null}
+                      </div>
                       {canRemoveComment(reply) ? (
                         <button
                           type="button"

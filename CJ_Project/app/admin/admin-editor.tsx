@@ -29,9 +29,7 @@ function mondayIso(date = new Date()) {
 export function AdminEditor() {
   const [weekStart, setWeekStart] = useState(mondayIso);
   const [data, setData] = useState<CJPayload | null>(null);
-  const [adminCode, setAdminCode] = useState(() =>
-    typeof window !== "undefined" && ["127.0.0.1", "localhost"].includes(window.location.hostname) ? "CJ-DEMO" : "",
-  );
+  const [adminCode, setAdminCode] = useState("");
   const [dayIndex, setDayIndex] = useState(0);
   const [subjectId, setSubjectId] = useState("");
   const [ic, setIc] = useState("");
@@ -179,7 +177,7 @@ export function AdminEditor() {
         </div>
 
         <div className="mb-5 grid gap-4 rounded-3xl border border-[var(--border)] bg-white p-5 shadow-sm sm:grid-cols-2">
-          <Field label="管理员口令"><div className="relative"><KeyRound className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-[var(--muted-foreground)]" /><Input aria-label="管理员口令" type="password" value={adminCode} onChange={(event) => setAdminCode(event.target.value)} className="h-11 rounded-xl pl-10" /></div></Field>
+          <Field label="管理员口令"><div className="relative"><KeyRound className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-[var(--muted-foreground)]" /><Input aria-label="管理员口令" type="password" value={adminCode} onChange={(event) => setAdminCode(event.target.value)} placeholder="与 CJ_ADMIN_CODE 一致的共享口令" className="h-11 rounded-xl pl-10" /></div></Field>
           <Field label="周一日期"><Input aria-label="周一日期" type="date" value={weekStart} onChange={(event) => setWeekStart(event.target.value)} className="h-11 rounded-xl" /></Field>
         </div>
 
