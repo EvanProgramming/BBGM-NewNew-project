@@ -54,6 +54,7 @@ class SessionRecord(CoreBase):
     token_hash: Mapped[str] = mapped_column(String(64), unique=True, nullable=False)
     user_id: Mapped[str] = mapped_column(ForeignKey("users.id"), nullable=False)
     revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 
     user: Mapped[User] = relationship(back_populates="sessions")
@@ -534,6 +535,9 @@ def migrate_core_schema(engine) -> None:
             for column, definition in subject_columns.items():
                 if subject_cols and column not in subject_cols:
                     conn.exec_driver_sql(f"ALTER TABLE subjects ADD COLUMN {column} {definition}")
+            session_cols = {row[1] for row in conn.exec_driver_sql("PRAGMA table_info(sessions)").fetchall()}
+            if session_cols and "expires_at" not in session_cols:
+                conn.exec_driver_sql("ALTER TABLE sessions ADD COLUMN expires_at DATETIME")
     CoreBase.metadata.create_all(engine)
     if engine.dialect.name == "sqlite":
         with engine.begin() as conn:

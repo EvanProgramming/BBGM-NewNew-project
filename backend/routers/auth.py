@@ -1,4 +1,5 @@
 from uuid import uuid4
+import logging
 
 from fastapi import APIRouter, Depends, File, Request, Response, UploadFile
 from fastapi.responses import JSONResponse
@@ -30,7 +31,6 @@ from schemas import (
     SetAvatarPresetBody,
     UserPrivate,
 )
-from config import load_settings
 from security import COOKIE_NAME, hash_password, needs_rehash, sign_cookie_value, unsign_cookie_value, verify_password
 from store import (
     apply_admin_email,
@@ -69,23 +69,37 @@ def _user_private(user: User) -> dict:
     ).model_dump()
 
 
-def _cookie_secure() -> bool:
-    return load_settings().frontend_origin.startswith("https://")
+def _cookie_secure(settings) -> bool:
+    """Explicit COOKIE_SECURE wins; otherwise fall back to the origin scheme.
+
+    The fallback exists for local setups (http://localhost). When it produces
+    an insecure cookie, say so in the logs instead of failing silently.
+    """
+    if settings.cookie_secure is not None:
+        return settings.cookie_secure
+    auto = settings.frontend_origin.startswith("https://")
+    if not auto:
+        logging.getLogger("elegram.cj").warning(
+            "COOKIE_SECURE is not set and FRONTEND_ORIGIN is not https:// — "
+            "session cookies will not carry the Secure flag. Set COOKIE_SECURE=true "
+            "in production."
+        )
+    return auto
 
 
-def _set_session_cookie(response: Response, token: str, secret: str) -> None:
+def _set_session_cookie(response: Response, token: str, secret: str, settings) -> None:
     response.set_cookie(
         key=COOKIE_NAME,
         value=sign_cookie_value(token, secret),
         httponly=True,
         samesite="lax",
-        secure=_cookie_secure(),
+        secure=_cookie_secure(settings),
         path="/",
     )
 
 
-def _clear_session_cookie(response: Response) -> None:
-    response.delete_cookie(key=COOKIE_NAME, path="/", samesite="lax", secure=_cookie_secure())
+def _clear_session_cookie(response: Response, settings) -> None:
+    response.delete_cookie(key=COOKIE_NAME, path="/", samesite="lax", secure=_cookie_secure(settings))
 
 
 @router.post("/auth/email-codes", status_code=204)
@@ -156,7 +170,7 @@ def register(body: RegisterBody, request: Request, db: Session = Depends(get_cor
     try:
         db.add(user)
         db.flush()
-        token = create_session(db, user.id)
+        token = create_session(db, user.id, request.app.state.settings.session_ttl_hours)
     except IntegrityError as exc:
         db.rollback()
         detail = str(getattr(exc, "orig", None) or exc)
@@ -173,7 +187,7 @@ def register(body: RegisterBody, request: Request, db: Session = Depends(get_cor
         raise StorageError() from exc
 
     response = JSONResponse(status_code=201, content=_user_private(user))
-    _set_session_cookie(response, token, request.app.state.settings.session_secret)
+    _set_session_cookie(response, token, request.app.state.settings.session_secret, request.app.state.settings)
     return response
 
 
@@ -218,13 +232,13 @@ def login(body: LoginBody, request: Request, db: Session = Depends(get_core_db))
         apply_admin_email(user, request.app.state.settings.admin_email)
         if needs_rehash(user.password_hash):
             user.password_hash = hash_password(body.password)
-        token = create_session(db, user.id)
+        token = create_session(db, user.id, request.app.state.settings.session_ttl_hours)
     except SQLAlchemyError as exc:
         db.rollback()
         raise StorageError() from exc
 
     response = JSONResponse(status_code=200, content=_user_private(user))
-    _set_session_cookie(response, token, request.app.state.settings.session_secret)
+    _set_session_cookie(response, token, request.app.state.settings.session_secret, request.app.state.settings)
     return response
 
 
@@ -240,7 +254,7 @@ def logout(request: Request, response: Response, db: Session = Depends(get_core_
     if record is None:
         raise unauthenticated()
     record.revoked_at = utc_now()
-    _clear_session_cookie(response)
+    _clear_session_cookie(response, request.app.state.settings)
 
 
 @router.get("/me")

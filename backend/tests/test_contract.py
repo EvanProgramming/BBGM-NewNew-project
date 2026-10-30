@@ -2,6 +2,7 @@ import hashlib
 import time
 from datetime import datetime, timedelta, timezone
 
+import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
@@ -10,7 +11,7 @@ import avatars
 from errors import StorageError
 from mail import peek_console_code
 from main import create_app
-from models import AuditEvent, BellRound, BellTrack, Post, User, utc_now
+from models import AuditEvent, BellRound, BellTrack, Post, SessionRecord, User, utc_now
 from security import hash_password
 from validate import normalize_email
 
@@ -3453,3 +3454,46 @@ def test_forum_agent_comment_prefers_a_liked_post(tmp_path, monkeypatch):
         replied = admin.post(f"/api/v1/admin/forum-agents/{agent.json()['id']}/comment")
         assert replied.status_code == 200, replied.text
         assert replied.json()["action"]["post_id"] == loud_id
+
+
+def test_placeholder_session_secret_refused(tmp_path, monkeypatch):
+    """A committed placeholder SESSION_SECRET must not start the app."""
+    monkeypatch.setenv("SESSION_SECRET", "dev-only-change-me")
+    monkeypatch.setenv("DATABASE_URL", f"sqlite:///{tmp_path / 'scoop.db'}")
+    with pytest.raises(RuntimeError):
+        create_app()
+
+
+def test_fresh_sessions_get_an_expiry(tmp_path, monkeypatch):
+    """New sessions must carry an expires_at in the future."""
+    app = _make_app(tmp_path, monkeypatch)
+    with TestClient(app) as client:
+        created = _register(
+            client, "fresh.tester@basischina.com", "fresh-pass-9", "Fresh Tester"
+        )
+        assert created.status_code == 201, created.text
+        with Session(app.state.core_engine) as db:
+            row = db.scalar(select(SessionRecord))
+            assert row is not None
+            assert row.expires_at is not None
+            expires = row.expires_at
+            if expires.tzinfo is None:
+                expires = expires.replace(tzinfo=timezone.utc)
+            assert expires > utc_now()
+
+
+def test_expired_session_is_rejected(tmp_path, monkeypatch):
+    """Sessions past expires_at must be treated as unauthenticated."""
+    app = _make_app(tmp_path, monkeypatch)
+    with TestClient(app) as client:
+        created = _register(
+            client, "expiry.tester@basischina.com", "expiry-pass-9", "Expiry Tester"
+        )
+        assert created.status_code == 201, created.text
+        with Session(app.state.core_engine) as db:
+            row = db.scalar(select(SessionRecord))
+            assert row is not None
+            row.expires_at = utc_now() - timedelta(seconds=1)
+            db.commit()
+        me = client.get("/api/v1/me")
+        assert me.status_code == 401, me.text
