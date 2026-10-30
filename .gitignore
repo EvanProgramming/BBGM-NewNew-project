@@ -23,3 +23,5 @@ venv/
 backend/uploads/
 
 .DS_Store
+
+.cursorignore
