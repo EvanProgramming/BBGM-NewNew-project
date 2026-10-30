@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getD1 } from "@/db";
-import { isAdminRequest } from "@/lib/admin-auth";
+import { getChatGPTUser } from "@/app/chatgpt-auth";
+import { adminGate } from "@/lib/admin-auth";
 
 export const dynamic = "force-dynamic";
 
@@ -120,7 +121,6 @@ export async function GET(request: Request) {
     if (!/^\d{4}-\d{2}-\d{2}$/.test(weekStart)) {
       return NextResponse.json({ error: "weekStart 格式无效" }, { status: 400 });
     }
-    await ensureSeed(weekStart);
     const db = getD1();
     const [subjectResult, entryResult, examResult] = await db.batch([
       db.prepare(
@@ -156,10 +156,30 @@ export async function GET(request: Request) {
   }
 }
 
+export async function POST(request: Request) {
+  try {
+    const gate = adminGate(request, await getChatGPTUser());
+    if (!gate.ok) {
+      return NextResponse.json({ error: gate.message }, { status: gate.status });
+    }
+    const input = (await request.json()) as Record<string, unknown>;
+    const weekStart = String(input.weekStart ?? "");
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(weekStart)) {
+      return NextResponse.json({ error: "weekStart 格式无效" }, { status: 400 });
+    }
+    await ensureSeed(weekStart);
+    return NextResponse.json({ ok: true });
+  } catch (error) {
+    console.error("Failed to seed CJ", error);
+    return NextResponse.json({ error: "初始化失败，请稍后重试" }, { status: 500 });
+  }
+}
+
 export async function PUT(request: Request) {
   try {
-    if (!isAdminRequest(request)) {
-      return NextResponse.json({ error: "管理员口令不正确" }, { status: 401 });
+    const gate = adminGate(request, await getChatGPTUser());
+    if (!gate.ok) {
+      return NextResponse.json({ error: gate.message }, { status: gate.status });
     }
     const input = (await request.json()) as Record<string, unknown>;
     const weekStart = String(input.weekStart ?? "");

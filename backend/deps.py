@@ -9,7 +9,7 @@ from identity import user_has
 from models import User
 from schemas import CJ_EDITOR_ROLES, CJ_VIEWER_ROLES, MODERATOR_ROLES, NEWSROOM_ROLES
 from security import COOKIE_NAME, unsign_cookie_value
-from store import get_session_by_token
+from store import get_session_by_token, session_valid
 
 
 def _session_scope(request: Request, factory) -> Iterator[Session]:
@@ -63,7 +63,7 @@ def get_current_user(request: Request, db: Session = Depends(get_core_db)) -> Us
     if not token:
         raise unauthenticated()
     record = get_session_by_token(db, token)
-    if record is None or record.revoked_at is not None:
+    if record is None or not session_valid(record):
         raise unauthenticated()
     return record.user
 
@@ -81,7 +81,7 @@ def get_optional_user(request: Request, db: Session = Depends(get_core_db)) -> U
     if not token:
         return None
     record = get_session_by_token(db, token)
-    if record is None or record.revoked_at is not None:
+    if record is None or not session_valid(record):
         return None
     return record.user
 

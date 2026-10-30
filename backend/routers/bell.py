@@ -263,9 +263,8 @@ def bell_cover(album_mid: str, _user: User = Depends(get_current_user)) -> Respo
 @router.get("/bell/search")
 def search_bell(
     q: str = Query(default=""),
-    user: User = Depends(get_current_user),
+    _user: User = Depends(get_current_user),
 ):
-    del user
     query = q.strip()
     if not query or len(query) > 80:
         raise validation_error([{"field": "q", "message": "Enter 1 to 80 characters."}])

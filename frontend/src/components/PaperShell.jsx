@@ -16,6 +16,9 @@ function navClass() {
 const menuItemClass =
   "block w-full px-4 py-2.5 text-left text-[13px] font-semibold uppercase tracking-[0.14em] transition-colors hover:bg-[#1A4FBF] hover:text-white";
 
+const menuGroupClass =
+  "px-4 pb-1 pt-3 text-[10px] font-black uppercase tracking-[0.18em] text-neutral-400";
+
 function BarMenu({ label, open, onToggle, children }) {
   return (
     <div className="relative">
@@ -29,7 +32,7 @@ function BarMenu({ label, open, onToggle, children }) {
         {label}
       </button>
       {open ? (
-        <div role="menu" className="absolute left-0 top-full z-20 mt-2 min-w-[9.5rem] border border-black bg-white py-1">
+        <div role="menu" className="absolute right-0 top-full z-20 mt-2 min-w-[11rem] border border-black bg-white py-1">
           {children}
         </div>
       ) : null}
@@ -159,37 +162,56 @@ export default function PaperShell() {
   return (
     <div className="min-h-screen bg-white text-[#111111]">
       <div className="mx-auto max-w-[1920px] px-4 pb-20 sm:px-8 lg:px-20 xl:px-[210px]">
+        {/* One header band: brand + tagline on the left, date/account/menu on the right. */}
         <div
           ref={barRef}
-          className="full-bleed-rule-thin py-2.5 font-sans text-[13px] font-semibold tracking-[0.14em] text-[#111111] sm:text-[14px]"
+          className="full-bleed-rule-thin flex flex-wrap items-center justify-between gap-x-6 gap-y-2 py-3"
         >
-          <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-2">
-            <nav className="flex flex-wrap items-center gap-x-2 gap-y-1 uppercase" aria-label="Site">
-              <BarMenu label={t("shell.system")} open={openMenu === "system"} onToggle={() => toggleMenu("system")}>
-                <Link role="menuitem" to="/about" className={menuItemClass}>
-                  {t("shell.about")}
-                </Link>
-                <button
-                  type="button"
-                  role="menuitem"
-                  className={menuItemClass}
-                  onClick={() => {
-                    setOpenMenu(null);
-                    setTermsOpen(true);
-                  }}
-                >
-                  {t("shell.terms")}
-                </button>
-                <Link role="menuitem" to="/contact" className={menuItemClass}>
-                  {t("shell.contact")}
-                </Link>
-              </BarMenu>
+          <Link
+            to="/"
+            aria-label="Elegram"
+            className="relative z-10 flex flex-col whitespace-nowrap no-underline"
+          >
+            <span className="font-wordmark-elegram text-[38px] sm:text-[46px]">Elegram</span>
+            <span className="mt-1 font-serif text-[11px] font-bold uppercase tracking-[0.08em] text-[#111111] sm:text-[12px]">
+              {t("shell.tagline")}
+            </span>
+          </Link>
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+            <p className="font-medium tracking-[0.06em] text-[#111111]">
+              {t("shell.today", { date: formatToday(lang) })}
+            </p>
+            {user ? (
+              <Link
+                to="/me/avatar"
+                className="flex items-center gap-2.5 normal-case tracking-normal text-[#111111]"
+              >
+                <Avatar avatar={user.avatar} size={28} />
+                {user.display_name}
+              </Link>
+            ) : null}
+            <BarMenu label={t("shell.menu")} open={openMenu === "menu"} onToggle={() => toggleMenu("menu")}>
+              <p className={menuGroupClass}>{t("shell.system")}</p>
+              <Link role="menuitem" to="/about" className={menuItemClass}>
+                {t("shell.about")}
+              </Link>
+              <button
+                type="button"
+                role="menuitem"
+                className={menuItemClass}
+                onClick={() => {
+                  setOpenMenu(null);
+                  setTermsOpen(true);
+                }}
+              >
+                {t("shell.terms")}
+              </button>
+              <Link role="menuitem" to="/contact" className={menuItemClass}>
+                {t("shell.contact")}
+              </Link>
               {user ? (
-                <BarMenu
-                  label={t("shell.settings")}
-                  open={openMenu === "settings"}
-                  onToggle={() => toggleMenu("settings")}
-                >
+                <>
+                  <p className={menuGroupClass}>{t("shell.settings")}</p>
                   <Link role="menuitem" to="/me/avatar" className={menuItemClass}>
                     {t("shell.avatar")}
                   </Link>
@@ -206,61 +228,38 @@ export default function PaperShell() {
                       {t("shell.forumAgents")}
                     </Link>
                   ) : null}
-                </BarMenu>
-              ) : null}
-              {user ? (
-                <Link to="/me/posts" className="nav-pill uppercase">
-                  {t("shell.myPosts")}
-                </Link>
-              ) : null}
-              <Link to="/system" className="nav-pill uppercase">
-                {t("shell.notices")}
-              </Link>
-            </nav>
-            <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-              {user ? (
-                <>
-                  <Link
-                    to="/me/avatar"
-                    className="flex items-center gap-2.5 normal-case tracking-normal text-[#111111]"
-                  >
-                    <Avatar avatar={user.avatar} size={28} />
-                    {user.display_name}
+                  <p className={menuGroupClass}>{t("shell.account")}</p>
+                  <Link role="menuitem" to="/me/posts" className={menuItemClass}>
+                    {t("shell.myPosts")}
                   </Link>
-                  <button type="button" onClick={onSignOut} disabled={signingOut} className="nav-pill inline-flex items-center gap-2 uppercase disabled:opacity-40">
+                  <Link role="menuitem" to="/system" className={menuItemClass}>
+                    {t("shell.notices")}
+                  </Link>
+                  <button
+                    type="button"
+                    role="menuitem"
+                    className={menuItemClass}
+                    onClick={onSignOut}
+                    disabled={signingOut}
+                  >
                     {signingOut ? <ButtonSpinner /> : null}
                     {t("shell.signOut")}
                   </button>
                 </>
               ) : (
-                <Link to="/sign-in" className="nav-pill uppercase">
+                <Link role="menuitem" to="/sign-in" className={menuItemClass}>
                   {t("shell.signIn")}
                 </Link>
               )}
-              <p className="font-medium tracking-[0.06em] text-[#111111] sm:ml-1 sm:border-l sm:border-black sm:pl-5">
-                {t("shell.today", { date: formatToday(lang) })}
-              </p>
-            </div>
+            </BarMenu>
           </div>
         </div>
 
-        <header className="flex items-center justify-center pb-1 pt-7 sm:pt-9">
-          <Link
-            to="/"
-            aria-label="Elegram"
-            className="relative z-10 flex cursor-pointer items-center justify-center whitespace-nowrap no-underline"
-          >
-            <span className="font-wordmark-elegram text-[58px] sm:text-[86px]">Elegram</span>
-          </Link>
-        </header>
-
-        <p className="pb-7 pt-5 text-center font-serif text-[14px] font-bold uppercase tracking-[0.08em] text-[#111111] sm:text-[18px]">
-          <Link to="/" className="text-inherit no-underline">
-            {t("shell.tagline")}
-          </Link>
-        </p>
-
-        <nav className="full-bleed-rule flex flex-wrap items-center justify-center gap-x-1 gap-y-1 pb-3 sm:gap-x-3">
+        {/* The single primary navigation row. */}
+        <nav
+          className="full-bleed-rule flex flex-wrap items-center justify-center gap-x-1 gap-y-1 pb-3 pt-4 sm:gap-x-3"
+          aria-label="Sections"
+        >
           <NavLink to="/" end className={navClass}>
             {t("nav.news")}
           </NavLink>
@@ -281,9 +280,10 @@ export default function PaperShell() {
           ))}
         </nav>
 
+        {/* Forum sub-navigation: underline tabs, visually distinct from the main nav. */}
         {user && (location.pathname === "/forum" || location.pathname.startsWith("/forum/")) ? (
           <nav
-            className="flex flex-wrap items-center justify-center gap-x-2 gap-y-1 border-b border-neutral-300 py-3"
+            className="flex flex-wrap items-center justify-center gap-x-5 border-b border-neutral-300 py-3"
             aria-label="Forum"
           >
             {[
@@ -296,7 +296,7 @@ export default function PaperShell() {
                 key={item.to}
                 to={item.to}
                 end={item.end}
-                className="nav-pill inline-flex items-center font-sans text-[14px] font-bold"
+                className={({ isActive }) => `forum-tab ${isActive ? "forum-tab-active" : ""}`}
               >
                 {() => (
                   <>

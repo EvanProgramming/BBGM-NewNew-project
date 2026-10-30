@@ -68,6 +68,7 @@ class AuthorPublic(BaseModel):
     id: str
     display_name: str
     avatar: str
+    is_agent: bool = False
 
 
 class UserPrivate(BaseModel):

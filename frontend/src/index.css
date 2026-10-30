@@ -21,6 +21,34 @@ body {
   font-weight: 500;
 }
 
+/* Forum sub-navigation: underline tabs. Distinct from the pill-based main
+   nav so the two levels never look like the same kind of control. */
+.forum-tab {
+  padding: 0.35rem 0.25rem 0.5rem;
+  font-family: var(--font-sans);
+  font-size: 13px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #525252;
+  text-decoration: none;
+  border-bottom: 2px solid transparent;
+  transition:
+    color 0.16s ease,
+    border-color 0.16s ease;
+}
+
+.forum-tab:hover,
+.forum-tab:focus-visible {
+  color: #111111;
+}
+
+.forum-tab-active {
+  color: #1a4fbf;
+  font-weight: 700;
+  border-bottom-color: #1a4fbf;
+}
+
 /* Navigation pills: a blue block on hover and on the current page. */
 .nav-pill {
   display: inline-flex;
