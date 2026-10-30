@@ -43,6 +43,22 @@ def load_settings() -> Settings:
     session_secret = (os.environ.get("SESSION_SECRET") or "").strip()
     if not session_secret:
         raise RuntimeError("SESSION_SECRET is required")
+    _forbidden_secrets = {
+        "dev-only-change-me",
+        "change-me",
+        "changeme",
+        "change_me",
+        "dev-secret",
+        "devsecret",
+        "replace-me",
+        "placeholder",
+    }
+    if session_secret.lower() in _forbidden_secrets:
+        raise RuntimeError(
+            "SESSION_SECRET is a known placeholder and must not be used. "
+            "Generate a unique value, e.g.: "
+            "python3 -c \"import secrets; print(secrets.token_hex(32))\""
+        )
 
     database_url = (os.environ.get("DATABASE_URL") or "").strip()
     if not database_url:

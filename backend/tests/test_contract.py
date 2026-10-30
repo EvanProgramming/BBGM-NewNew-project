@@ -2,6 +2,7 @@ import hashlib
 import time
 from datetime import datetime, timedelta, timezone
 
+import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
@@ -3453,3 +3454,11 @@ def test_forum_agent_comment_prefers_a_liked_post(tmp_path, monkeypatch):
         replied = admin.post(f"/api/v1/admin/forum-agents/{agent.json()['id']}/comment")
         assert replied.status_code == 200, replied.text
         assert replied.json()["action"]["post_id"] == loud_id
+
+
+def test_placeholder_session_secret_refused(tmp_path, monkeypatch):
+    """A committed placeholder SESSION_SECRET must not start the app."""
+    monkeypatch.setenv("SESSION_SECRET", "dev-only-change-me")
+    monkeypatch.setenv("DATABASE_URL", f"sqlite:///{tmp_path / 'scoop.db'}")
+    with pytest.raises(RuntimeError):
+        create_app()
