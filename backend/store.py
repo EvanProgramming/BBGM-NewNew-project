@@ -44,27 +44,45 @@ def make_excerpt(body: str) -> str:
 # ---------------------------------------------------------------------------
 
 
-def create_session(db: Session, user_id: str) -> str:
+def create_session(db: Session, user_id: str, ttl_hours: int = 720) -> str:
+    now = utc_now()
+    db.execute(
+        delete(SessionRecord).where(
+            SessionRecord.user_id == user_id,
+            SessionRecord.expires_at.is_not(None),
+            SessionRecord.expires_at <= now,
+        )
+    )
     token = new_session_token()
     record = SessionRecord(
         id=str(uuid4()),
         token_hash=hash_token(token),
         user_id=user_id,
         revoked_at=None,
-        created_at=utc_now(),
+        expires_at=now + timedelta(hours=ttl_hours),
+        created_at=now,
     )
     db.add(record)
     db.flush()
     return token
 
 
+def session_valid(record: SessionRecord) -> bool:
+    """True when the session is neither revoked nor past its expiry."""
+    if record.revoked_at is not None:
+        return False
+    return record.expires_at is None or _as_utc(record.expires_at) > _as_utc(utc_now())
+
+
 def get_active_session(db: Session, token: str) -> SessionRecord | None:
-    return db.scalar(
+    record = db.scalar(
         select(SessionRecord).where(
             SessionRecord.token_hash == hash_token(token),
-            SessionRecord.revoked_at.is_(None),
         )
     )
+    if record is None or not session_valid(record):
+        return None
+    return record
 
 
 def get_session_by_token(db: Session, token: str) -> SessionRecord | None:

@@ -1,7 +1,7 @@
 from fastapi import WebSocket
 
 from security import COOKIE_NAME, unsign_cookie_value
-from store import get_session_by_token
+from store import get_session_by_token, session_valid
 
 
 def websocket_user(websocket: WebSocket):
@@ -15,7 +15,7 @@ def websocket_user(websocket: WebSocket):
         if not token:
             return None
         record = get_session_by_token(db, token)
-        if record is None or record.revoked_at is not None:
+        if record is None or not session_valid(record):
             return None
         user = record.user
         _ = user.display_name
