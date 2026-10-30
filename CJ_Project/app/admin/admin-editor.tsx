@@ -29,9 +29,7 @@ function mondayIso(date = new Date()) {
 export function AdminEditor() {
   const [weekStart, setWeekStart] = useState(mondayIso);
   const [data, setData] = useState<CJPayload | null>(null);
-  const [adminCode, setAdminCode] = useState(() =>
-    typeof window !== "undefined" && ["127.0.0.1", "localhost"].includes(window.location.hostname) ? "CJ-DEMO" : "",
-  );
+  const [adminCode, setAdminCode] = useState("");
   const [dayIndex, setDayIndex] = useState(0);
   const [subjectId, setSubjectId] = useState("");
   const [ic, setIc] = useState("");
@@ -79,10 +77,10 @@ export function AdminEditor() {
     setAnnouncement(currentEntry?.announcement ?? "");
   }, [currentEntry]);
 
-  const authorizedPut = useCallback(async (url: string, body: object) => {
+  const authorizedRequest = useCallback(async (method: "PUT" | "POST", url: string, body: object) => {
     if (!adminCode.trim()) throw new Error("请输入管理员口令");
     const response = await fetch(url, {
-      method: "PUT",
+      method,
       headers: { "content-type": "application/json", "x-cj-admin-code": adminCode.trim() },
       body: JSON.stringify(body),
     });
@@ -92,8 +90,20 @@ export function AdminEditor() {
     return result;
   }, [adminCode, loadWeek]);
 
-  const persistCJ = useCallback((entry: CJInput) => authorizedPut("/api/cj", entry), [authorizedPut]);
-  const persistExam = useCallback((exam: ExamInput) => authorizedPut("/api/exams", exam), [authorizedPut]);
+  const persistCJ = useCallback((entry: CJInput) => authorizedRequest("PUT", "/api/cj", entry), [authorizedRequest]);
+  const persistExam = useCallback((exam: ExamInput) => authorizedRequest("PUT", "/api/exams", exam), [authorizedRequest]);
+
+  const seedSample = useCallback(async () => {
+    setSaving(true);
+    try {
+      await authorizedRequest("POST", "/api/cj/seed", { weekStart });
+      toast.success("示例数据已初始化");
+    } catch (seedError) {
+      toast.error(seedError instanceof Error ? seedError.message : "初始化失败");
+    } finally {
+      setSaving(false);
+    }
+  }, [authorizedRequest, weekStart]);
 
   async function handleCJSave() {
     if (!subjectId) return toast.error("请选择 Subject");
@@ -179,7 +189,7 @@ export function AdminEditor() {
         </div>
 
         <div className="mb-5 grid gap-4 rounded-3xl border border-[var(--border)] bg-white p-5 shadow-sm sm:grid-cols-2">
-          <Field label="管理员口令"><div className="relative"><KeyRound className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-[var(--muted-foreground)]" /><Input aria-label="管理员口令" type="password" value={adminCode} onChange={(event) => setAdminCode(event.target.value)} className="h-11 rounded-xl pl-10" /></div></Field>
+          <Field label="管理员口令"><div className="relative"><KeyRound className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-[var(--muted-foreground)]" /><Input aria-label="管理员口令" type="password" value={adminCode} onChange={(event) => setAdminCode(event.target.value)} placeholder="与 CJ_ADMIN_CODE 一致的共享口令" className="h-11 rounded-xl pl-10" /></div></Field>
           <Field label="周一日期"><Input aria-label="周一日期" type="date" value={weekStart} onChange={(event) => setWeekStart(event.target.value)} className="h-11 rounded-xl" /></Field>
         </div>
 
@@ -203,7 +213,7 @@ export function AdminEditor() {
                 </div>
                 <SaveButton saving={saving} disabled={loading || !subjectId} label="保存 CJ" />
               </form>
-              <AdminList title="本周 CJ" count={data?.entries.length ?? 0} loading={loading} error={error}>{(data?.entries ?? []).map((entry) => <button key={entry.id} type="button" onClick={() => editEntry(entry)} className="admin-list-item"><span><strong>{subjectMap.get(entry.subjectId)?.shortName}</strong><small>{entry.ic || "暂无 IC"}</small></span><b>{days[entry.dayIndex]}</b></button>)}</AdminList>
+              <AdminList title="本周 CJ" count={data?.entries.length ?? 0} loading={loading} error={error} headerAction={!loading && !error && (data?.entries.length ?? 0) === 0 ? (<button type="button" onClick={() => void seedSample()} disabled={saving} className="rounded-full border border-[var(--blue-600)] px-3 py-1 text-xs font-bold text-[var(--blue-600)] hover:bg-[var(--blue-50)] disabled:opacity-40">初始化示例数据</button>) : null}>{(data?.entries ?? []).map((entry) => <button key={entry.id} type="button" onClick={() => editEntry(entry)} className="admin-list-item"><span><strong>{subjectMap.get(entry.subjectId)?.shortName}</strong><small>{entry.ic || "暂无 IC"}</small></span><b>{days[entry.dayIndex]}</b></button>)}</AdminList>
             </div>
           </TabsContent>
 
@@ -233,4 +243,4 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 function DaySelect({ value, onChange }: { value: number; onChange: (value: number) => void }) { return <Select value={String(value)} onValueChange={(next) => onChange(Number(next))}><SelectTrigger aria-label="日期" className="h-11 w-full rounded-xl"><SelectValue /></SelectTrigger><SelectContent>{days.map((day, index) => <SelectItem key={day} value={String(index)}>{day}</SelectItem>)}</SelectContent></Select>; }
 function SaveButton({ saving, disabled, label }: { saving: boolean; disabled: boolean; label: string }) { return <Button type="submit" disabled={saving || disabled} className="mt-6 h-12 w-full rounded-full bg-[var(--blue-600)] text-white hover:bg-[var(--blue-700)]"><Save /> {saving ? "正在保存…" : label}</Button>; }
 function AdminCardHeader({ title, published }: { title: string; published: boolean }) { return <div className="mb-6 flex items-center justify-between gap-4 border-b border-[var(--border)] pb-5"><div><p className="text-xs font-black tracking-[.14em] text-[var(--blue-600)]">ENTRY</p><h2 className="mt-1 text-2xl font-bold tracking-tight">{title}</h2></div>{published && <span className="flex items-center gap-1.5 rounded-full bg-emerald-50 px-3 py-1.5 text-xs font-bold text-emerald-700"><CheckCircle2 className="size-3.5" /> 已发布</span>}</div>; }
-function AdminList({ title, count, loading, error, children }: { title: string; count: number; loading: boolean; error: string; children: React.ReactNode }) { return <aside className="admin-list"><div className="admin-list-header"><div><p>THIS WEEK</p><h2>{title}</h2></div><span>{count}</span></div>{error ? <p className="p-4 text-sm text-red-600">{error}</p> : loading ? <p className="p-8 text-center text-sm text-[var(--muted-foreground)]">正在读取…</p> : <div className="admin-list-scroll">{children}</div>}</aside>; }
+function AdminList({ title, count, loading, error, headerAction = null, children }: { title: string; count: number; loading: boolean; error: string; headerAction?: React.ReactNode; children: React.ReactNode }) { return <aside className="admin-list"><div className="admin-list-header"><div><p>THIS WEEK</p><h2>{title}</h2></div><div className="flex items-center gap-3">{headerAction}<span>{count}</span></div></div>{error ? <p className="p-4 text-sm text-red-600">{error}</p> : loading ? <p className="p-8 text-center text-sm text-[var(--muted-foreground)]">正在读取…</p> : <div className="admin-list-scroll">{children}</div>}</aside>; }

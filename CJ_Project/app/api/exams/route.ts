@@ -1,13 +1,15 @@
 import { NextResponse } from "next/server";
 import { getD1 } from "@/db";
-import { isAdminRequest } from "@/lib/admin-auth";
+import { getChatGPTUser } from "@/app/chatgpt-auth";
+import { adminGate } from "@/lib/admin-auth";
 
 export const dynamic = "force-dynamic";
 
 export async function PUT(request: Request) {
   try {
-    if (!isAdminRequest(request)) {
-      return NextResponse.json({ error: "管理员口令不正确" }, { status: 401 });
+    const gate = adminGate(request, await getChatGPTUser());
+    if (!gate.ok) {
+      return NextResponse.json({ error: gate.message }, { status: gate.status });
     }
     const input = (await request.json()) as Record<string, unknown>;
     const id = String(input.id ?? "") || crypto.randomUUID();

@@ -5,6 +5,7 @@ from fastapi import APIRouter, Depends, File, Form, Request, UploadFile
 from sqlalchemy import delete, func, select
 from sqlalchemy.orm import Session
 
+from avatars import sniff_image
 from cj_sync import run_sync, sync_status_payload
 from cj_vision import recognize_homework
 from deps import get_cj_editor, get_cj_viewer, get_core_db, get_super_admin
@@ -459,6 +460,9 @@ async def recognize_cj_photo(
     raw = await image.read()
     if not raw or len(raw) > _PHOTO_LIMIT:
         raise validation_error([{"field": "image", "message": "Photo must be under 4MB."}])
+    ext = {"image/jpeg": "jpg", "image/png": "png", "image/webp": "webp"}[content_type]
+    if not sniff_image(raw, ext):
+        raise validation_error([{"field": "image", "message": "Photo must be a real jpeg, png, or webp image."}])
 
     if _journal_configured(request):
         _ensure_subjects(db)
