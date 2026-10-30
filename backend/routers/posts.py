@@ -18,6 +18,7 @@ from avatars import (
     normalize_avatar,
     parse_images,
     save_post_image,
+    sniff_image,
 )
 from models import Comment, NewsBlock, NewsCategory, Post, PostLike, User, to_iso, utc_now
 from schemas import (
@@ -42,6 +43,7 @@ from schemas import (
 from store import (
     add_like,
     add_system_notice,
+    agent_user_ids,
     count_likes,
     create_comment,
     create_post_with_audit,
@@ -65,13 +67,14 @@ from validate import (
 router = APIRouter()
 
 
-def _author_public(user: User | None, author_id: str = "") -> AuthorPublic:
+def _author_public(user: User | None, author_id: str = "", is_agent: bool = False) -> AuthorPublic:
     if user is None:
-        return AuthorPublic(id=author_id, display_name="Unknown", avatar="preset:oak")
+        return AuthorPublic(id=author_id, display_name="Unknown", avatar="preset:oak", is_agent=is_agent)
     return AuthorPublic(
         id=user.id,
         display_name=user.display_name,
         avatar=normalize_avatar(getattr(user, "avatar", None)),
+        is_agent=is_agent,
     )
 
 
@@ -79,6 +82,7 @@ def _summary(
     post: Post,
     *,
     author: User | None = None,
+    author_is_agent: bool = False,
     reply_count: int = 0,
     reply_preview: list[ReplyPreview] | None = None,
     include_images: bool = False,
@@ -95,7 +99,7 @@ def _summary(
         status=post.status,
         created_at=to_iso(post.created_at),
         updated_at=to_iso(post.updated_at),
-        author=_author_public(author, post.author_id),
+        author=_author_public(author, post.author_id, is_agent=author_is_agent),
         reply_count=reply_count,
         reply_preview=reply_preview or [],
         images=images,
@@ -130,6 +134,7 @@ def _detail(
     post: Post,
     *,
     author: User | None = None,
+    author_is_agent: bool = False,
     blocks: list[PublishedBlock] | None = None,
     like_count: int = 0,
     liked: bool = False,
@@ -140,6 +145,7 @@ def _detail(
         **_summary(
             post,
             author=author,
+            author_is_agent=author_is_agent,
             include_images=True,
             news_categories=news_categories,
             like_count=like_count,
@@ -266,6 +272,7 @@ def _list_posts(
     like_counts = like_counts_for_posts(db, forum_ids)
     liked_ids = liked_post_ids(db, user_id=viewer.id, post_ids=forum_ids) if viewer else set()
     authors = users_by_ids(core, [post.author_id for post in rows])
+    agent_ids = agent_user_ids(core, [post.author_id for post in rows]) if rows else set()
     try:
         topic_rows = db.scalars(select(NewsCategory).where(NewsCategory.post_id.in_([p.id for p in rows]))).all() if rows else []
     except SQLAlchemyError as exc:
@@ -278,6 +285,7 @@ def _list_posts(
             _summary(
                 post,
                 author=authors.get(post.author_id),
+                author_is_agent=post.author_id in agent_ids,
                 reply_count=previews.get(post.id, (0, []))[0],
                 reply_preview=previews.get(post.id, (0, []))[1],
                 include_images=include_images,
@@ -306,6 +314,7 @@ def _forum_previews(db: Session, core: Session, posts: list[Post]) -> dict[str, 
     except SQLAlchemyError as exc:
         raise StorageError() from exc
     authors = users_by_ids(core, [floor.author_id for floor in floors])
+    agent_ids = agent_user_ids(core, [floor.author_id for floor in floors])
     grouped: dict[str, list[Comment]] = {}
     for floor in floors:
         grouped.setdefault(floor.post_id, []).append(floor)
@@ -318,7 +327,9 @@ def _forum_previews(db: Session, core: Session, posts: list[Post]) -> dict[str, 
                     id=item.id,
                     body=item.body,
                     created_at=to_iso(item.created_at),
-                    author=_author_public(authors.get(item.author_id), item.author_id),
+                    author=_author_public(
+                        authors.get(item.author_id), item.author_id, is_agent=item.author_id in agent_ids
+                    ),
                 )
                 for item in items[-2:]
             ],
@@ -326,34 +337,42 @@ def _forum_previews(db: Session, core: Session, posts: list[Post]) -> dict[str, 
     return result
 
 
-def _floor_payload(comment: Comment, floor: int, replies: list[Comment], authors: dict[str, User]) -> dict:
+def _floor_payload(comment: Comment, floor: int, replies: list[Comment], authors: dict[str, User], agent_ids: set[str] | None = None) -> dict:
+    agent_ids = agent_ids or set()
     return CommentFloor(
         id=comment.id,
         body=comment.body,
         parent_id=None,
         floor=floor,
         created_at=to_iso(comment.created_at),
-        author=_author_public(authors.get(comment.author_id), comment.author_id),
+        author=_author_public(
+            authors.get(comment.author_id), comment.author_id, is_agent=comment.author_id in agent_ids
+        ),
         replies=[
             CommentReply(
                 id=reply.id,
                 body=reply.body,
                 parent_id=reply.parent_id or comment.id,
                 created_at=to_iso(reply.created_at),
-                author=_author_public(authors.get(reply.author_id), reply.author_id),
+                author=_author_public(
+                    authors.get(reply.author_id), reply.author_id, is_agent=reply.author_id in agent_ids
+                ),
             )
             for reply in replies
         ],
     ).model_dump()
 
 
-def _reply_payload(comment: Comment, authors: dict[str, User]) -> dict:
+def _reply_payload(comment: Comment, authors: dict[str, User], agent_ids: set[str] | None = None) -> dict:
+    agent_ids = agent_ids or set()
     return CommentReply(
         id=comment.id,
         body=comment.body,
         parent_id=comment.parent_id or "",
         created_at=to_iso(comment.created_at),
-        author=_author_public(authors.get(comment.author_id), comment.author_id),
+        author=_author_public(
+            authors.get(comment.author_id), comment.author_id, is_agent=comment.author_id in agent_ids
+        ),
     ).model_dump()
 
 
@@ -434,13 +453,16 @@ def list_comments(
         core,
         [item.author_id for item in floors] + [item.author_id for item in replies],
     )
+    agent_ids = agent_user_ids(
+        core, [item.author_id for item in floors] + [item.author_id for item in replies]
+    )
     grouped: dict[str, list[Comment]] = {item.id: [] for item in floors}
     for reply in replies:
         grouped.setdefault(reply.parent_id or "", []).append(reply)
 
     start = (parsed_page - 1) * parsed_size
     items = [
-        _floor_payload(floor, start + index + 1, grouped.get(floor.id, []), authors)
+        _floor_payload(floor, start + index + 1, grouped.get(floor.id, []), authors, agent_ids)
         for index, floor in enumerate(floors)
     ]
     return CommentList(items=items, page=parsed_page, page_size=parsed_size, total=total).model_dump()
@@ -482,7 +504,7 @@ def create_post_comment(
 
     authors = {user.id: user}
     if comment.parent_id:
-        return JSONResponse(status_code=201, content=_reply_payload(comment, authors))
+        return JSONResponse(status_code=201, content=_reply_payload(comment, authors, set()))
 
     try:
         floor_total = db.scalar(
@@ -493,7 +515,7 @@ def create_post_comment(
         ) or 1
     except SQLAlchemyError as exc:
         raise StorageError() from exc
-    return JSONResponse(status_code=201, content=_floor_payload(comment, floor_total, [], authors))
+    return JSONResponse(status_code=201, content=_floor_payload(comment, floor_total, [], authors, set()))
 
 
 @router.post("/posts/{post_id}/likes")
@@ -568,6 +590,10 @@ async def upload_post_image(
     data = await file.read()
     if not data or len(data) > MAX_POST_IMAGE_BYTES:
         raise validation_error([{"field": "file", "message": "Image must be 1–2000000 bytes."}])
+    if not sniff_image(data, ext):
+        raise validation_error(
+            [{"field": "file", "message": "Image must be a real jpeg, png, or webp file."}]
+        )
     try:
         images.append(save_post_image(post.id, ext, data))
         post.images = dump_images(images)
@@ -601,6 +627,7 @@ def _public_detail(db: Session, core: Session, post: Post, viewer: User | None):
         else False
     )
     author = users_by_ids(core, [post.author_id]).get(post.author_id)
+    author_is_agent = post.author_id in agent_user_ids(core, [post.author_id])
     topic_rows = db.scalars(select(NewsCategory).where(NewsCategory.post_id == post.id)).all()
     body = post.body
     if topic_rows:
@@ -611,6 +638,7 @@ def _public_detail(db: Session, core: Session, post: Post, viewer: User | None):
     return _detail(
         post,
         author=author,
+        author_is_agent=author_is_agent,
         blocks=blocks,
         like_count=like_count,
         liked=liked,
@@ -644,6 +672,8 @@ async def _read_upload_images(items: list) -> tuple[list[tuple[str, bytes]], lis
         if ext is None:
             return [], [{"field": "images", "message": "Image must be a jpeg, png, or webp file."}]
         data = await item.read()
+        if not sniff_image(data, ext):
+            return [], [{"field": "images", "message": "Image must be a real jpeg, png, or webp file."}]
         uploads.append((ext, data))
     return uploads, []
 

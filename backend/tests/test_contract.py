@@ -1,7 +1,9 @@
 import hashlib
 import time
+from uuid import uuid4
 from datetime import datetime, timedelta, timezone
 
+import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
@@ -10,12 +12,16 @@ import avatars
 from errors import StorageError
 from mail import peek_console_code
 from main import create_app
-from models import AuditEvent, BellRound, BellTrack, Post, User, utc_now
+from models import AuditEvent, BellRound, BellTrack, ForumAgent, Post, SessionRecord, User, utc_now
 from security import hash_password
 from validate import normalize_email
 
 
 def _make_app(tmp_path, monkeypatch, name="scoop.db", admin_email=""):
+    from ratelimit import email_code_limiter
+
+    email_code_limiter.reset()
+    monkeypatch.setenv("EMAIL_CODE_PER_KEY_PER_HOUR", "1000")
     monkeypatch.setenv("SESSION_SECRET", "pytest-session-secret")
     monkeypatch.setenv("DATABASE_URL", f"sqlite:///{tmp_path / name}")
     monkeypatch.setenv("CORE_DATABASE_URL", f"sqlite:///{tmp_path / ('core_' + name)}")
@@ -280,8 +286,8 @@ def test_news_draft_can_append_and_remove_multiple_images(tmp_path, monkeypatch)
         added = client.post(
             f"/api/v1/news/submissions/{article_id}/images",
             files=[
-                ("images", ("one.jpg", b"image one", "image/jpeg")),
-                ("images", ("two.png", b"image two", "image/png")),
+                ("images", ("one.jpg", b"\xff\xd8\xff" + b"image one", "image/jpeg")),
+                ("images", ("two.png", b"\x89PNG\r\n\x1a\n" + b"image two", "image/png")),
             ],
         )
         assert added.status_code == 200, added.text
@@ -290,9 +296,9 @@ def test_news_draft_can_append_and_remove_multiple_images(tmp_path, monkeypatch)
         appended = client.post(
             f"/api/v1/news/submissions/{article_id}/images",
             files=[
-                ("images", ("three.jpg", b"image three", "image/jpeg")),
-                ("images", ("four.jpg", b"image four", "image/jpeg")),
-                ("images", ("five.jpg", b"image five", "image/jpeg")),
+                ("images", ("three.jpg", b"\xff\xd8\xff" + b"image three", "image/jpeg")),
+                ("images", ("four.jpg", b"\xff\xd8\xff" + b"image four", "image/jpeg")),
+                ("images", ("five.jpg", b"\xff\xd8\xff" + b"image five", "image/jpeg")),
             ],
         )
         assert appended.status_code == 200, appended.text
@@ -774,7 +780,7 @@ def test_avatar_preset_upload_and_reply_preview_cap(tmp_path, monkeypatch):
 
         upload = client.post(
             "/api/v1/me/avatar",
-            files={"file": ("me.png", b"\x89PNG\r\n" + b"x" * 20, "image/png")},
+            files={"file": ("me.png", b"\x89PNG\r\n\x1a\n" + b"x" * 20, "image/png")},
         )
         assert upload.status_code == 200
         assert upload.json()["avatar"].startswith("/uploads/avatars/")
@@ -840,7 +846,7 @@ def test_community_post_images_and_newspaper_rejected(tmp_path, monkeypatch):
 
         first = client.post(
             f"/api/v1/posts/{post_id}/images",
-            files={"file": ("leak.png", b"\x89PNG\r\n" + b"x" * 20, "image/png")},
+            files={"file": ("leak.png", b"\x89PNG\r\n\x1a\n" + b"x" * 20, "image/png")},
         )
         assert first.status_code == 200, first.text
         assert len(first.json()["images"]) == 1
@@ -849,7 +855,7 @@ def test_community_post_images_and_newspaper_rejected(tmp_path, monkeypatch):
         for index in range(3):
             extra = client.post(
                 f"/api/v1/posts/{post_id}/images",
-                files={"file": (f"extra-{index}.png", b"\x89PNG\r\n" + b"y" * 20, "image/png")},
+                files={"file": (f"extra-{index}.png", b"\x89PNG\r\n\x1a\n" + b"y" * 20, "image/png")},
             )
             assert extra.status_code == 200
         overflow = client.post(
@@ -868,7 +874,7 @@ def test_community_post_images_and_newspaper_rejected(tmp_path, monkeypatch):
         assert other.status_code == 201
         stolen = guest.post(
             f"/api/v1/posts/{post_id}/images",
-            files={"file": ("nope.png", b"\x89PNG\r\n" + b"x" * 20, "image/png")},
+            files={"file": ("nope.png", b"\x89PNG\r\n\x1a\n" + b"x" * 20, "image/png")},
         )
         assert stolen.status_code == 403
 
@@ -882,7 +888,7 @@ def test_community_post_images_and_newspaper_rejected(tmp_path, monkeypatch):
         assert client.get(f"/api/v1/posts/{news_id}").json()["images"] == []
         blocked = client.post(
             f"/api/v1/posts/{news_id}/images",
-            files={"file": ("cover.png", b"\x89PNG\r\n" + b"x" * 20, "image/png")},
+            files={"file": ("cover.png", b"\x89PNG\r\n\x1a\n" + b"x" * 20, "image/png")},
         )
         assert blocked.status_code == 422
         listed = client.get("/api/v1/posts")
@@ -900,7 +906,7 @@ def test_community_post_images_and_newspaper_rejected(tmp_path, monkeypatch):
         paper_images = client.post(
             "/api/v1/posts",
             data={"title": "Paper with photo", "body": "Should fail.", "category": "news"},
-            files=[("images", ("cover.png", b"\x89PNG\r\n" + b"x" * 20, "image/png"))],
+            files=[("images", ("cover.png", b"\x89PNG\r\n\x1a\n" + b"x" * 20, "image/png"))],
         )
         assert paper_images.status_code == 422
 
@@ -911,7 +917,7 @@ def test_community_post_images_and_newspaper_rejected(tmp_path, monkeypatch):
                 "body": "The leak from the third machine.",
                 "category": "forum",
             },
-            files=[("images", ("leak.png", b"\x89PNG\r\n" + b"x" * 20, "image/png"))],
+            files=[("images", ("leak.png", b"\x89PNG\r\n\x1a\n" + b"x" * 20, "image/png"))],
         )
         assert created.status_code == 201, created.text
         assert created.json()["category"] == "forum"
@@ -1231,11 +1237,15 @@ def test_school_email_codes_register_and_password_reset(tmp_path, monkeypatch):
         )
         assert created.status_code == 201, created.text
 
+        stale_code = peek_console_code("jordan.hale@basischina.com", "register")
         taken = client.post(
             "/api/v1/auth/email-codes",
             json={"email": "jordan.hale@basischina.com", "purpose": "register"},
         )
-        assert taken.status_code == 409
+        # Registration-code requests must not reveal whether the account exists:
+        # same response as a fresh mailbox, and no new email is queued.
+        assert taken.status_code == 204, taken.text
+        assert peek_console_code("jordan.hale@basischina.com", "register") == stale_code
 
         reset_send = client.post(
             "/api/v1/auth/email-codes",
@@ -3453,3 +3463,182 @@ def test_forum_agent_comment_prefers_a_liked_post(tmp_path, monkeypatch):
         replied = admin.post(f"/api/v1/admin/forum-agents/{agent.json()['id']}/comment")
         assert replied.status_code == 200, replied.text
         assert replied.json()["action"]["post_id"] == loud_id
+
+
+def test_placeholder_session_secret_refused(tmp_path, monkeypatch):
+    """A committed placeholder SESSION_SECRET must not start the app."""
+    monkeypatch.setenv("SESSION_SECRET", "dev-only-change-me")
+    monkeypatch.setenv("DATABASE_URL", f"sqlite:///{tmp_path / 'scoop.db'}")
+    with pytest.raises(RuntimeError):
+        create_app()
+
+
+def test_fresh_sessions_get_an_expiry(tmp_path, monkeypatch):
+    """New sessions must carry an expires_at in the future."""
+    app = _make_app(tmp_path, monkeypatch)
+    with TestClient(app) as client:
+        created = _register(
+            client, "fresh.tester@basischina.com", "fresh-pass-9", "Fresh Tester"
+        )
+        assert created.status_code == 201, created.text
+        with Session(app.state.core_engine) as db:
+            row = db.scalar(select(SessionRecord))
+            assert row is not None
+            assert row.expires_at is not None
+            expires = row.expires_at
+            if expires.tzinfo is None:
+                expires = expires.replace(tzinfo=timezone.utc)
+            assert expires > utc_now()
+
+
+def test_expired_session_is_rejected(tmp_path, monkeypatch):
+    """Sessions past expires_at must be treated as unauthenticated."""
+    app = _make_app(tmp_path, monkeypatch)
+    with TestClient(app) as client:
+        created = _register(
+            client, "expiry.tester@basischina.com", "expiry-pass-9", "Expiry Tester"
+        )
+        assert created.status_code == 201, created.text
+        with Session(app.state.core_engine) as db:
+            row = db.scalar(select(SessionRecord))
+            assert row is not None
+            row.expires_at = utc_now() - timedelta(seconds=1)
+            db.commit()
+        me = client.get("/api/v1/me")
+        assert me.status_code == 401, me.text
+
+
+def test_agent_authored_posts_are_labeled(tmp_path, monkeypatch):
+    """Posts written by forum-agent accounts must carry author.is_agent."""
+    app = _make_app(tmp_path, monkeypatch)
+    with TestClient(app) as client:
+        created = _register(
+            client, "label.tester@basischina.com", "label-pass-9", "Label Tester"
+        )
+        assert created.status_code == 201, created.text
+        user_id = created.json()["id"]
+        with Session(app.state.core_engine) as db:
+            db.add(
+                ForumAgent(
+                    id=str(uuid4()),
+                    user_id=user_id,
+                    enabled=False,
+                    personality="",
+                    hobbies="",
+                    tone="",
+                    posts_per_day=0,
+                    comments_per_day=0,
+                    likes_per_day=0,
+                    min_interval_minutes=30,
+                    active_start="08:00",
+                    active_end="22:00",
+                    last_acted_at=None,
+                    count_day="2020-01-01",
+                    posts_today=0,
+                    comments_today=0,
+                    likes_today=0,
+                    created_at=utc_now(),
+                )
+            )
+            db.commit()
+        posted = client.post(
+            "/api/v1/posts",
+            json={"title": "Label me", "body": "Agent-authored body.", "category": "forum"},
+        )
+        assert posted.status_code == 201, posted.text
+        listing = client.get("/api/v1/posts?category=forum&feed=all")
+        assert listing.status_code == 200
+        row = next(item for item in listing.json()["items"] if item["id"] == posted.json()["id"])
+        assert row["author"]["is_agent"] is True
+
+
+def test_forum_agent_daily_cap_reads_env(monkeypatch):
+    """The global daily action budget comes from FORUM_AGENT_DAILY_ACTIONS."""
+    from forum_agents import daily_action_cap
+
+    monkeypatch.setenv("FORUM_AGENT_DAILY_ACTIONS", "7")
+    assert daily_action_cap() == 7
+    monkeypatch.setenv("FORUM_AGENT_DAILY_ACTIONS", "garbage")
+    assert daily_action_cap() == 200
+    monkeypatch.delenv("FORUM_AGENT_DAILY_ACTIONS")
+    assert daily_action_cap() == 200
+
+
+def test_forum_agent_daily_cap_blocks_scheduled_tick(tmp_path, monkeypatch):
+    """A zero budget must stop the scheduled tick before any agent acts."""
+    monkeypatch.setenv("SESSION_SECRET", "pytest-session-secret")
+    monkeypatch.setenv("DATABASE_URL", f"sqlite:///{tmp_path / 'scoop.db'}")
+    monkeypatch.setenv("CORE_DATABASE_URL", f"sqlite:///{tmp_path / 'core_scoop.db'}")
+    monkeypatch.setenv("FRONTEND_ORIGIN", "http://localhost:5173")
+    monkeypatch.setenv("ADMIN_EMAIL", "cap.admin@basischina.com")
+    monkeypatch.setenv("MAIL_BACKEND", "console")
+    monkeypatch.setenv("DEEPSEEK_API_KEY", "test-key")
+    monkeypatch.setenv("FORUM_AGENT_DAILY_ACTIONS", "0")
+    app = create_app()
+    from forum_agents import actions_today, tick_agents
+
+    with TestClient(app) as client:
+        created = _register(client, "cap.admin@basischina.com", "desk-key-99", "Cap Admin")
+        assert created.status_code == 201, created.text
+        agent = client.post(
+            "/api/v1/admin/forum-agents",
+            json={
+                "email": "cap.agent@basischina.com",
+                "password": "agent-pass-9",
+                "display_name": "Cap Agent",
+                "personality": "Quiet.",
+                "hobbies": "Chess.",
+                "tone": "Flat.",
+                "enabled": True,
+            },
+        )
+        assert agent.status_code == 201, agent.text
+        core = app.state.core_session_factory()
+        content = app.state.content_session_factory()
+        try:
+            acted = tick_agents(core, content, app.state.settings)
+        finally:
+            core.close()
+            content.close()
+        assert acted is False
+        with Session(app.state.core_engine) as db:
+            assert actions_today(db) == 0
+
+
+def test_email_code_requests_are_rate_limited(tmp_path, monkeypatch):
+    """The email-code endpoint must throttle repeated requests per key."""
+    from ratelimit import email_code_limiter
+
+    app = _make_app(tmp_path, monkeypatch)
+    # Tighten the limit after app creation; the limiter re-reads it per hit.
+    monkeypatch.setenv("EMAIL_CODE_PER_KEY_PER_HOUR", "3")
+    with TestClient(app) as client:
+        # Distinct mailboxes, same client IP: the IP key trips on the 4th call.
+        for index in range(3):
+            sent = client.post(
+                "/api/v1/auth/email-codes",
+                json={"email": f"limit{index}.tester@basischina.com", "purpose": "register"},
+            )
+            assert sent.status_code == 204, sent.text
+        blocked = client.post(
+            "/api/v1/auth/email-codes",
+            json={"email": "limit9.tester@basischina.com", "purpose": "register"},
+        )
+        assert blocked.status_code == 429
+        assert blocked.json()["error"]["code"] == "too_many_requests"
+
+
+def test_avatar_upload_rejects_non_image_bytes(tmp_path, monkeypatch):
+    """Files must match their declared image format, not just the header."""
+    app = _make_app(tmp_path, monkeypatch)
+    with TestClient(app) as client:
+        created = _register(
+            client, "upload.tester@basischina.com", "upload-pass-9", "Upload Tester"
+        )
+        assert created.status_code == 201, created.text
+        bad = client.post(
+            "/api/v1/me/avatar",
+            files={"file": ("fake.png", b"<html>not an image</html>", "image/png")},
+        )
+        assert bad.status_code == 422
+        assert any(field["field"] == "file" for field in bad.json()["error"]["fields"])
