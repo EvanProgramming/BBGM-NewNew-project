@@ -21,7 +21,7 @@ export async function postJson(path, body) {
   return await response.json();
 }
 
-export function roomSocketUrl(game, code, token) {
+export function roomSocketUrl(game, code) {
   const origin = apiOrigin();
   const httpBase = origin.endsWith("/") ? origin : `${origin}/`;
   const ws = new URL(
@@ -29,6 +29,5 @@ export function roomSocketUrl(game, code, token) {
     httpBase,
   );
   ws.protocol = ws.protocol === "https:" ? "wss:" : "ws:";
-  ws.searchParams.set("token", token);
   return ws.toString();
 }

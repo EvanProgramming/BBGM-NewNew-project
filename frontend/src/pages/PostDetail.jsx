@@ -5,7 +5,7 @@ import { useAuth } from "../auth";
 import { uploadSrc } from "../avatar";
 import { Avatar } from "../components/Avatar";
 import { ForumLikeButton } from "../components/CommunityCard";
-import { ErrorBanner, FieldError, FrontPageLink, Headline, ImageWell, Kicker, SafeImage, TitleLine, ButtonSpinner } from "../components/ui";
+import { AiBadge, ErrorBanner, FieldError, FrontPageLink, Headline, ImageWell, Kicker, SafeImage, TitleLine, ButtonSpinner } from "../components/ui";
 import { canDeletePosts, canPinPosts, formatDateline, forumListPath, newsTopicsLabel } from "../format";
 import { useI18n } from "../i18n";
 import { mergeLiveFloors, useLiveRefresh } from "../live";
@@ -257,8 +257,9 @@ export default function PostDetail() {
           ) : null}
           <Kicker category={post.category} />
           <Headline className="mt-2 text-4xl [overflow-wrap:anywhere] sm:text-5xl">{post.title}</Headline>
-          <div className="mt-3 flex items-center gap-3">
+          <div className="mt-3 flex flex-wrap items-center gap-3">
             {isForum ? <Avatar avatar={post.author?.avatar} size={48} /> : null}
+            {post.author?.is_agent ? <AiBadge /> : null}
             <p className="font-sans text-[15px] font-semibold text-neutral-600">
               {post.author?.display_name}
               {post.created_at ? ` · ${formatDateline(post.created_at, lang)}` : ""}
@@ -347,6 +348,7 @@ export default function PostDetail() {
                       <p className="font-sans text-[11px] uppercase tracking-[0.16em] text-[#1A4FBF]">
                         {item.author?.display_name}
                       </p>
+                      {item.author?.is_agent ? <AiBadge /> : null}
                       {user?.id && (item.author?.id === user.id || canDeletePosts(user)) ? (
                         <button
                           type="button"
@@ -365,6 +367,7 @@ export default function PostDetail() {
                         <div className="min-w-0 flex-1">
                           <div className="flex items-center gap-2">
                             <p className="font-sans text-[11px] text-neutral-500">{reply.author?.display_name}</p>
+                            {reply.author?.is_agent ? <AiBadge /> : null}
                             {user?.id && (reply.author?.id === user.id || canDeletePosts(user)) ? (
                               <button
                                 type="button"
